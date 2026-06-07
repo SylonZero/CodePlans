@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CodePlans — Technical Documentation</title>
+  <meta name="description" content="Open-source engineering planning tool to coordinate and track changes across your software architecture." />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0a0a;
+      --surface:   #111111;
+      --border:    #1f1f1f;
+      --accent:    #4ade80;
+      --accent-dim:#1a3d24;
+      --blue:      #60a5fa;
+      --purple:    #a78bfa;
+      --orange:    #fb923c;
+      --text:      #e5e5e5;
+      --muted:     #737373;
+      --radius:    8px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Layout ── */
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(10, 10, 10, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    nav .inner {
+      display: flex; align-items: center; justify-content: space-between;
+      height: 56px;
+    }
+    .nav-logo {
+      display: flex; align-items: center; gap: 10px;
+      font-weight: 700; font-size: 1rem; color: var(--text);
+    }
+    .nav-logo svg { color: var(--accent); }
+    .nav-links { display: flex; align-items: center; gap: 8px; }
+    .nav-links a {
+      color: var(--muted); font-size: 0.875rem; padding: 6px 10px;
+      border-radius: var(--radius); transition: color .15s, background .15s;
+    }
+    .nav-links a:hover { color: var(--text); background: var(--surface); text-decoration: none; }
+    .nav-links .btn-gh {
+      display: flex; align-items: center; gap: 6px;
+      color: var(--text); background: var(--surface);
+      border: 1px solid var(--border); padding: 6px 14px;
+      border-radius: var(--radius); font-size: 0.875rem;
+      transition: border-color .15s;
+    }
+    .nav-links .btn-gh:hover { border-color: var(--muted); text-decoration: none; }
+
+    /* ── Hero ── */
+    .hero {
+      padding: 96px 0 80px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; top: -200px; left: 50%; transform: translateX(-50%);
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(74,222,128,.07) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 0.75rem; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+      color: var(--accent); background: var(--accent-dim);
+      border: 1px solid rgba(74,222,128,.25);
+      padding: 4px 12px; border-radius: 999px; margin-bottom: 24px;
+    }
+    .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+    h1 {
+      font-size: clamp(2.5rem, 6vw, 4rem);
+      font-weight: 800; letter-spacing: -0.03em; line-height: 1.1;
+      color: #ffffff; margin-bottom: 20px;
+    }
+    h1 span { color: var(--accent); }
+    .hero-sub {
+      font-size: clamp(1rem, 2vw, 1.2rem);
+      color: var(--muted); max-width: 600px; margin: 0 auto 40px;
+    }
+    .hero-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 24px; border-radius: var(--radius);
+      font-size: 0.9375rem; font-weight: 600; transition: opacity .15s;
+      cursor: pointer; border: none;
+    }
+    .btn:hover { opacity: 0.85; text-decoration: none; }
+    .btn-primary { background: var(--accent); color: #000; }
+    .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn-outline:hover { border-color: var(--muted); }
+
+    /* ── Hierarchy diagram ── */
+    .hierarchy {
+      margin: 64px 0;
+      display: flex; justify-content: center;
+    }
+    .hierarchy-inner {
+      display: flex; align-items: center; gap: 0;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 20px 32px; flex-wrap: wrap;
+      justify-content: center; gap: 4px;
+    }
+    .h-item {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 4px; padding: 8px 20px;
+    }
+    .h-icon {
+      width: 36px; height: 36px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
+    }
+    .h-label { font-size: 0.8125rem; font-weight: 600; color: var(--text); }
+    .h-sub { font-size: 0.7rem; color: var(--muted); }
+    .h-arrow { color: var(--border); font-size: 1.5rem; padding: 0 4px; align-self: center; }
+
+    /* ── Section headings ── */
+    .section { padding: 64px 0; border-top: 1px solid var(--border); }
+    .section-label {
+      font-size: 0.75rem; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 12px;
+    }
+    h2 {
+      font-size: clamp(1.5rem, 3vw, 2rem);
+      font-weight: 700; letter-spacing: -0.02em; color: #fff; margin-bottom: 12px;
+    }
+    .section-sub { color: var(--muted); max-width: 560px; margin-bottom: 48px; }
+
+    /* ── Feature grid ── */
+    .feature-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+    .feature-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 24px;
+      transition: border-color .15s;
+    }
+    .feature-card:hover { border-color: #333; }
+    .feature-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem; margin-bottom: 16px;
+    }
+    .feature-card h3 { font-size: 0.9375rem; font-weight: 600; color: #fff; margin-bottom: 8px; }
+    .feature-card p { font-size: 0.875rem; color: var(--muted); line-height: 1.6; }
+
+    /* ── Docs grid ── */
+    .docs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+    .doc-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 20px 24px;
+      display: flex; flex-direction: column; gap: 8px;
+      transition: border-color .15s;
+    }
+    .doc-card:hover { border-color: var(--accent); text-decoration: none; }
+    .doc-tag {
+      font-size: 0.7rem; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--muted);
+    }
+    .doc-card h3 { font-size: 0.9375rem; font-weight: 600; color: #fff; }
+    .doc-card p { font-size: 0.8125rem; color: var(--muted); }
+    .doc-arrow { margin-top: auto; color: var(--accent); font-size: 0.8125rem; font-weight: 600; }
+
+    /* ── Stack table ── */
+    .stack-table { width: 100%; border-collapse: collapse; }
+    .stack-table th {
+      text-align: left; font-size: 0.75rem; font-weight: 600;
+      letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+      padding: 0 16px 12px; border-bottom: 1px solid var(--border);
+    }
+    .stack-table td {
+      padding: 14px 16px; border-bottom: 1px solid var(--border);
+      font-size: 0.875rem; vertical-align: middle;
+    }
+    .stack-table tr:last-child td { border-bottom: none; }
+    .stack-table .layer { color: var(--muted); }
+    .stack-table .tech { color: #fff; font-weight: 500; }
+    .stack-table .note { color: var(--muted); }
+    .chip {
+      display: inline-block; font-size: 0.7rem; font-weight: 600;
+      padding: 2px 8px; border-radius: 4px; border: 1px solid var(--border);
+      color: var(--muted); background: var(--surface);
+    }
+
+    /* ── Config section ── */
+    .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }
+    @media (max-width: 720px) { .config-grid { grid-template-columns: 1fr; } }
+    .config-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; overflow: hidden;
+    }
+    .config-card-header {
+      padding: 14px 20px; border-bottom: 1px solid var(--border);
+      font-size: 0.8125rem; font-weight: 700; letter-spacing: .06em;
+      text-transform: uppercase; color: var(--muted);
+    }
+    .config-row {
+      display: grid; grid-template-columns: auto 1fr;
+      gap: 0; border-bottom: 1px solid var(--border);
+    }
+    .config-row:last-child { border-bottom: none; }
+    .config-val {
+      padding: 10px 16px; font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.8rem; font-weight: 600; color: var(--blue);
+      border-right: 1px solid var(--border); white-space: nowrap;
+    }
+    .config-desc { padding: 10px 16px; font-size: 0.8125rem; color: var(--muted); }
+
+    .env-table { width: 100%; border-collapse: collapse; }
+    .env-table th {
+      text-align: left; font-size: 0.75rem; font-weight: 600;
+      letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+      padding: 0 16px 12px; border-bottom: 1px solid var(--border);
+    }
+    .env-table td {
+      padding: 11px 16px; border-bottom: 1px solid var(--border);
+      font-size: 0.8125rem; vertical-align: top;
+    }
+    .env-table tr:last-child td { border-bottom: none; }
+    .env-table .env-var { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.8rem; color: var(--blue); white-space: nowrap; }
+    .env-table .env-default { color: var(--muted); font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.75rem; white-space: nowrap; }
+    .env-table .env-desc { color: var(--muted); }
+    .env-table .env-required { color: var(--orange); font-size: 0.7rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+
+    .callout {
+      background: rgba(251,146,60,.08); border: 1px solid rgba(251,146,60,.25);
+      border-radius: 10px; padding: 16px 20px; font-size: 0.875rem;
+      color: var(--text); line-height: 1.6; margin-top: 24px;
+    }
+    .callout strong { color: var(--orange); }
+
+    /* ── Quickstart ── */
+    .code-block {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 20px 24px; font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.8125rem; line-height: 1.8; overflow-x: auto;
+    }
+    .code-block .comment { color: var(--muted); }
+    .code-block .cmd { color: var(--accent); }
+    .code-block .arg { color: var(--blue); }
+
+    /* ── Status table ── */
+    .status-table { width: 100%; border-collapse: collapse; }
+    .status-table th {
+      text-align: left; font-size: 0.75rem; font-weight: 600;
+      letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+      padding: 0 16px 12px; border-bottom: 1px solid var(--border);
+    }
+    .status-table td {
+      padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 0.875rem;
+    }
+    .status-table tr:last-child td { border-bottom: none; }
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 0.75rem; font-weight: 600; padding: 2px 10px; border-radius: 999px;
+    }
+    .status-pill.done { background: rgba(74,222,128,.12); color: var(--accent); }
+    .status-pill.wip  { background: rgba(251,146,60,.12);  color: var(--orange); }
+    .status-pill.plan { background: rgba(96,165,250,.12);  color: var(--blue); }
+    .status-pill::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px 0; margin-top: 80px;
+    }
+    .footer-inner {
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 16px;
+    }
+    .footer-left { display: flex; flex-direction: column; gap: 4px; }
+    .footer-logo { font-weight: 700; font-size: 0.9375rem; color: #fff; }
+    .footer-copy { font-size: 0.8125rem; color: var(--muted); }
+    .footer-links { display: flex; gap: 20px; }
+    .footer-links a { font-size: 0.8125rem; color: var(--muted); }
+    .footer-links a:hover { color: var(--text); }
+
+    @media (max-width: 640px) {
+      .hero { padding: 64px 0 48px; }
+      .hierarchy-inner { padding: 16px; }
+      .h-arrow { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Nav ── -->
+<nav>
+  <div class="container inner">
+    <div class="nav-logo">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+      </svg>
+      CodePlans
+    </div>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#docs">Docs</a>
+      <a href="#quickstart">Quickstart</a>
+      <a href="#config">Config</a>
+      <a href="#stack">Stack</a>
+      <a class="btn-gh" href="https://github.com/SylonZero/CodePlans" target="_blank" rel="noopener">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.38.6.11.82-.26.82-.58v-2.03c-3.34.72-4.04-1.61-4.04-1.61-.54-1.38-1.33-1.75-1.33-1.75-1.09-.74.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4 11.5 11.5 0 0 1 3 .4c2.28-1.55 3.3-1.23 3.3-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Hero ── -->
+<section class="hero">
+  <div class="container">
+    <div class="badge"><span class="badge-dot"></span>Open Source · Beta Coming Soon</div>
+    <h1>Coordinate changes across<br><span>your entire architecture</span></h1>
+    <p class="hero-sub">
+      CodePlans gives engineering teams a shared view of what's changing, in which components,
+      and why — from individual tasks up to cross-service migrations.
+    </p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="#quickstart">Get Started</a>
+      <a class="btn btn-outline" href="https://codeplans.ai" target="_blank" rel="noopener">Sign up for Beta ↗</a>
+      <a class="btn btn-outline" href="https://github.com/SylonZero/CodePlans" target="_blank" rel="noopener">View on GitHub</a>
+    </div>
+
+    <div class="hierarchy">
+      <div class="hierarchy-inner">
+        <div class="h-item">
+          <div class="h-icon" style="background:rgba(96,165,250,.12)">📦</div>
+          <div class="h-label">Products</div>
+          <div class="h-sub">Top-level boundary</div>
+        </div>
+        <div class="h-arrow">›</div>
+        <div class="h-item">
+          <div class="h-icon" style="background:rgba(167,139,250,.12)">🔩</div>
+          <div class="h-label">Assets</div>
+          <div class="h-sub">Services, apps, libs</div>
+        </div>
+        <div class="h-arrow">›</div>
+        <div class="h-item">
+          <div class="h-icon" style="background:rgba(251,146,60,.12)">📋</div>
+          <div class="h-label">Code Plans</div>
+          <div class="h-sub">Coordinated changes</div>
+        </div>
+        <div class="h-arrow">›</div>
+        <div class="h-item">
+          <div class="h-icon" style="background:rgba(74,222,128,.12)">✅</div>
+          <div class="h-label">Tasks</div>
+          <div class="h-sub">Units of work</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Features ── -->
+<section class="section" id="features">
+  <div class="container">
+    <div class="section-label">Features</div>
+    <h2>Everything your team needs to ship coordinated changes</h2>
+    <p class="section-sub">Built for engineering teams managing change across complex service-oriented and monorepo architectures.</p>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(96,165,250,.12)">📦</div>
+        <h3>Product & Asset Inventory</h3>
+        <p>Model your architecture as products containing typed assets — apps, services, libraries, datastores, and platforms. Track health and tech debt per component.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(251,146,60,.12)">📋</div>
+        <h3>Code Plans</h3>
+        <p>Coordinate related changes under a single plan with a clear lifecycle: Draft → Active → Completed. Assign target assets, set deadlines, and track progress at a glance.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(74,222,128,.12)">✅</div>
+        <h3>Task Management</h3>
+        <p>Break plans into tasks with priorities, effort estimates, assignees, and asset scope. View work in a list table or a kanban board by status.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(167,139,250,.12)">⚡</div>
+        <h3>Velocity Tracking</h3>
+        <p>Dashboard metrics show active plans, completed tasks, tasks this week, and rolling velocity — so teams always know how fast they're moving.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(251,146,60,.12)">🏢</div>
+        <h3>Teams & Organisations</h3>
+        <p>Invite team members with role-based access — owner, admin, editor, or viewer. Products can be shared across an organisation or owned by an individual.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(96,165,250,.12)">🔌</div>
+        <h3>Pluggable Backend</h3>
+        <p>Run locally with SQLite (zero cloud setup) or connect to Supabase + Postgres for production. Auth works with a local password store or Supabase Auth.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Docs ── -->
+<section class="section" id="docs">
+  <div class="container">
+    <div class="section-label">Documentation</div>
+    <h2>Technical reference</h2>
+    <p class="section-sub">Everything you need to understand the data model, architecture decisions, and current feature state.</p>
+
+    <div class="docs-grid">
+      <a class="doc-card" href="app-spec.md">
+        <div class="doc-tag">Reference</div>
+        <h3>App Spec</h3>
+        <p>Complete spec of the current app: schemas, views, query/mutation API, access rules, and wiring gaps.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="specs/functional-spec-v2.md">
+        <div class="doc-tag">Spec</div>
+        <h3>Functional Spec v2</h3>
+        <p>Conceptual model, feature modules, and functional requirements for the full CodePlans platform.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="specs/data-model-enhancement-plan.md">
+        <div class="doc-tag">Design</div>
+        <h3>Data Model Design</h3>
+        <p>Assets, dependencies, and team collaboration — the reasoning behind the current database schema.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="db-diagrams/database-schemas-current.md">
+        <div class="doc-tag">Reference</div>
+        <h3>Database Schemas</h3>
+        <p>Current database schema diagrams covering both SQLite and Postgres configurations.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ── Quickstart ── -->
+<section class="section" id="quickstart">
+  <div class="container">
+    <div class="section-label">Quickstart</div>
+    <h2>Up and running in minutes</h2>
+    <p class="section-sub">Local SQLite mode requires no cloud account, no API keys, nothing external.</p>
+
+    <div class="code-block">
+      <div><span class="comment"># Clone and install</span></div>
+      <div><span class="cmd">git clone</span> <span class="arg">https://github.com/SylonZero/CodePlans.git</span> && <span class="cmd">cd</span> CodePlans</div>
+      <div><span class="cmd">pnpm install</span></div>
+      <br>
+      <div><span class="comment"># Configure (defaults work for local SQLite)</span></div>
+      <div><span class="cmd">cp</span> .env.example .env.local</div>
+      <br>
+      <div><span class="comment"># Run migrations and create the admin account</span></div>
+      <div><span class="cmd">pnpm</span> <span class="arg">db:migrate</span></div>
+      <div><span class="cmd">pnpm</span> <span class="arg">db:seed</span></div>
+      <br>
+      <div><span class="comment"># Start the dev server</span></div>
+      <div><span class="cmd">pnpm</span> <span class="arg">dev</span></div>
+    </div>
+
+    <p style="margin-top: 16px; font-size: 0.875rem; color: var(--muted);">
+      Open <a href="http://localhost:3000">localhost:3000</a> and sign in with
+      <code style="font-size:0.8rem">admin@example.com</code> / <code style="font-size:0.8rem">Password1!</code>.
+      Change your password in <strong>Settings → Security</strong> after first login.
+    </p>
+
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; font-size: 0.875rem; color: var(--text); line-height: 1.6; margin-top: 16px;">
+      <strong style="color: var(--accent);">Want realistic demo data?</strong>
+      Run <code>pnpm db:seed-demo</code> after the initial seed to populate with products, assets, plans, and tasks.
+      All demo accounts use password <code>Password1!</code>.
+    </div>
+
+    <div class="callout">
+      <strong>Deploying to a server?</strong> Set <code>AUTH_URL=https://your-server-domain</code> (or <code>http://ip:port</code>) in <code>.env.local</code>.
+      Auth.js requires this in production to construct correct callback URLs — without it, login redirects will fail.
+      If running the dev server on a remote machine, also set <code>ALLOWED_DEV_ORIGINS=your.server.ip</code>.
+    </div>
+  </div>
+</section>
+
+<!-- ── Configuration ── -->
+<section class="section" id="config">
+  <div class="container">
+    <div class="section-label">Configuration</div>
+    <h2>Deployment modes &amp; environment variables</h2>
+    <p class="section-sub">Two independent knobs control how your instance behaves — the deployment model and who can register.</p>
+
+    <div class="config-grid">
+      <div class="config-card">
+        <div class="config-card-header">HOST_MODE — deployment model</div>
+        <div class="config-row">
+          <div class="config-val">team</div>
+          <div class="config-desc">Single private team. One org, registration closed by default, billing UI hidden. Recommended for self-hosted installs.</div>
+        </div>
+        <div class="config-row">
+          <div class="config-val">saas</div>
+          <div class="config-desc">Multi-tenant hosted. Multiple independent orgs, open registration possible, billing UI available.</div>
+        </div>
+      </div>
+      <div class="config-card">
+        <div class="config-card-header">REGISTRATION — who can create accounts</div>
+        <div class="config-row">
+          <div class="config-val">closed</div>
+          <div class="config-desc">/signup returns 404. Users are created by an admin via <code>pnpm db:seed</code>.</div>
+        </div>
+        <div class="config-row">
+          <div class="config-val">invite</div>
+          <div class="config-desc">/signup shows an invite-only message. (Token invite flow is planned.)</div>
+        </div>
+        <div class="config-row">
+          <div class="config-val">open</div>
+          <div class="config-desc">Anyone who can reach the server can sign up.</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 24px;">
+      <table class="env-table">
+        <thead>
+          <tr>
+            <th>Variable</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="env-var">PORT</td>
+            <td class="env-default">3000</td>
+            <td class="env-desc">Port the dev server binds to.</td>
+          </tr>
+          <tr>
+            <td class="env-var">HOST_MODE</td>
+            <td class="env-default">saas</td>
+            <td class="env-desc"><code>team</code> (private self-hosted) or <code>saas</code> (multi-tenant hosted).</td>
+          </tr>
+          <tr>
+            <td class="env-var">REGISTRATION</td>
+            <td class="env-default">open</td>
+            <td class="env-desc"><code>closed</code>, <code>invite</code>, or <code>open</code> — controls who can create accounts.</td>
+          </tr>
+          <tr>
+            <td class="env-var">AUTH_PROVIDER</td>
+            <td class="env-default">local</td>
+            <td class="env-desc"><code>local</code> (bcrypt + session cookie) or <code>supabase</code>.</td>
+          </tr>
+          <tr>
+            <td class="env-var">DB_PROVIDER</td>
+            <td class="env-default">sqlite</td>
+            <td class="env-desc"><code>sqlite</code> or <code>postgres</code>.</td>
+          </tr>
+          <tr>
+            <td class="env-var">DATABASE_URL</td>
+            <td class="env-default">:memory:</td>
+            <td class="env-desc">SQLite: <code>file:data/codeplans.db</code> or <code>:memory:</code>. Postgres: full connection string.</td>
+          </tr>
+          <tr>
+            <td class="env-var">DB_SSL</td>
+            <td class="env-default">true</td>
+            <td class="env-desc">Set <code>false</code> for local or non-SSL Postgres (e.g. Railway, local Docker).</td>
+          </tr>
+          <tr>
+            <td class="env-var">AUTH_SECRET</td>
+            <td class="env-default">—</td>
+            <td class="env-desc">Secret for local auth session signing. Min 32 chars. Generate: <code>openssl rand -base64 32</code>.</td>
+          </tr>
+          <tr>
+            <td class="env-var">AUTH_URL</td>
+            <td class="env-default">—</td>
+            <td class="env-desc">
+              <span class="env-required">Required in production</span><br>
+              Full URL of the server (e.g. <code>https://codeplans.yourteam.com</code> or <code>http://ip:3000</code>).
+              Auth.js uses this to construct callback URLs and validate login redirects.
+              Not needed for <code>localhost</code> dev.
+            </td>
+          </tr>
+          <tr>
+            <td class="env-var">BILLING_ENABLED</td>
+            <td class="env-default">true</td>
+            <td class="env-desc">Set <code>false</code> to hide billing UI. Always off when <code>HOST_MODE=team</code>.</td>
+          </tr>
+          <tr>
+            <td class="env-var">ALLOWED_DEV_ORIGINS</td>
+            <td class="env-default">—</td>
+            <td class="env-desc">Comma-separated hosts allowed to access Next.js dev resources. Needed when running the dev server on a remote machine.</td>
+          </tr>
+          <tr>
+            <td class="env-var">RESEND_API_KEY</td>
+            <td class="env-default">—</td>
+            <td class="env-desc">Resend API key for transactional email (email change verification, future team invites). Without this, verification URLs are logged to the server console — fine for local dev.</td>
+          </tr>
+          <tr>
+            <td class="env-var">RESEND_FROM_EMAIL</td>
+            <td class="env-default">CodePlans &lt;noreply@codeplans.ai&gt;</td>
+            <td class="env-desc">From address used in outgoing emails.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="font-size: 0.875rem; color: var(--muted);">
+      See <a href="https://github.com/SylonZero/CodePlans/blob/master/.env.example"><code>.env.example</code></a> for the full annotated configuration file.
+    </p>
+  </div>
+</section>
+
+<!-- ── Stack ── -->
+<section class="section" id="stack">
+  <div class="container">
+    <div class="section-label">Tech Stack</div>
+    <h2>Built on proven, modern tooling</h2>
+    <p class="section-sub">No heavy abstractions. Readable Next.js App Router code with a clean DB layer you can fork and adapt.</p>
+
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;">
+      <table class="stack-table">
+        <thead>
+          <tr>
+            <th>Layer</th>
+            <th>Technology</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="layer">Framework</td>
+            <td class="tech">Next.js 16 <span class="chip">App Router</span></td>
+            <td class="note">Server Components, Server Actions, streaming</td>
+          </tr>
+          <tr>
+            <td class="layer">Language</td>
+            <td class="tech">TypeScript 5.7</td>
+            <td class="note">Strict mode throughout</td>
+          </tr>
+          <tr>
+            <td class="layer">Styling</td>
+            <td class="tech">Tailwind CSS v4 + Radix UI</td>
+            <td class="note">shadcn/ui component patterns</td>
+          </tr>
+          <tr>
+            <td class="layer">ORM</td>
+            <td class="tech">Drizzle ORM</td>
+            <td class="note">Dual SQLite + Postgres schemas with migrations</td>
+          </tr>
+          <tr>
+            <td class="layer">Database</td>
+            <td class="tech">SQLite <span class="chip">local</span> / PostgreSQL <span class="chip">cloud</span></td>
+            <td class="note">Switched via <code>DB_PROVIDER</code> env var</td>
+          </tr>
+          <tr>
+            <td class="layer">Auth</td>
+            <td class="tech">Local bcrypt <span class="chip">local</span> / Supabase <span class="chip">cloud</span></td>
+            <td class="note">Switched via <code>AUTH_PROVIDER</code> env var</td>
+          </tr>
+          <tr>
+            <td class="layer">Charts</td>
+            <td class="tech">Recharts</td>
+            <td class="note">Velocity, effort accuracy, tech debt trends</td>
+          </tr>
+          <tr>
+            <td class="layer">Testing</td>
+            <td class="tech">Vitest</td>
+            <td class="note">88 tests — queries, mutations, utils; in-memory SQLite</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ── Feature Status ── -->
+<section class="section" id="status">
+  <div class="container">
+    <div class="section-label">Roadmap</div>
+    <h2>Current feature status</h2>
+    <p class="section-sub">Transparent about what's wired, what's in progress, and what's coming.</p>
+
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;">
+      <table class="status-table">
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Products &amp; asset inventory</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Tech debt scoring per asset</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Code Plans with status lifecycle</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Task management (list &amp; kanban)</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Dashboard with velocity metrics</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Organisation &amp; team management</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Pluggable auth &amp; database backends</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Product / asset CRUD forms</td><td><span class="status-pill wip">In Progress</span></td></tr>
+          <tr><td>Code Plan create/edit flows</td><td><span class="status-pill wip">In Progress</span></td></tr>
+          <tr><td>Task inline status updates</td><td><span class="status-pill wip">In Progress</span></td></tr>
+          <tr><td>Analytics wired to real data</td><td><span class="status-pill wip">In Progress</span></td></tr>
+          <tr><td>Asset dependency graph</td><td><span class="status-pill wip">In Progress</span></td></tr>
+          <tr><td>Activity feed</td><td><span class="status-pill wip">In Progress</span></td></tr>
+          <tr><td>AI-assisted effort estimation</td><td><span class="status-pill plan">Planned</span></td></tr>
+          <tr><td>Team invite flow</td><td><span class="status-pill plan">Planned</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ── -->
+<footer>
+  <div class="container footer-inner">
+    <div class="footer-left">
+      <span class="footer-logo">CodePlans</span>
+      <span class="footer-copy">© 2026 Sai Prakash · MIT License</span>
+    </div>
+    <div class="footer-links">
+      <a href="https://codeplans.ai" target="_blank" rel="noopener">Beta Signup</a>
+      <a href="https://github.com/SylonZero/CodePlans" target="_blank" rel="noopener">GitHub</a>
+      <a href="app-spec.md">App Spec</a>
+      <a href="https://github.com/SylonZero/CodePlans/blob/master/LICENSE" target="_blank" rel="noopener">License</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
