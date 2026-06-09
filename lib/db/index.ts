@@ -18,6 +18,10 @@ function createDb(): PostgresJsDatabase<typeof PgSchema> {
         ? rawUrl
         : `file:${rawUrl}`
     const client = createClient({ url })
+    // WAL allows concurrent readers alongside a writer; busy_timeout retries
+    // instead of immediately throwing SQLITE_BUSY when a write lock is held.
+    client.execute('PRAGMA journal_mode=WAL')
+    client.execute('PRAGMA busy_timeout=5000')
     return drizzle(client, { schema }) as unknown as PostgresJsDatabase<typeof PgSchema>
   } else {
     const postgres = require('postgres') as typeof import('postgres')
