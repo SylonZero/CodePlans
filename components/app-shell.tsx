@@ -34,6 +34,7 @@ import {
 } from 'lucide-react'
 import { signOut } from '@/app/(auth)/actions'
 import { setProductScopeAction } from '@/lib/actions/product-scope'
+import { ProductCreateDialog } from '@/components/product-create-dialog'
 import type { BillingTier } from '@/lib/types'
 
 type AppShellProps = {
@@ -63,6 +64,7 @@ export function AppShell({ children, user, orgName, products, selectedProductId,
   const pathname = usePathname()
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [productDialogOpen, setProductDialogOpen] = useState(false)
   const [, startTransition] = useTransition()
 
   const selectedProduct = products.find((p) => p.id === selectedProductId) ?? null
@@ -173,13 +175,15 @@ export function AppShell({ children, user, orgName, products, selectedProductId,
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/products/new" className="cursor-pointer">
-                  <span className="text-muted-foreground">+ Add Product</span>
-                </Link>
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onSelect={() => setProductDialogOpen(true)}
+              >
+                <span className="text-muted-foreground">+ Add Product</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <ProductCreateDialog open={productDialogOpen} onOpenChange={setProductDialogOpen} />
         </div>
 
         {/* Navigation */}

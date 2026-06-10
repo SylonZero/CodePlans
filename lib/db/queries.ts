@@ -203,6 +203,8 @@ export async function getProduct(slug: string, userId: string): Promise<(Product
       tags: a.tags,
       health: a.health,
       techDebtScore: a.techDebtScore ?? undefined,
+      repositoryUrl: a.repositoryUrl ?? undefined,
+      documentationUrl: a.documentationUrl ?? undefined,
       dependencies: [], // asset_dependencies resolved separately when needed
       createdAt: a.createdAt.toISOString(),
     })),

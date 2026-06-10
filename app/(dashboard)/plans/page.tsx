@@ -1,10 +1,8 @@
-import Link from 'next/link'
 import { authAdapter } from '@/lib/auth'
 import { getCodePlans, getProducts } from '@/lib/db/queries'
 import { getProductScope } from '@/lib/product-scope'
-import { Button } from '@/components/ui/button'
-import { Plus } from 'lucide-react'
 import { PlansClient } from './plans-client'
+import { PlanCreatePanel } from './plan-create-panel'
 
 type Props = {
   searchParams: Promise<{ product?: string }>
@@ -36,12 +34,7 @@ export default async function PlansPage({ searchParams }: Props) {
           <h1 className="text-2xl font-bold tracking-tight">Code Plans</h1>
           <p className="text-muted-foreground">Coordinate and track changes across your architecture</p>
         </div>
-        <Button asChild>
-          <Link href="/plans/new">
-            <Plus className="mr-2 h-4 w-4" />
-            New Plan
-          </Link>
-        </Button>
+        <PlanCreatePanel products={productList} defaultProductId={productId} />
       </div>
 
       <PlansClient plans={enrichedPlans} products={productList} />

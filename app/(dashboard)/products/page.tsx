@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { DeleteProductButton } from './delete-product-button'
+import { ProductCreateDialog } from '@/components/product-create-dialog'
 
 export default async function ProductsPage() {
   const user = await authAdapter.getUser()
@@ -28,12 +29,14 @@ export default async function ProductsPage() {
           <h1 className="text-2xl font-bold tracking-tight">Products</h1>
           <p className="text-muted-foreground">Manage your products and their assets</p>
         </div>
-        <Button asChild>
-          <Link href="/products/new">
-            <Plus className="mr-2 h-4 w-4" />
-            New Product
-          </Link>
-        </Button>
+        <ProductCreateDialog
+          trigger={
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              New Product
+            </Button>
+          }
+        />
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
@@ -117,16 +120,18 @@ export default async function ProductsPage() {
           </Card>
         ))}
 
-        <Link href="/products/new">
-          <Card className="flex h-full min-h-[280px] cursor-pointer items-center justify-center border-dashed bg-transparent hover:bg-muted/30 hover:border-muted-foreground/30 transition-colors">
-            <CardContent className="flex flex-col items-center gap-2 text-muted-foreground">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                <Plus className="h-6 w-6" />
-              </div>
-              <span className="text-sm font-medium">Add Product</span>
-            </CardContent>
-          </Card>
-        </Link>
+        <ProductCreateDialog
+          trigger={
+            <Card className="flex h-full min-h-[280px] cursor-pointer items-center justify-center border-dashed bg-transparent hover:bg-muted/30 hover:border-muted-foreground/30 transition-colors">
+              <CardContent className="flex flex-col items-center gap-2 text-muted-foreground">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                  <Plus className="h-6 w-6" />
+                </div>
+                <span className="text-sm font-medium">Add Product</span>
+              </CardContent>
+            </Card>
+          }
+        />
       </div>
     </div>
   )

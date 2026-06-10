@@ -1,7 +1,9 @@
 import { authAdapter } from '@/lib/auth'
-import { getTasks, getCodePlans } from '@/lib/db/queries'
+import { getTasks, getCodePlans, getTeamMembers } from '@/lib/db/queries'
 import { getProductScope } from '@/lib/product-scope'
-import { NewTaskDialog } from './new-task-dialog'
+import { db } from '@/lib/db'
+import { users } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
 import { TasksClient } from './tasks-client'
 
 export default async function TasksPage() {
@@ -10,24 +12,20 @@ export default async function TasksPage() {
 
   const scope = await getProductScope()
 
-  const [tasks, plans] = await Promise.all([
+  const [tasks, plans, profile] = await Promise.all([
     getTasks(user.id, { productId: scope ?? undefined }),
     getCodePlans(user.id, { status: 'active', productId: scope ?? undefined }),
+    db.query.users.findFirst({ where: eq(users.id, user.id) }),
   ])
 
+  const teamMembers = profile?.organizationId ? await getTeamMembers(profile.organizationId) : []
+
   const planList = plans.map((p) => ({ id: p.id, title: p.title }))
+  const memberList = teamMembers.map((m) => ({ id: m.userId, name: m.user.name }))
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Tasks</h1>
-          <p className="text-muted-foreground">Track and manage tasks across all code plans</p>
-        </div>
-        <NewTaskDialog plans={planList} />
-      </div>
-
-      <TasksClient tasks={tasks} plans={planList} />
+      <TasksClient tasks={tasks} plans={planList} members={memberList} />
     </div>
   )
 }

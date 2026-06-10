@@ -11,6 +11,8 @@ import {
   updateProduct,
   deleteProduct,
   createAsset,
+  updateAsset,
+  deleteAsset,
   createCodePlan,
   updateCodePlan,
   deleteCodePlan,
@@ -126,6 +128,38 @@ export async function createAssetAction(productId: string, productSlug: string, 
   redirect(`/products/${productSlug}`)
 }
 
+export async function updateAssetAction(id: string, productSlug: string, formData: FormData) {
+  await requireUser()
+
+  const name = formData.get('name') as string
+  const type = formData.get('type') as 'app' | 'service' | 'library' | 'datastore' | 'platform'
+  const description = formData.get('description') as string
+  const tags = parseTags(formData.get('tags') as string)
+  const health = formData.get('health') as 'healthy' | 'warning' | 'critical'
+  const techDebtRaw = formData.get('techDebtScore') as string
+  const repositoryUrl = (formData.get('repositoryUrl') as string) || undefined
+  const documentationUrl = (formData.get('documentationUrl') as string) || undefined
+
+  await updateAsset(id, {
+    name,
+    type,
+    description,
+    tags,
+    health,
+    techDebtScore: techDebtRaw ? parseInt(techDebtRaw, 10) : undefined,
+    repositoryUrl,
+    documentationUrl,
+  })
+
+  revalidatePath(`/products/${productSlug}`)
+}
+
+export async function deleteAssetAction(id: string, productSlug: string) {
+  await requireUser()
+  await deleteAsset(id)
+  revalidatePath(`/products/${productSlug}`)
+}
+
 // ---------------------------------------------------------------------------
 // Code Plans
 // ---------------------------------------------------------------------------
@@ -218,6 +252,33 @@ export async function createTaskAction(codePlanId: string, formData: FormData) {
 
   revalidatePath(`/plans/${codePlanId}`)
   revalidatePath('/tasks')
+}
+
+export async function updateTaskAction(id: string, formData: FormData) {
+  await requireUser()
+
+  const title = formData.get('title') as string
+  const description = (formData.get('description') as string) || ''
+  const status = formData.get('status') as 'not_started' | 'in_progress' | 'done'
+  const priority = (formData.get('priority') as 'low' | 'medium' | 'high' | 'critical') || 'medium'
+  const tags = parseTags(formData.get('tags') as string)
+  const estimatedEffortRaw = formData.get('estimatedEffort') as string
+  const actualEffortRaw = formData.get('actualEffort') as string
+  const assigneeId = formData.get('assigneeId') as string
+
+  await updateTask(id, {
+    title,
+    description,
+    status,
+    priority,
+    tags,
+    estimatedEffort: estimatedEffortRaw ? parseFloat(estimatedEffortRaw) : undefined,
+    actualEffort: actualEffortRaw ? parseFloat(actualEffortRaw) : undefined,
+    assigneeId: assigneeId === '' ? null : assigneeId,
+  })
+
+  revalidatePath('/tasks')
+  revalidatePath('/plans')
 }
 
 export async function updateTaskStatusAction(id: string, status: 'not_started' | 'in_progress' | 'done') {
