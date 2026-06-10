@@ -5,15 +5,10 @@ import { getProductScope } from '@/lib/product-scope'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Package, FileCode2, Box, MoreVertical } from 'lucide-react'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { DeleteProductButton } from './delete-product-button'
+import { Plus, Package, FileCode2, Box } from 'lucide-react'
+import { ProductCardMenu } from './product-card-menu'
 import { ProductCreateDialog } from '@/components/product-create-dialog'
+import { AddProductCard } from './add-product-card'
 
 export default async function ProductsPage() {
   const user = await authAdapter.getUser()
@@ -56,25 +51,15 @@ export default async function ProductsPage() {
                   <p className="text-sm text-muted-foreground line-clamp-1">{product.description}</p>
                 </div>
               </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem asChild>
-                    <Link href={`/products/${product.slug}`}>View Details</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href={`/products/${product.slug}/edit`}>Edit Product</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href={`/products/${product.slug}/assets/new`}>Add Asset</Link>
-                  </DropdownMenuItem>
-                  <DeleteProductButton id={product.id} slug={product.slug} name={product.name} />
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <ProductCardMenu
+                product={{
+                  id: product.id,
+                  slug: product.slug,
+                  name: product.name,
+                  description: product.description,
+                  tags: product.tags,
+                }}
+              />
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-wrap gap-1.5">
@@ -120,18 +105,7 @@ export default async function ProductsPage() {
           </Card>
         ))}
 
-        <ProductCreateDialog
-          trigger={
-            <Card className="flex h-full min-h-[280px] cursor-pointer items-center justify-center border-dashed bg-transparent hover:bg-muted/30 hover:border-muted-foreground/30 transition-colors">
-              <CardContent className="flex flex-col items-center gap-2 text-muted-foreground">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                  <Plus className="h-6 w-6" />
-                </div>
-                <span className="text-sm font-medium">Add Product</span>
-              </CardContent>
-            </Card>
-          }
-        />
+        <AddProductCard />
       </div>
     </div>
   )

@@ -111,7 +111,7 @@ export function PlansOverview({ plans }: { plans: Plan[] }) {
           <div className="py-8 text-center text-muted-foreground">
             <p>No active code plans</p>
             <Button variant="outline" size="sm" className="mt-2" asChild>
-              <Link href="/plans/new">Create your first plan</Link>
+              <Link href="/plans">Create your first plan</Link>
             </Button>
           </div>
         )}

@@ -24,8 +24,17 @@ type ProductSummary = {
   tags: string[]
 }
 
-export function ProductEditPanel({ product }: { product: ProductSummary }) {
-  const [open, setOpen] = useState(false)
+type ProductEditPanelProps = {
+  product: ProductSummary
+  /** Omit to render the default Settings trigger button; pass open/onOpenChange to control externally. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}
+
+export function ProductEditPanel({ product, open: controlledOpen, onOpenChange }: ProductEditPanelProps) {
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = controlledOpen ?? internalOpen
+  const setOpen = onOpenChange ?? setInternalOpen
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -47,12 +56,14 @@ export function ProductEditPanel({ product }: { product: ProductSummary }) {
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button variant="outline">
-          <Settings className="mr-2 h-4 w-4" />
-          Settings
-        </Button>
-      </SheetTrigger>
+      {controlledOpen === undefined && (
+        <SheetTrigger asChild>
+          <Button variant="outline">
+            <Settings className="mr-2 h-4 w-4" />
+            Settings
+          </Button>
+        </SheetTrigger>
+      )}
       <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
         <SheetHeader>
           <SheetTitle>Edit Product</SheetTitle>

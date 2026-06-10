@@ -60,23 +60,19 @@ function StatusCycleButton({ task }: { task: TaskRow }) {
     startTransition(() => updateTaskStatusAction(task.id, newStatus))
   }
 
+  // The Radix Checkbox renders a <button>, so it must not be wrapped in another button
   return (
-    <button
-      type="button"
-      onClick={(e) => { e.stopPropagation(); cycle() }}
+    <Checkbox
+      checked={optimisticStatus === 'done'}
       disabled={isPending}
       title={`Mark as ${statusLabels[next]}`}
-      className="focus:outline-none"
-    >
-      <Checkbox
-        checked={optimisticStatus === 'done'}
-        className={cn(
-          'border-muted-foreground transition-colors',
-          optimisticStatus === 'in_progress' && 'border-chart-1',
-          optimisticStatus === 'done' && 'border-accent',
-        )}
-      />
-    </button>
+      onClick={(e) => { e.stopPropagation(); cycle() }}
+      className={cn(
+        'border-muted-foreground transition-colors',
+        optimisticStatus === 'in_progress' && 'border-chart-1',
+        optimisticStatus === 'done' && 'border-accent',
+      )}
+    />
   )
 }
 

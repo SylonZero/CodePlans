@@ -29,9 +29,11 @@ type ProductOption = { id: string; name: string }
 export function PlanCreatePanel({
   products,
   defaultProductId,
+  trigger,
 }: {
   products: ProductOption[]
   defaultProductId?: string
+  trigger?: React.ReactNode
 }) {
   const [open, setOpen] = useState(false)
   const [productId, setProductId] = useState(defaultProductId ?? products[0]?.id ?? '')
@@ -61,10 +63,12 @@ export function PlanCreatePanel({
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          New Plan
-        </Button>
+        {trigger ?? (
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            New Plan
+          </Button>
+        )}
       </SheetTrigger>
       <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
         <SheetHeader>

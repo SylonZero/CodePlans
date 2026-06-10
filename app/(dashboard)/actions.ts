@@ -125,7 +125,6 @@ export async function createAssetAction(productId: string, productSlug: string, 
   })
 
   revalidatePath(`/products/${productSlug}`)
-  redirect(`/products/${productSlug}`)
 }
 
 export async function updateAssetAction(id: string, productSlug: string, formData: FormData) {

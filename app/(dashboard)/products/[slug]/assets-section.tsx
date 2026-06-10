@@ -85,17 +85,29 @@ const healthStyles = {
   critical: 'text-destructive',
 }
 
-export function AssetCreatePanel({ productId, productSlug }: { productId: string; productSlug: string }) {
-  const [open, setOpen] = useState(false)
+type AssetCreatePanelProps = {
+  productId: string
+  productSlug: string
+  /** Omit to render the default Add Asset trigger button; pass open/onOpenChange to control externally. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}
+
+export function AssetCreatePanel({ productId, productSlug, open: controlledOpen, onOpenChange }: AssetCreatePanelProps) {
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = controlledOpen ?? internalOpen
+  const setOpen = onOpenChange ?? setInternalOpen
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Asset
-        </Button>
-      </SheetTrigger>
+      {controlledOpen === undefined && (
+        <SheetTrigger asChild>
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Asset
+          </Button>
+        </SheetTrigger>
+      )}
       <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
         <SheetHeader>
           <SheetTitle>Add Asset</SheetTitle>
@@ -416,12 +428,7 @@ function AssetForm({
         }
         onDone()
       } catch (err: unknown) {
-        if (err instanceof Error && !err.message.includes('NEXT_REDIRECT')) {
-          setError(err.message)
-        } else {
-          // create redirects back to this same page; close the panel ourselves
-          onDone()
-        }
+        if (err instanceof Error) setError(err.message)
       }
     })
   }

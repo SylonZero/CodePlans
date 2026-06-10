@@ -10,6 +10,7 @@ import { Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AssetsSection, AssetCreatePanel } from './assets-section'
 import { ProductEditPanel } from './product-edit-panel'
+import { PlanCreatePanel } from '../../plans/plan-create-panel'
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
@@ -104,12 +105,16 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                 <Plus className="h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium mb-1">No code plans yet</h3>
                 <p className="text-sm text-muted-foreground mb-4">Create a code plan to coordinate changes</p>
-                <Button asChild>
-                  <Link href={`/plans/new?product=${product.id}`}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Create Plan
-                  </Link>
-                </Button>
+                <PlanCreatePanel
+                  products={[{ id: product.id, name: product.name }]}
+                  defaultProductId={product.id}
+                  trigger={
+                    <Button>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Create Plan
+                    </Button>
+                  }
+                />
               </CardContent>
             </Card>
           )}
