@@ -4,6 +4,7 @@ import { users, organizations, products } from '@/lib/db/schema'
 import { eq, or } from 'drizzle-orm'
 import { AppShell } from '@/components/app-shell'
 import { config } from '@/lib/config'
+import { getProductScope } from '@/lib/product-scope'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const authUser = await authAdapter.getUser()
@@ -42,8 +43,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
     }
   }
 
+  const scopeId = await getProductScope()
+  const selectedProductId = productList.some((p) => p.id === scopeId) ? scopeId : null
+
   return (
-    <AppShell user={shellUser} orgName={orgName} products={productList} billingEnabled={config.billing.enabled}>
+    <AppShell
+      user={shellUser}
+      orgName={orgName}
+      products={productList}
+      selectedProductId={selectedProductId}
+      billingEnabled={config.billing.enabled}
+    >
       {children}
     </AppShell>
   )

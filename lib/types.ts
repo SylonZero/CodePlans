@@ -65,6 +65,8 @@ export interface Asset {
   tags: string[]
   health: 'healthy' | 'warning' | 'critical'
   techDebtScore?: number
+  repositoryUrl?: string
+  documentationUrl?: string
   dependencies: string[]
   createdAt: string
 }

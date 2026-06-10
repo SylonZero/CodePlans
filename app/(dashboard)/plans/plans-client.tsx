@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Plus, Calendar, Users, Filter, ArrowUpRight, Clock } from 'lucide-react'
 import type { CodePlanStatus, CodePlanType } from '@/lib/types'
 import { cn, formatDate } from '@/lib/utils'
+import { PlanCreatePanel } from './plan-create-panel'
 
 type Plan = {
   id: string
@@ -207,12 +208,16 @@ export function PlansClient({ plans, products }: { plans: Plan[]; products: Prod
                   ? 'Try adjusting your filters'
                   : 'Create your first code plan to get started'}
               </p>
-              <Button asChild>
-                <Link href="/plans/new">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create Plan
-                </Link>
-              </Button>
+              <PlanCreatePanel
+                products={products}
+                defaultProductId={productFilter !== 'all' ? productFilter : undefined}
+                trigger={
+                  <Button>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Plan
+                  </Button>
+                }
+              />
             </CardContent>
           </Card>
         )}

@@ -1,19 +1,38 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Card, CardContent } from '@/components/ui/card'
-import { createProductAction } from '../../actions'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import { createProductAction } from '@/app/(dashboard)/actions'
 
 function slugify(name: string) {
   return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 }
 
-export function ProductForm() {
+type ProductCreateDialogProps = {
+  /** Render with a built-in trigger element… */
+  trigger?: React.ReactNode
+  /** …or control the dialog from outside (e.g. a dropdown menu item). */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}
+
+export function ProductCreateDialog({ trigger, open, onOpenChange }: ProductCreateDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false)
+  const isOpen = open ?? internalOpen
+  const setOpen = onOpenChange ?? setInternalOpen
+
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
   const [slugEdited, setSlugEdited] = useState(false)
@@ -39,6 +58,7 @@ export function ProductForm() {
     fd.set('slug', slug)
     startTransition(async () => {
       try {
+        // Redirects to the new product's page on success
         await createProductAction(fd)
       } catch (err: unknown) {
         if (err instanceof Error && !err.message.includes('NEXT_REDIRECT')) {
@@ -49,13 +69,18 @@ export function ProductForm() {
   }
 
   return (
-    <Card className="bg-card border-border">
-      <CardContent className="pt-6">
-        <form onSubmit={handleSubmit} className="space-y-6">
+    <Dialog open={isOpen} onOpenChange={setOpen}>
+      {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>New Product</DialogTitle>
+          <DialogDescription>Group related assets and code plans under a product.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label htmlFor="name">Product Name <span className="text-destructive">*</span></Label>
+            <Label htmlFor="pc-name">Product Name <span className="text-destructive">*</span></Label>
             <Input
-              id="name"
+              id="pc-name"
               name="name"
               placeholder="e.g. Core Platform"
               value={name}
@@ -65,12 +90,12 @@ export function ProductForm() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="slug">
+            <Label htmlFor="pc-slug">
               URL Slug <span className="text-destructive">*</span>
               <span className="ml-2 text-xs text-muted-foreground">(auto-generated, must be unique)</span>
             </Label>
             <Input
-              id="slug"
+              id="pc-slug"
               name="slug"
               placeholder="core-platform"
               value={slug}
@@ -80,9 +105,9 @@ export function ProductForm() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">Description <span className="text-destructive">*</span></Label>
+            <Label htmlFor="pc-description">Description <span className="text-destructive">*</span></Label>
             <Textarea
-              id="description"
+              id="pc-description"
               name="description"
               placeholder="What does this product encompass?"
               rows={3}
@@ -91,29 +116,23 @@ export function ProductForm() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="tags">
+            <Label htmlFor="pc-tags">
               Tags
               <span className="ml-2 text-xs text-muted-foreground">(comma-separated)</span>
             </Label>
-            <Input
-              id="tags"
-              name="tags"
-              placeholder="backend, api, v2"
-            />
+            <Input id="pc-tags" name="tags" placeholder="backend, api, v2" />
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
-          <div className="flex gap-3 justify-end">
-            <Button type="button" variant="outline" onClick={() => history.back()}>
-              Cancel
-            </Button>
+          <DialogFooter className="pt-2">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button type="submit" disabled={isPending}>
               {isPending ? 'Creating…' : 'Create Product'}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
-      </CardContent>
-    </Card>
+      </DialogContent>
+    </Dialog>
   )
 }

@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useTransition, useOptimistic } from 'react'
+import { useCallback, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -10,26 +11,11 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Clock, Filter, CheckCircle2, Circle, Play, LayoutGrid, List } from 'lucide-react'
+import { Clock, Filter, CheckCircle2, Circle, Play, LayoutGrid, List, Plus } from 'lucide-react'
 import type { TaskStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { updateTaskStatusAction } from '../actions'
-
-type Task = {
-  id: string
-  codePlanId: string
-  title: string
-  tags: string[]
-  status: TaskStatus
-  priority: 'low' | 'medium' | 'high' | 'critical'
-  estimatedEffort?: number
-  actualEffort?: number
-  planTitle: string
-  assetName: string | null
-  assigneeName: string | null
-}
-
-type Plan = { id: string; title: string }
+import { TaskPanel, type TaskRow, type PlanOption, type MemberOption } from './task-panel'
 
 const statusLabels: Record<TaskStatus, string> = {
   not_started: 'Not Started',
@@ -62,12 +48,11 @@ function nextStatus(current: TaskStatus): TaskStatus {
   return 'not_started'
 }
 
-function StatusCycleButton({ task }: { task: Task }) {
+function StatusCycleButton({ task }: { task: TaskRow }) {
   const [isPending, startTransition] = useTransition()
   const [optimisticStatus, setOptimisticStatus] = useState<TaskStatus>(task.status)
 
   const next = nextStatus(optimisticStatus)
-  const Icon = statusIcons[optimisticStatus]
 
   function cycle() {
     const newStatus = next
@@ -75,32 +60,30 @@ function StatusCycleButton({ task }: { task: Task }) {
     startTransition(() => updateTaskStatusAction(task.id, newStatus))
   }
 
+  // The Radix Checkbox renders a <button>, so it must not be wrapped in another button
   return (
-    <button
-      type="button"
-      onClick={cycle}
+    <Checkbox
+      checked={optimisticStatus === 'done'}
       disabled={isPending}
       title={`Mark as ${statusLabels[next]}`}
-      className="focus:outline-none"
-    >
-      <Checkbox
-        checked={optimisticStatus === 'done'}
-        className={cn(
-          'border-muted-foreground transition-colors',
-          optimisticStatus === 'in_progress' && 'border-chart-1',
-          optimisticStatus === 'done' && 'border-accent',
-        )}
-      />
-    </button>
+      onClick={(e) => { e.stopPropagation(); cycle() }}
+      className={cn(
+        'border-muted-foreground transition-colors',
+        optimisticStatus === 'in_progress' && 'border-chart-1',
+        optimisticStatus === 'done' && 'border-accent',
+      )}
+    />
   )
 }
 
-function BoardTaskCard({ task }: { task: Task }) {
+function BoardTaskCard({ task, onOpen }: { task: TaskRow; onOpen: (task: TaskRow) => void }) {
   const [isPending, startTransition] = useTransition()
   const [optimisticStatus, setOptimisticStatus] = useState<TaskStatus>(task.status)
   const StatusIcon = statusIcons[optimisticStatus]
 
-  function cycleStatus() {
+  function cycleStatus(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (isPending) return
     const newStatus = nextStatus(optimisticStatus)
     setOptimisticStatus(newStatus)
     startTransition(() => updateTaskStatusAction(task.id, newStatus))
@@ -113,7 +96,7 @@ function BoardTaskCard({ task }: { task: Task }) {
         optimisticStatus === 'in_progress' && 'border-l-2 border-l-chart-1',
         optimisticStatus === 'done' && 'opacity-75',
       )}
-      onClick={cycleStatus}
+      onClick={() => onOpen(task)}
     >
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-2 mb-2">
@@ -126,10 +109,15 @@ function BoardTaskCard({ task }: { task: Task }) {
         </div>
         <p className="text-xs text-muted-foreground mb-2 truncate">{task.planTitle}</p>
         <div className="flex items-center justify-between">
-          <div className={cn('flex items-center gap-1 text-xs', statusStyles[optimisticStatus])}>
+          <button
+            type="button"
+            onClick={cycleStatus}
+            title={`Mark as ${statusLabels[nextStatus(optimisticStatus)]}`}
+            className={cn('flex items-center gap-1 text-xs hover:opacity-80', statusStyles[optimisticStatus])}
+          >
             <StatusIcon className="h-3 w-3" />
             <span>{statusLabels[optimisticStatus]}</span>
-          </div>
+          </button>
           {task.estimatedEffort && (
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <Clock className="h-3 w-3" />
@@ -142,10 +130,36 @@ function BoardTaskCard({ task }: { task: Task }) {
   )
 }
 
-export function TasksClient({ tasks, plans }: { tasks: Task[]; plans: Plan[] }) {
+export function TasksClient({
+  tasks,
+  plans,
+  members,
+}: {
+  tasks: TaskRow[]
+  plans: PlanOption[]
+  members: MemberOption[]
+}) {
+  const searchParams = useSearchParams()
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all')
   const [planFilter, setPlanFilter] = useState<string>('all')
   const [view, setView] = useState<'list' | 'board'>('list')
+  const [createOpen, setCreateOpen] = useState(false)
+
+  const openTaskId = searchParams.get('task')
+  const openTask = useMemo(
+    () => (openTaskId ? tasks.find((t) => t.id === openTaskId) ?? null : null),
+    [openTaskId, tasks],
+  )
+
+  // Shallow URL updates keep the panel deep-linkable without a server roundtrip
+  const openPanel = useCallback((task: TaskRow) => {
+    window.history.pushState(null, '', `/tasks?task=${task.id}`)
+  }, [])
+
+  const closePanel = useCallback(() => {
+    setCreateOpen(false)
+    if (openTaskId) window.history.pushState(null, '', '/tasks')
+  }, [openTaskId])
 
   const filteredTasks = tasks.filter((task) => {
     if (statusFilter !== 'all' && task.status !== statusFilter) return false
@@ -162,6 +176,26 @@ export function TasksClient({ tasks, plans }: { tasks: Task[]; plans: Plan[] }) 
 
   return (
     <>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Tasks</h1>
+          <p className="text-muted-foreground">Track and manage tasks across all code plans</p>
+        </div>
+        <Button onClick={() => setCreateOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          New Task
+        </Button>
+      </div>
+
+      <TaskPanel
+        open={createOpen || !!openTask}
+        mode={createOpen ? 'create' : 'view'}
+        task={openTask}
+        plans={plans}
+        members={members}
+        onClose={closePanel}
+      />
+
       {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-4 mb-8">
         <Card className="bg-card border-border">
@@ -253,8 +287,12 @@ export function TasksClient({ tasks, plans }: { tasks: Task[]; plans: Plan[] }) 
               {filteredTasks.map((task) => {
                 const StatusIcon = statusIcons[task.status]
                 return (
-                  <TableRow key={task.id}>
-                    <TableCell>
+                  <TableRow
+                    key={task.id}
+                    className="cursor-pointer"
+                    onClick={() => openPanel(task)}
+                  >
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <StatusCycleButton task={task} />
                     </TableCell>
                     <TableCell>
@@ -271,7 +309,7 @@ export function TasksClient({ tasks, plans }: { tasks: Task[]; plans: Plan[] }) 
                         )}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <Link href={`/plans/${task.codePlanId}`} className="text-sm hover:text-accent transition-colors">
                         {task.planTitle}
                       </Link>
@@ -344,7 +382,7 @@ export function TasksClient({ tasks, plans }: { tasks: Task[]; plans: Plan[] }) 
                 </div>
                 <div className="space-y-3">
                   {statusTasks.slice(0, 8).map((task) => (
-                    <BoardTaskCard key={task.id} task={task} />
+                    <BoardTaskCard key={task.id} task={task} onOpen={openPanel} />
                   ))}
                   {statusTasks.length > 8 && (
                     <p className="text-sm text-muted-foreground text-center py-2">+{statusTasks.length - 8} more</p>

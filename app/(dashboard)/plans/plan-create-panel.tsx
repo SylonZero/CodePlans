@@ -5,10 +5,17 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { createCodePlanAction } from '../../actions'
-import type { Product } from '@/lib/types'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet'
+import { Plus } from 'lucide-react'
+import { createCodePlanAction } from '../actions'
 
 const PLAN_TYPES = [
   { value: 'feature', label: 'Feature' },
@@ -17,14 +24,19 @@ const PLAN_TYPES = [
   { value: 'bugfix', label: 'Bug Fix' },
 ] as const
 
-export function PlanForm({
+type ProductOption = { id: string; name: string }
+
+export function PlanCreatePanel({
   products,
-  preselectedProductId,
+  defaultProductId,
+  trigger,
 }: {
-  products: Product[]
-  preselectedProductId?: string
+  products: ProductOption[]
+  defaultProductId?: string
+  trigger?: React.ReactNode
 }) {
-  const [productId, setProductId] = useState(preselectedProductId ?? products[0]?.id ?? '')
+  const [open, setOpen] = useState(false)
+  const [productId, setProductId] = useState(defaultProductId ?? products[0]?.id ?? '')
   const [type, setType] = useState<string>('feature')
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -38,6 +50,7 @@ export function PlanForm({
     fd.set('type', type)
     startTransition(async () => {
       try {
+        // Redirects to the new plan's page on success
         await createCodePlanAction(fd)
       } catch (err: unknown) {
         if (err instanceof Error && !err.message.includes('NEXT_REDIRECT')) {
@@ -48,24 +61,36 @@ export function PlanForm({
   }
 
   return (
-    <Card className="bg-card border-border">
-      <CardContent className="pt-6">
-        <form onSubmit={handleSubmit} className="space-y-6">
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        {trigger ?? (
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            New Plan
+          </Button>
+        )}
+      </SheetTrigger>
+      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
+        <SheetHeader>
+          <SheetTitle>New Code Plan</SheetTitle>
+          <SheetDescription>Coordinate a set of related changes across your architecture.</SheetDescription>
+        </SheetHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 px-4 pb-4">
           <div className="space-y-2">
-            <Label htmlFor="title">Title <span className="text-destructive">*</span></Label>
-            <Input id="title" name="title" placeholder="e.g. Migrate auth to JWT" required />
+            <Label htmlFor="np-title">Title <span className="text-destructive">*</span></Label>
+            <Input id="np-title" name="title" placeholder="e.g. Migrate auth to JWT" required />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">Description <span className="text-destructive">*</span></Label>
-            <Textarea id="description" name="description" placeholder="What changes does this plan coordinate?" rows={3} required />
+            <Label htmlFor="np-description">Description <span className="text-destructive">*</span></Label>
+            <Textarea id="np-description" name="description" placeholder="What changes does this plan coordinate?" rows={3} required />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="product">Product <span className="text-destructive">*</span></Label>
+              <Label htmlFor="np-product">Product <span className="text-destructive">*</span></Label>
               <Select value={productId} onValueChange={setProductId}>
-                <SelectTrigger id="product">
+                <SelectTrigger id="np-product">
                   <SelectValue placeholder="Select a product" />
                 </SelectTrigger>
                 <SelectContent>
@@ -77,9 +102,9 @@ export function PlanForm({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="type">Type <span className="text-destructive">*</span></Label>
+              <Label htmlFor="np-type">Type <span className="text-destructive">*</span></Label>
               <Select value={type} onValueChange={setType}>
-                <SelectTrigger id="type">
+                <SelectTrigger id="np-type">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -91,36 +116,34 @@ export function PlanForm({
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="deadline">
+              <Label htmlFor="np-deadline">
                 Deadline
                 <span className="ml-2 text-xs text-muted-foreground">(optional)</span>
               </Label>
-              <Input id="deadline" name="deadline" type="date" />
+              <Input id="np-deadline" name="deadline" type="date" />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="tags">
+              <Label htmlFor="np-tags">
                 Tags
                 <span className="ml-2 text-xs text-muted-foreground">(comma-separated)</span>
               </Label>
-              <Input id="tags" name="tags" placeholder="auth, migration, v3" />
+              <Input id="np-tags" name="tags" placeholder="auth, migration, v3" />
             </div>
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
-          <div className="flex gap-3 justify-end">
-            <Button type="button" variant="outline" onClick={() => history.back()}>
-              Cancel
-            </Button>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button type="submit" disabled={isPending}>
               {isPending ? 'Creating…' : 'Create Plan'}
             </Button>
           </div>
         </form>
-      </CardContent>
-    </Card>
+      </SheetContent>
+    </Sheet>
   )
 }

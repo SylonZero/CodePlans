@@ -158,9 +158,10 @@ export async function createTask(data: CreateTaskData) {
   return task
 }
 
-type UpdateTaskData = Partial<Omit<CreateTaskData, 'codePlanId'> & {
+type UpdateTaskData = Partial<Omit<CreateTaskData, 'codePlanId' | 'assigneeId'> & {
   status: 'not_started' | 'in_progress' | 'done'
   actualEffort: number
+  assigneeId: string | null
 }>
 
 export async function updateTask(id: string, data: UpdateTaskData) {
