@@ -15,7 +15,7 @@ import type {
 // Dashboard
 // ---------------------------------------------------------------------------
 
-export async function getDashboardStats(userId: string): Promise<DashboardStats> {
+export async function getDashboardStats(userId: string, productId?: string): Promise<DashboardStats> {
   const user = await db.query.users.findFirst({ where: eq(users.id, userId) })
   const orgId = user?.organizationId ?? null
 
@@ -26,7 +26,8 @@ export async function getDashboardStats(userId: string): Promise<DashboardStats>
   const [productIds] = await Promise.all([
     db.select({ id: products.id }).from(products).where(productFilter),
   ])
-  const ids = productIds.map((p) => p.id)
+  let ids = productIds.map((p) => p.id)
+  if (productId) ids = ids.filter((id) => id === productId)
 
   if (ids.length === 0) {
     return {
@@ -117,13 +118,15 @@ export async function getDashboardStats(userId: string): Promise<DashboardStats>
 // Products
 // ---------------------------------------------------------------------------
 
-export async function getProducts(userId: string): Promise<Product[]> {
+export async function getProducts(userId: string, productId?: string): Promise<Product[]> {
   const user = await db.query.users.findFirst({ where: eq(users.id, userId) })
   const orgId = user?.organizationId ?? null
 
-  const productFilter = orgId
+  const accessFilter = orgId
     ? or(eq(products.creatorId, userId), eq(products.organizationId, orgId))
     : eq(products.creatorId, userId)
+
+  const productFilter = productId ? and(accessFilter, eq(products.id, productId)) : accessFilter
 
   const rows = await db
     .select({
@@ -361,6 +364,7 @@ export async function getCodePlan(id: string): Promise<CodePlanDetail | null> {
 type TaskFilters = {
   planId?: string
   assigneeId?: string
+  productId?: string
   status?: 'not_started' | 'in_progress' | 'done'
 }
 
@@ -388,6 +392,7 @@ export async function getTasks(userId: string, filters: TaskFilters = {}): Promi
   if (filters.status) conditions.push(eq(tasks.status, filters.status))
   if (filters.planId) conditions.push(eq(tasks.codePlanId, filters.planId))
   if (filters.assigneeId) conditions.push(eq(tasks.assigneeId, filters.assigneeId))
+  if (filters.productId) conditions.push(eq(codePlans.productId, filters.productId))
 
   const rows = await db
     .select({

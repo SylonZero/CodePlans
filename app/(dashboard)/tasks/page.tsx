@@ -1,5 +1,6 @@
 import { authAdapter } from '@/lib/auth'
 import { getTasks, getCodePlans } from '@/lib/db/queries'
+import { getProductScope } from '@/lib/product-scope'
 import { NewTaskDialog } from './new-task-dialog'
 import { TasksClient } from './tasks-client'
 
@@ -7,9 +8,11 @@ export default async function TasksPage() {
   const user = await authAdapter.getUser()
   if (!user) return null
 
+  const scope = await getProductScope()
+
   const [tasks, plans] = await Promise.all([
-    getTasks(user.id),
-    getCodePlans(user.id, { status: 'active' }),
+    getTasks(user.id, { productId: scope ?? undefined }),
+    getCodePlans(user.id, { status: 'active', productId: scope ?? undefined }),
   ])
 
   const planList = plans.map((p) => ({ id: p.id, title: p.title }))

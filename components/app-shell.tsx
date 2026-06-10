@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -30,8 +30,10 @@ import {
   Bell,
   Search,
   Building2,
+  Layers,
 } from 'lucide-react'
 import { signOut } from '@/app/(auth)/actions'
+import { setProductScopeAction } from '@/lib/actions/product-scope'
 import type { BillingTier } from '@/lib/types'
 
 type AppShellProps = {
@@ -39,6 +41,7 @@ type AppShellProps = {
   user: { name: string; email: string; billingTier: BillingTier | string }
   orgName: string | null
   products: { id: string; name: string; slug: string }[]
+  selectedProductId: string | null
   billingEnabled?: boolean
 }
 
@@ -56,10 +59,21 @@ const secondaryNavigationBase = [
   { name: 'Settings', href: '/settings', icon: Settings },
 ]
 
-export function AppShell({ children, user, orgName, products, billingEnabled = true }: AppShellProps) {
+export function AppShell({ children, user, orgName, products, selectedProductId, billingEnabled = true }: AppShellProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [selectedProduct, setSelectedProduct] = useState(products[0] ?? null)
+  const [, startTransition] = useTransition()
+
+  const selectedProduct = products.find((p) => p.id === selectedProductId) ?? null
+  const isAllProducts = !selectedProduct
+
+  const handleScopeChange = (productId: string | null) => {
+    startTransition(async () => {
+      await setProductScopeAction(productId)
+      router.refresh()
+    })
+  }
 
   const secondaryNavigation = secondaryNavigationBase.filter(
     (item) => !item.billingOnly || billingEnabled
@@ -124,32 +138,40 @@ export function AppShell({ children, user, orgName, products, billingEnabled = t
               <Button variant="ghost" className="w-full justify-between text-left font-normal hover:bg-sidebar-accent">
                 <div className="flex items-center gap-2 truncate">
                   <div className="flex h-6 w-6 items-center justify-center rounded bg-muted">
-                    <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                    {isAllProducts ? (
+                      <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+                    ) : (
+                      <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                    )}
                   </div>
                   <span className="truncate text-sm">
-                    {selectedProduct?.name ?? 'Select a product'}
+                    {isAllProducts ? 'All Products' : selectedProduct?.name}
                   </span>
                 </div>
                 <ChevronDown className="h-4 w-4 text-muted-foreground" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56">
-              <DropdownMenuLabel>Switch Product</DropdownMenuLabel>
+              <DropdownMenuLabel>Filter workspace by</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {products.length === 0 ? (
-                <DropdownMenuItem disabled>No products yet</DropdownMenuItem>
-              ) : (
-                products.map((product) => (
-                  <DropdownMenuItem
-                    key={product.id}
-                    onClick={() => setSelectedProduct(product)}
-                    className={cn('cursor-pointer', selectedProduct?.id === product.id && 'bg-accent')}
-                  >
-                    <Package className="mr-2 h-4 w-4" />
-                    {product.name}
-                  </DropdownMenuItem>
-                ))
-              )}
+              <DropdownMenuItem
+                onClick={() => handleScopeChange(null)}
+                className={cn('cursor-pointer', isAllProducts && 'bg-accent')}
+              >
+                <Layers className="mr-2 h-4 w-4" />
+                All Products
+              </DropdownMenuItem>
+              {products.length > 0 && <DropdownMenuSeparator />}
+              {products.map((product) => (
+                <DropdownMenuItem
+                  key={product.id}
+                  onClick={() => handleScopeChange(product.id)}
+                  className={cn('cursor-pointer', selectedProduct?.id === product.id && 'bg-accent')}
+                >
+                  <Package className="mr-2 h-4 w-4" />
+                  {product.name}
+                </DropdownMenuItem>
+              ))}
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <Link href="/products/new" className="cursor-pointer">

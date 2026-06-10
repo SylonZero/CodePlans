@@ -1,16 +1,25 @@
 import Link from 'next/link'
 import { authAdapter } from '@/lib/auth'
 import { getCodePlans, getProducts } from '@/lib/db/queries'
+import { getProductScope } from '@/lib/product-scope'
 import { Button } from '@/components/ui/button'
 import { Plus } from 'lucide-react'
 import { PlansClient } from './plans-client'
 
-export default async function PlansPage() {
+type Props = {
+  searchParams: Promise<{ product?: string }>
+}
+
+export default async function PlansPage({ searchParams }: Props) {
   const user = await authAdapter.getUser()
   if (!user) return null
 
+  const { product: productParam } = await searchParams
+  const scope = await getProductScope()
+  const productId = productParam || scope || undefined
+
   const [plans, products] = await Promise.all([
-    getCodePlans(user.id),
+    getCodePlans(user.id, { productId }),
     getProducts(user.id),
   ])
 

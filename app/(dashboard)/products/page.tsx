@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { authAdapter } from '@/lib/auth'
 import { getProducts } from '@/lib/db/queries'
+import { getProductScope } from '@/lib/product-scope'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -17,7 +18,8 @@ export default async function ProductsPage() {
   const user = await authAdapter.getUser()
   if (!user) return null
 
-  const products = await getProducts(user.id)
+  const scope = await getProductScope()
+  const products = await getProducts(user.id, scope ?? undefined)
 
   return (
     <div className="space-y-8">
