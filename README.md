@@ -34,9 +34,11 @@ CodePlans sits between your issue tracker and your architecture diagram:
 | Feature | Status |
 |---|---|
 | Products & asset inventory | ✅ Available |
+| Product, asset, plan & task create/edit (side panels & quick modals) | ✅ Available |
+| Workspace product switcher (filter all pages by product) | ✅ Available |
 | Tech debt scoring per asset | ✅ Available |
 | Code Plans with status lifecycle (draft → active → completed) | ✅ Available |
-| Task management (list & kanban views) | ✅ Available |
+| Task management (list & kanban views, deep-linkable task panel) | ✅ Available |
 | Dashboard with velocity metrics | ✅ Available |
 | Organization & team management | ✅ Available |
 | Role-based access (owner / admin / editor / viewer) | ✅ Available |
@@ -309,9 +311,9 @@ Please keep PRs focused. Bug fixes, test coverage improvements, and documentatio
 
 ## Roadmap
 
-- [ ] Product & asset CRUD forms (currently read-only in UI)
-- [ ] Code Plan create/edit flows
-- [ ] Task create/edit modal + inline status updates
+- [x] Product & asset CRUD forms — shipped in v0.1.5 (side panels & quick modals)
+- [x] Code Plan create/edit flows — shipped in v0.1.5
+- [x] Task create/edit panel + inline status updates — shipped in v0.1.5
 - [ ] Asset dependency graph visualisation
 - [ ] Activity feed (event log)
 - [ ] Analytics wired to real data
