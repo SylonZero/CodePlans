@@ -22,3 +22,6 @@ data/*.db-wal
 
 # Private docs (not for OSS repo)
 docs-private/
+
+# UI mockup reference code (not part of the app)
+/refs
