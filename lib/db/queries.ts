@@ -2,6 +2,7 @@ import { db } from './index'
 import {
   products,
   assets,
+  assetDependencies,
   codePlans,
   codePlanAssets,
   codePlanAssignees,
@@ -707,6 +708,318 @@ export async function getAssetOptions(
     .innerJoin(products, eq(assets.productId, products.id))
     .where(productFilter)
     .orderBy(assets.name)
+}
+
+// ---------------------------------------------------------------------------
+// Asset dependencies & impact analysis
+// ---------------------------------------------------------------------------
+
+export type DependencyEdge = {
+  id: string
+  sourceAssetId: string
+  sourceAssetName: string
+  targetAssetId: string
+  targetAssetName: string
+  dependencyType: 'depends_on' | 'integrates_with' | 'aggregates'
+  description: string | null
+}
+
+/** All dependency edges between assets of one product. */
+export async function getProductDependencyEdges(productId: string): Promise<DependencyEdge[]> {
+  const rows = await db
+    .select({
+      id: assetDependencies.id,
+      sourceAssetId: assetDependencies.sourceAssetId,
+      sourceAssetName: assets.name,
+      targetAssetId: assetDependencies.targetAssetId,
+      targetAssetName: sql<string>`(select name from assets a2 where a2.id = ${assetDependencies.targetAssetId})`,
+      dependencyType: assetDependencies.dependencyType,
+      description: assetDependencies.description,
+    })
+    .from(assetDependencies)
+    .innerJoin(assets, eq(assetDependencies.sourceAssetId, assets.id))
+    .where(eq(assets.productId, productId))
+  return rows
+}
+
+export type ImpactedAsset = {
+  id: string
+  name: string
+  type: string
+  health: string
+  viaAssetId: string
+  viaAssetName: string
+  dependencyType: 'depends_on' | 'integrates_with' | 'aggregates'
+}
+
+/**
+ * Impact analysis for a plan: assets that depend on (or integrate with) the
+ * plan's target assets, excluding the targets themselves. These are the
+ * blast radius of the change.
+ */
+export async function getImpactedAssets(planId: string): Promise<ImpactedAsset[]> {
+  const targets = await db
+    .select({ assetId: codePlanAssets.assetId })
+    .from(codePlanAssets)
+    .where(eq(codePlanAssets.codePlanId, planId))
+  const targetIds = targets.map((t) => t.assetId)
+  if (targetIds.length === 0) return []
+
+  const rows = await db
+    .select({
+      id: assets.id,
+      name: assets.name,
+      type: assets.type,
+      health: assets.health,
+      viaAssetId: assetDependencies.targetAssetId,
+      viaAssetName: sql<string>`(select name from assets a2 where a2.id = ${assetDependencies.targetAssetId})`,
+      dependencyType: assetDependencies.dependencyType,
+    })
+    .from(assetDependencies)
+    .innerJoin(assets, eq(assetDependencies.sourceAssetId, assets.id))
+    .where(inArray(assetDependencies.targetAssetId, targetIds))
+
+  // Targets themselves are being changed deliberately — not "impact".
+  const targetSet = new Set(targetIds)
+  return rows.filter((r) => !targetSet.has(r.id))
+}
+
+// ---------------------------------------------------------------------------
+// Analytics
+// ---------------------------------------------------------------------------
+
+export type AnalyticsInsight = {
+  kind: 'debt' | 'velocity' | 'deadline'
+  title: string
+  description: string
+}
+
+export type AnalyticsData = {
+  velocityByWeek: { week: string; completed: number; created: number }[]
+  tasksByType: { name: string; value: number }[]
+  effortByMonth: { month: string; estimated: number; actual: number }[]
+  techDebtByProduct: { name: string; score: number }[]
+  avgCycleTimeDays: number | null
+  estimationAccuracy: number | null
+  insights: AnalyticsInsight[]
+}
+
+const PLAN_TYPE_LABELS: Record<string, string> = {
+  feature: 'Feature',
+  refactor: 'Refactor',
+  bugfix: 'Bug Fix',
+  improvement: 'Improvement',
+}
+
+export async function getAnalytics(userId: string, productId?: string): Promise<AnalyticsData> {
+  const productFilter = await productAccessWhere(userId)
+  const accessible = await db
+    .select({ id: products.id, name: products.name })
+    .from(products)
+    .where(productFilter)
+  let scoped = accessible
+  if (productId) scoped = scoped.filter((p) => p.id === productId)
+  const ids = scoped.map((p) => p.id)
+
+  const empty: AnalyticsData = {
+    velocityByWeek: [],
+    tasksByType: [],
+    effortByMonth: [],
+    techDebtByProduct: [],
+    avgCycleTimeDays: null,
+    estimationAccuracy: null,
+    insights: [],
+  }
+  if (ids.length === 0) return empty
+
+  const [taskRows, assetRows, debtRows, activePlans] = await Promise.all([
+    db
+      .select({
+        status: tasks.status,
+        estimatedEffort: tasks.estimatedEffort,
+        actualEffort: tasks.actualEffort,
+        createdAt: tasks.createdAt,
+        updatedAt: tasks.updatedAt,
+        planType: codePlans.type,
+      })
+      .from(tasks)
+      .innerJoin(codePlans, eq(tasks.codePlanId, codePlans.id))
+      .where(inArray(codePlans.productId, ids)),
+    db
+      .select({
+        id: assets.id,
+        name: assets.name,
+        productId: assets.productId,
+        techDebtScore: assets.techDebtScore,
+      })
+      .from(assets)
+      .where(inArray(assets.productId, ids)),
+    db
+      .select({ assetId: workItems.assetId, severity: workItems.severity })
+      .from(workItems)
+      .where(
+        and(
+          inArray(workItems.productId, ids),
+          eq(workItems.type, 'tech_debt'),
+          inArray(workItems.status, ['open', 'planned', 'in_progress']),
+        ),
+      ),
+    db
+      .select({
+        id: codePlans.id,
+        title: codePlans.title,
+        deadline: codePlans.deadline,
+      })
+      .from(codePlans)
+      .where(and(inArray(codePlans.productId, ids), eq(codePlans.status, 'active'))),
+  ])
+
+  // --- Velocity: last 8 weeks, completed vs created ---
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000
+  const now = Date.now()
+  const velocityByWeek = Array.from({ length: 8 }, (_, i) => {
+    const start = now - (8 - i) * WEEK_MS
+    const end = start + WEEK_MS
+    const completed = taskRows.filter(
+      (t) => t.status === 'done' && t.updatedAt.getTime() >= start && t.updatedAt.getTime() < end,
+    ).length
+    const created = taskRows.filter(
+      (t) => t.createdAt.getTime() >= start && t.createdAt.getTime() < end,
+    ).length
+    return { week: `W${i + 1}`, completed, created }
+  })
+
+  // --- Tasks by plan type (percentages) ---
+  const typeCounts = new Map<string, number>()
+  for (const t of taskRows) {
+    typeCounts.set(t.planType, (typeCounts.get(t.planType) ?? 0) + 1)
+  }
+  const totalTyped = taskRows.length
+  const tasksByType = [...typeCounts.entries()]
+    .map(([type, count]) => ({
+      name: PLAN_TYPE_LABELS[type] ?? type,
+      value: totalTyped > 0 ? Math.round((count / totalTyped) * 100) : 0,
+    }))
+    .sort((a, b) => b.value - a.value)
+
+  // --- Effort estimation accuracy by month (done tasks with both values) ---
+  const MONTHS = 6
+  const monthKeys: string[] = []
+  const monthLabel = new Intl.DateTimeFormat('en-US', { month: 'short' })
+  const byMonth = new Map<string, { estimated: number; actual: number }>()
+  for (let i = MONTHS - 1; i >= 0; i--) {
+    const d = new Date()
+    d.setDate(1)
+    d.setMonth(d.getMonth() - i)
+    const key = `${d.getFullYear()}-${d.getMonth()}`
+    monthKeys.push(key)
+    byMonth.set(key, { estimated: 0, actual: 0 })
+  }
+  const measured = taskRows.filter(
+    (t) => t.status === 'done' && t.estimatedEffort != null && t.actualEffort != null,
+  )
+  for (const t of measured) {
+    const key = `${t.updatedAt.getFullYear()}-${t.updatedAt.getMonth()}`
+    const bucket = byMonth.get(key)
+    if (!bucket) continue
+    bucket.estimated += t.estimatedEffort!
+    bucket.actual += t.actualEffort!
+  }
+  const effortByMonth = monthKeys.map((key) => {
+    const [year, month] = key.split('-').map(Number)
+    return {
+      month: monthLabel.format(new Date(year, month, 1)),
+      ...byMonth.get(key)!,
+    }
+  })
+
+  // --- Estimation accuracy: % of measured tasks within 20% of estimate ---
+  const withEstimate = measured.filter((t) => t.estimatedEffort! > 0)
+  const withinVariance = withEstimate.filter(
+    (t) => Math.abs(t.actualEffort! - t.estimatedEffort!) / t.estimatedEffort! <= 0.2,
+  )
+  const estimationAccuracy =
+    withEstimate.length > 0 ? Math.round((withinVariance.length / withEstimate.length) * 100) : null
+
+  // --- Cycle time: created → done, days ---
+  const doneTasks = taskRows.filter((t) => t.status === 'done')
+  const avgCycleTimeDays =
+    doneTasks.length > 0
+      ? Math.round(
+          (doneTasks.reduce((sum, t) => sum + (t.updatedAt.getTime() - t.createdAt.getTime()), 0) /
+            doneTasks.length /
+            (24 * 60 * 60 * 1000)) *
+            10,
+        ) / 10
+      : null
+
+  // --- Tech debt by product (effective score = manual ?? derived) ---
+  const DEBT_WEIGHT: Record<string, number> = { low: 3, medium: 8, high: 15, critical: 25 }
+  const derivedByAsset = new Map<string, number>()
+  for (const r of debtRows) {
+    if (!r.assetId) continue
+    derivedByAsset.set(
+      r.assetId,
+      Math.min(100, (derivedByAsset.get(r.assetId) ?? 0) + (DEBT_WEIGHT[r.severity] ?? 8)),
+    )
+  }
+  const techDebtByProduct = scoped
+    .map((p) => {
+      const productAssets = assetRows.filter((a) => a.productId === p.id)
+      const scores = productAssets
+        .map((a) => a.techDebtScore ?? derivedByAsset.get(a.id))
+        .filter((s): s is number => s != null)
+      return {
+        name: p.name,
+        score: scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0,
+      }
+    })
+    .sort((a, b) => b.score - a.score)
+
+  // --- Insights (computed, not canned) ---
+  const insights: AnalyticsInsight[] = []
+  const worstAsset = assetRows
+    .map((a) => ({ ...a, effective: a.techDebtScore ?? derivedByAsset.get(a.id) ?? 0 }))
+    .sort((a, b) => b.effective - a.effective)[0]
+  if (worstAsset && worstAsset.effective >= 40) {
+    insights.push({
+      kind: 'debt',
+      title: `${worstAsset.name} needs attention`,
+      description: `Highest tech debt score (${worstAsset.effective}). Consider scheduling a refactor plan.`,
+    })
+  }
+  const recent = velocityByWeek.slice(4).reduce((s, w) => s + w.completed, 0)
+  const prior = velocityByWeek.slice(0, 4).reduce((s, w) => s + w.completed, 0)
+  if (prior > 0 && recent !== prior) {
+    const pct = Math.round(((recent - prior) / prior) * 100)
+    insights.push({
+      kind: 'velocity',
+      title: pct > 0 ? 'Velocity trending up' : 'Velocity trending down',
+      description: `${Math.abs(pct)}% ${pct > 0 ? 'more' : 'fewer'} tasks completed in the last 4 weeks vs the prior 4.`,
+    })
+  }
+  const today = new Date().toISOString().slice(0, 10)
+  const overdue = activePlans.filter((p) => p.deadline && p.deadline < today)
+  if (overdue.length > 0) {
+    insights.push({
+      kind: 'deadline',
+      title: `${overdue.length} active plan${overdue.length > 1 ? 's' : ''} past deadline`,
+      description: overdue
+        .slice(0, 2)
+        .map((p) => `"${p.title}"`)
+        .join(', ') + ' — consider re-scoping or updating the deadline.',
+    })
+  }
+
+  return {
+    velocityByWeek,
+    tasksByType,
+    effortByMonth,
+    techDebtByProduct,
+    avgCycleTimeDays,
+    estimationAccuracy,
+    insights,
+  }
 }
 
 // ---------------------------------------------------------------------------

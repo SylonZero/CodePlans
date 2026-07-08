@@ -29,6 +29,8 @@ import {
   deleteWorkItem,
   linkWorkItemToPlan,
   unlinkWorkItemFromPlan,
+  createAssetDependency,
+  deleteAssetDependency,
 } from '@/lib/db/mutations'
 import type { UserRole, WorkItemType, WorkItemStatus, WorkItemSeverity } from '@/lib/types'
 
@@ -689,4 +691,27 @@ export async function unlinkWorkItemFromPlanAction(workItemId: string, codePlanI
   })
   revalidatePath('/work-items')
   revalidatePath(`/plans/${codePlanId}`)
+}
+
+// ---------------------------------------------------------------------------
+// Asset dependencies
+// ---------------------------------------------------------------------------
+
+export async function addAssetDependencyAction(productSlug: string, formData: FormData) {
+  await requireUser()
+  await createAssetDependency({
+    sourceAssetId: formData.get('sourceAssetId') as string,
+    targetAssetId: formData.get('targetAssetId') as string,
+    dependencyType:
+      (formData.get('dependencyType') as 'depends_on' | 'integrates_with' | 'aggregates') ||
+      'depends_on',
+    description: (formData.get('description') as string) || undefined,
+  })
+  revalidatePath(`/products/${productSlug}`)
+}
+
+export async function removeAssetDependencyAction(id: string, productSlug: string) {
+  await requireUser()
+  await deleteAssetDependency(id)
+  revalidatePath(`/products/${productSlug}`)
 }

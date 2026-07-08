@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { authAdapter } from '@/lib/auth'
-import { getProduct, getCodePlans } from '@/lib/db/queries'
+import { getProduct, getCodePlans, getProductDependencyEdges } from '@/lib/db/queries'
+import { DependenciesSection } from './dependencies-section'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -25,6 +26,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   if (!product) notFound()
 
   const productPlans = plans.filter((p) => p.productId === product.id)
+  const dependencyEdges = await getProductDependencyEdges(product.id)
 
   return (
     <div className="space-y-6">
@@ -65,10 +67,19 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         <TabsList className="bg-muted">
           <TabsTrigger value="assets">Assets ({product.assets.length})</TabsTrigger>
           <TabsTrigger value="plans">Code Plans ({productPlans.length})</TabsTrigger>
+          <TabsTrigger value="dependencies">Dependencies ({dependencyEdges.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="assets" className="space-y-6">
           <AssetsSection assets={product.assets} productId={product.id} productSlug={slug} />
+        </TabsContent>
+
+        <TabsContent value="dependencies" className="space-y-6">
+          <DependenciesSection
+            productSlug={slug}
+            edges={dependencyEdges}
+            assets={product.assets.map((a) => ({ id: a.id, name: a.name }))}
+          />
         </TabsContent>
 
         <TabsContent value="plans" className="space-y-4">

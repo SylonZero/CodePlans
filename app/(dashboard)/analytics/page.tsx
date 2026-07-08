@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { authAdapter } from '@/lib/auth'
-import { getDashboardStats } from '@/lib/db/queries'
+import { getDashboardStats, getAnalytics } from '@/lib/db/queries'
 import { getProductScope } from '@/lib/product-scope'
 import { AnalyticsClient } from './analytics-client'
 
@@ -9,7 +9,10 @@ export default async function AnalyticsPage() {
   if (!authUser) redirect('/login')
 
   const scope = await getProductScope()
-  const stats = await getDashboardStats(authUser.id, scope ?? undefined)
+  const [stats, analytics] = await Promise.all([
+    getDashboardStats(authUser.id, scope ?? undefined),
+    getAnalytics(authUser.id, scope ?? undefined),
+  ])
 
-  return <AnalyticsClient stats={stats} />
+  return <AnalyticsClient stats={stats} analytics={analytics} />
 }

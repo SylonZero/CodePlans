@@ -2,6 +2,7 @@ import { db } from './index'
 import {
   products,
   assets,
+  assetDependencies,
   codePlans,
   codePlanAssets,
   codePlanAssignees,
@@ -358,5 +359,38 @@ export async function unlinkWorkItemFromPlan(workItemId: string, codePlanId: str
       ),
     )
     .returning({ id: workItemCodePlans.id })
+  return deleted ?? null
+}
+
+// ---------------------------------------------------------------------------
+// Asset dependencies
+// ---------------------------------------------------------------------------
+
+type CreateAssetDependencyData = {
+  sourceAssetId: string
+  targetAssetId: string
+  dependencyType: 'depends_on' | 'integrates_with' | 'aggregates'
+  description?: string
+}
+
+export async function createAssetDependency(data: CreateAssetDependencyData) {
+  if (data.sourceAssetId === data.targetAssetId) return null
+  const existing = await db.query.assetDependencies.findFirst({
+    where: and(
+      eq(assetDependencies.sourceAssetId, data.sourceAssetId),
+      eq(assetDependencies.targetAssetId, data.targetAssetId),
+      eq(assetDependencies.dependencyType, data.dependencyType),
+    ),
+  })
+  if (existing) return existing
+  const [row] = await db.insert(assetDependencies).values(data).returning()
+  return row
+}
+
+export async function deleteAssetDependency(id: string) {
+  const [deleted] = await db
+    .delete(assetDependencies)
+    .where(eq(assetDependencies.id, id))
+    .returning({ id: assetDependencies.id })
   return deleted ?? null
 }

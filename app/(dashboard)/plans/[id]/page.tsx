@@ -4,7 +4,7 @@ import { authAdapter } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { users } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { getCodePlan, getTeamMembers, getWorkItems, getAssetOptions } from '@/lib/db/queries'
+import { getCodePlan, getTeamMembers, getWorkItems, getAssetOptions, getImpactedAssets } from '@/lib/db/queries'
 import { PlanAssetsSection } from './plan-assets-section'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -53,10 +53,11 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
   if (!plan) notFound()
 
   const profile = await db.query.users.findFirst({ where: eq(users.id, user.id) })
-  const [teamMembers, linkedItems, assetOptions] = await Promise.all([
+  const [teamMembers, linkedItems, assetOptions, impactedAssets] = await Promise.all([
     profile?.organizationId ? getTeamMembers(profile.organizationId) : Promise.resolve([]),
     getWorkItems(user.id, { planId: id }),
     getAssetOptions(user.id),
+    getImpactedAssets(id),
   ])
   const productAssetOptions = assetOptions
     .filter((a) => a.productId === plan.productId)
@@ -179,6 +180,44 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
 
       {/* Per-asset delivery: branch + PR per targeted asset */}
       <PlanAssetsSection planId={plan.id} planAssets={plan.planAssets} assetOptions={productAssetOptions} />
+
+      {/* Impact analysis: assets that depend on this plan's targets */}
+      {impactedAssets.length > 0 && (
+        <Card className="bg-card border-border border-l-2 border-l-warning">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Impact Analysis — {impactedAssets.length} dependent asset{impactedAssets.length > 1 ? 's' : ''}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-3">
+              These assets depend on what this plan changes. Review them for breakage and coordinate their owners.
+            </p>
+            <ul className="space-y-2">
+              {impactedAssets.map((impacted) => (
+                <li key={`${impacted.id}-${impacted.viaAssetId}`} className="flex items-center gap-2 text-sm flex-wrap">
+                  <span className="font-medium">{impacted.name}</span>
+                  <Badge variant="secondary" className="text-xs capitalize">{impacted.type}</Badge>
+                  <span className="text-muted-foreground text-xs">
+                    {impacted.dependencyType.replace('_', ' ')} → {impacted.viaAssetName}
+                  </span>
+                  {impacted.health !== 'healthy' && (
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        'text-xs capitalize',
+                        impacted.health === 'critical' ? 'bg-destructive/20 text-destructive' : 'bg-warning/20 text-warning',
+                      )}
+                    >
+                      {impacted.health}
+                    </Badge>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Linked work items — what this plan delivers or fixes */}
       {linkedItems.length > 0 && (
