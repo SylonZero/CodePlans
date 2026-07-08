@@ -1,7 +1,8 @@
 # CodePlans v3 — Target Design & Roadmap
 
-> **Status: Canonical forward-looking spec** (2026-07). Describes the target data model,
-> integration architecture, and the phased roadmap from v0.1.5 to that target.
+> **Status: Canonical spec — Phases 1 through 4 shipped** (2026-07, v0.5.0).
+> Describes the target data model, integration architecture, and the phased
+> roadmap. Phases 1, 1.5, 2, 3, and 4 are implemented; Phases 5–6 remain.
 > Supersedes `functional-spec-v2.md` and `data-model-enhancement-plan.md`.
 > The current implemented state is documented in `docs/app-spec.md`.
 
@@ -385,7 +386,7 @@ One schema, three usage tiers:
 Phases are sequential but 1.5 (org cleanup) can slot anywhere after Phase 1.
 Each phase ships migrations for **both** PG and SQLite, seed updates, and tests.
 
-### Phase 1 — Schema foundations (v0.2)
+### Phase 1 — Schema foundations (v0.2) ✅ SHIPPED
 1. `work_items` + `work_item_code_plans` (with provenance columns from day one —
    retrofitting provenance is far more expensive than shipping unused columns).
 2. `code_plan_assets` + `code_plan_assignees`; backfill from `targetAssetIds` /
@@ -397,21 +398,21 @@ Each phase ships migrations for **both** PG and SQLite, seed updates, and tests.
 *Exit criteria*: cross-asset plan queries run on joins; work items creatable via API
 (no UI yet); all existing UI works unchanged.
 
-### Phase 1.5 — Org cleanup for OSS (v0.2.x)
+### Phase 1.5 — Org cleanup for OSS (v0.2.x) ✅ SHIPPED
 Default-org bootstrap; membership via `organization_members` only; product visibility
 = org membership; `TEAMS_ENABLED` flag; backfill org onto org-less products.
 
-### Phase 2 — Work items & debt UI (v0.3)
+### Phase 2 — Work items & debt UI (v0.3) ✅ SHIPPED
 Work Items nav page (list/board, filters); create/link-to-plan flows; tech debt
 register view + derived `techDebtScore`; plan detail shows linked items and per-asset
 branch/PR fields (manually entered); `sync_log` writes on native mutations → Activity
 Feed goes live.
 
-### Phase 3 — Dependency graph & impact analysis (v0.4)
+### Phase 3 — Dependency graph & impact analysis (v0.4) ✅ SHIPPED
 CRUD + visualization for `asset_dependencies`; impact panel on plan detail; dependency
 data folded into analytics (which also moves off hardcoded chart data this phase).
 
-### Phase 4 — Integrations framework + first connector (v0.5)
+### Phase 4 — Integrations framework + first connector (v0.5) ✅ SHIPPED (GitHub Issues)
 `integrations` table + connector interface + sync engine (pull-only); status-mapping
 config UI; first connector (**GitHub Issues** recommended first: OAuth simplicity,
 engineering-adjacent, doubles as groundwork for PR auto-linking; Jira second, Asana

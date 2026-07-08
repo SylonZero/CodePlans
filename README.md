@@ -5,7 +5,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-SQLite_%7C_Postgres-C5F74F?logo=drizzle&logoColor=black)](https://orm.drizzle.team)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![Tests](https://img.shields.io/badge/Tests-88_passing-brightgreen?logo=vitest&logoColor=white)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-129_passing-brightgreen?logo=vitest&logoColor=white)](tests/)
 [![Status](https://img.shields.io/badge/Status-Coming%20Soon-blue)](https://codeplans.ai)
 
 **Coordinate and track changes across your software architecture.**
@@ -45,13 +45,15 @@ CodePlans sits between your issue tracker and your architecture diagram:
 | SQLite local mode (no cloud required) | ✅ Available |
 | Supabase + Postgres cloud mode | ✅ Available |
 | Pluggable auth (local password or Supabase) | ✅ Available |
-| Analytics (velocity, effort accuracy, tech debt trends) | 🚧 In progress |
-| Asset dependency graph | 🚧 In progress |
-| Activity feed | 🚧 In progress |
+| Work items — features, bugs & tech debt register, linkable to code plans | ✅ Available |
+| Per-asset branch & PR tracking on code plans | ✅ Available |
+| Asset dependency mapping & plan impact analysis | ✅ Available |
+| Analytics wired to real data (velocity, effort accuracy, debt by product) | ✅ Available |
+| Activity feed | ✅ Available |
+| GitHub Issues integration (pull-only mirror into work items) | ✅ Available |
+| Jira / Asana / Linear connectors | 🔜 Planned |
+| Task-level sync & PR auto-linking | 🔜 Planned |
 | AI-assisted effort estimation | 🔜 Planned |
-| Work items — features, bugs & tech debt register, linkable to code plans | 🔜 Planned |
-| Per-asset branch & PR tracking on code plans | 🔜 Planned |
-| External integrations (GitHub Issues, Jira, Asana, Linear) | 🔜 Planned |
 | Billing / subscription management | 🔜 Planned (optional, feature-flagged) |
 
 ---
@@ -67,7 +69,7 @@ CodePlans sits between your issue tracker and your architecture diagram:
 | Database | SQLite (local / libsql) or PostgreSQL (cloud) |
 | Auth | Local (bcrypt + session cookie) or Supabase |
 | Charts | Recharts |
-| Testing | Vitest (88 tests) |
+| Testing | Vitest (129 tests) |
 
 ---
 
@@ -183,6 +185,7 @@ Then run `pnpm db:migrate` and `pnpm dev`.
 | `DATABASE_URL` | `:memory:` | SQLite: `file:data/codeplans.db` or `:memory:`. Postgres: full connection string |
 | `DB_SSL` | `true` | Set `false` for local or non-SSL Postgres |
 | `AUTH_SECRET` | — | Secret for local auth session signing (min 32 chars) |
+| *(your token var)* | — | GitHub integration connections reference a server env var by name (e.g. `GITHUB_SYNC_TOKEN`) holding a repo-read token; tokens are never stored in the database |
 | `AUTH_URL` | — | **Required in production.** Full URL of the server (e.g. `https://codeplans.yourteam.com`). Auth.js uses this to construct callback URLs and validate login redirects. Not needed for `localhost` dev. |
 | `BILLING_ENABLED` | `true` | Set `false` to hide billing UI (always off in `team` mode) |
 | `ALLOWED_DEV_ORIGINS` | — | Comma-separated hosts allowed to access Next.js dev resources (needed when running on a remote server) |
@@ -318,12 +321,13 @@ Please keep PRs focused. Bug fixes, test coverage improvements, and documentatio
 - [x] Code Plan create/edit flows — shipped in v0.1.5
 - [x] Task create/edit panel + inline status updates — shipped in v0.1.5
 - [x] Team invite flow (invite, change role, remove)
-- [ ] **v0.2 — Schema foundations:** work items + plan links, per-asset plan rows (branch/PR fields), repo paths, provenance columns
-- [ ] **v0.2.x — Single-team cleanup:** default-org bootstrap, org-membership access model, `TEAMS_ENABLED` flag
-- [ ] **v0.3 — Work items & tech debt UI:** backlog views, debt register by asset/area, activity feed (event log)
-- [ ] **v0.4 — Dependency graph & impact analysis;** analytics wired to real data
-- [ ] **v0.5 — Integrations framework** + first connector (GitHub Issues), pull-only sync
+- [x] **v0.2 — Schema foundations:** work items + plan links, per-asset plan rows (branch/PR fields), repo paths, provenance columns
+- [x] **v0.2.x — Single-team cleanup:** default-org bootstrap, org-membership access model
+- [x] **v0.3 — Work items & tech debt UI:** backlog views, debt register by asset/area, activity feed (event log)
+- [x] **v0.4 — Dependency mapping & impact analysis;** analytics wired to real data
+- [x] **v0.5 — Integrations framework** + first connector (GitHub Issues), pull-only sync
 - [ ] **v0.6 — Task-level sync & mixed plans;** PR auto-linking
+- [ ] Jira / Asana / Linear connectors
 - [ ] AI-assisted effort estimation
 
 See [`docs/app-spec.md`](docs/app-spec.md) for the full current state of the app, and [`docs/specs/design-spec-v3.md`](docs/specs/design-spec-v3.md) for the target design and detailed roadmap.

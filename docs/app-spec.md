@@ -1,12 +1,12 @@
 ## CodePlans App Spec
 
-> **Status:** current implemented state as of **v0.1.5** (2026-07). For the target
-> design and roadmap (work items, integrations, repo/PR layer), see
-> `docs/specs/design-spec-v3.md`.
+> **Status:** current implemented state as of **v0.5.0** (2026-07). For the target
+> design and rationale, see `docs/specs/design-spec-v3.md` (Phases 1–4 shipped;
+> Phases 5–6 remain).
 
 ### Overview
 
-CodePlans is a **code change coordination tool** for engineering teams. It organizes work around a three-level hierarchy: **Products → Assets → Code Plans → Tasks**. Users track technical debt, coordinate architectural changes, and measure team velocity. Deployed at `codeplans.ai`. Stack: Next.js 16 (App Router), Drizzle ORM, pluggable auth/DB (SQLite local / Supabase+Postgres cloud).
+CodePlans is a **code change coordination tool** for engineering teams. It organizes work around the hierarchy **Products → Assets → Code Plans → Tasks**, with **Work Items** (features, bugs, UX issues, tech debt) as the demand side linked many-to-many to code plans, per-asset **branch/PR tracking** on plans, **asset dependencies** with impact analysis, and pull-only **integrations** that mirror external tracker items into work items. Users track technical debt, coordinate architectural changes, and measure team velocity. Deployed at `codeplans.ai`. Stack: Next.js 16 (App Router), Drizzle ORM, pluggable auth/DB (SQLite local / Supabase+Postgres cloud).
 
 ---
 
@@ -89,7 +89,7 @@ CodePlans is a **code change coordination tool** for engineering teams. It organ
 | description | text? | |
 | createdAt | timestamp | |
 
-**Note:** This table exists in the schema but is **not yet used by any query or UI**.
+**Used by:** the product Dependencies tab (edge CRUD + adjacency view) and plan Impact Analysis (`getImpactedAssets`).
 
 #### `code_plans`
 | Field | Type | Notes |
@@ -123,13 +123,27 @@ CodePlans is a **code change coordination tool** for engineering teams. It organ
 | actualEffort | integer? | hours |
 | createdAt / updatedAt | timestamp | |
 
+#### v3 foundation tables (see design-spec-v3 §5 for full field tables)
+
+| Table | Purpose |
+|---|---|
+| `work_items` | Demand side: `type` feature/bug/enhancement/ux/tech_debt, `status` open/planned/in_progress/resolved/wont_do, `severity`, optional `assetId` + free-text `area`, one-level `parentId`, plus provenance columns |
+| `work_item_code_plans` | Many-to-many work item ↔ plan links (unique pair) |
+| `code_plan_assets` | Source of truth for plan targets; per-asset `branch`, `prUrl`, `prStatus` (none/draft/open/merged/closed), `notes` (unique plan+asset) |
+| `code_plan_assignees` | Source of truth for plan assignees (composite PK) |
+| `integrations` | Org-scoped connections: `provider`, `authRef` (env-var name — token never stored), `config` (repo, target productId, status/type maps), `status`, `lastSyncAt`, `lastError` |
+| `sync_log` | Item-level events (native mutations + sync runs); drives the activity feed |
+
+Provenance columns (`source` default `native`, `connectionId`, `externalId/Key/Url`, `externalData`, `externalDeleted`, `syncedAt`) exist on `work_items`, `code_plans`, and `tasks`, with a unique index on `(connection_id, external_id)`. `assets` gained `repo_path` for monorepo folders. The `code_plans.target_asset_ids` / `assignee_ids` arrays are **deprecated** (join tables are authoritative; arrays kept one release for rollback).
+
 ---
 
 ### Access Control Rules
 
-**Product visibility** (used consistently across all queries):
-- If the user has an `organizationId`: they see products they created **OR** products belonging to their organization.
-- If no org: they only see products they created.
+**Product visibility** (single source of truth: `productAccessWhere` in `lib/db/queries.ts`):
+- Products the user created **OR** products belonging to any org where the user has a joined `organization_members` row. `users.organizationId` is only a "current org" pointer and is not consulted for access.
+- In `HOST_MODE=team`, a boot hook (`instrumentation.ts` → `lib/db/bootstrap.ts`) creates the workspace org from the first user and adopts org-less products; signup auto-joins new users as editors.
+- Mirrored work items (`source ≠ native`): mirrored fields (title/description/status/tags) are rejected by the mutation layer — only native annotations (asset, area, severity) are locally editable.
 
 **Mutation ownership checks:**
 - `updateProduct` / `deleteProduct`: requires `creatorId = userId`
@@ -148,8 +162,16 @@ CodePlans is a **code change coordination tool** for engineering teams. It organ
 | `getProducts(userId, productId?)` | `Product[]` | Org-aware, optionally narrowed; includes `assetCount` + `activePlanCount` via correlated subqueries |
 | `getProduct(slug, userId)` | `Product & { assets }` \| `null` | Org-aware; assets ordered by createdAt desc; `dependencies` always `[]` |
 | `getCodePlans(userId, filters?)` | `CodePlan[]` | Org-aware; filters: `productId`, `status`, `type`; includes `taskCount`, `completedTaskCount`, `progress`, `productName` |
-| `getCodePlan(id)` | `CodePlanDetail` \| `null` | No auth check; includes full `tasks[]`, `assignees[]`, `targetAssets[]`; `progress` = % done |
+| `getCodePlan(id, userId)` | `CodePlanDetail` \| `null` | Org-scope guarded; includes full `tasks[]`, `assignees[]`, `targetAssets[]`, `planAssets[]` (per-asset branch/PR); `progress` = % done |
 | `getTasks(userId, filters?)` | `TaskWithContext[]` | Org-aware; filters: `planId`, `assigneeId`, `status`; includes `planTitle`, `assetName`, `assigneeName` |
+| `getWorkItems(userId, filters?)` | `WorkItemWithContext[]` | Org-aware; filters: `productId`, `assetId`, `type`, `status`, `planId`; includes product/asset names + `linkedPlans[]` |
+| `getWorkItem(id, userId)` | `WorkItemWithContext` \| `null` | Org-scope guarded |
+| `getAssetOptions(userId)` | `{id,name,productId}[]` | Flat asset list across accessible products (dropdowns) |
+| `getProductDependencyEdges(productId)` | `DependencyEdge[]` | All edges whose source asset is in the product |
+| `getImpactedAssets(planId)` | `ImpactedAsset[]` | Dependents of the plan's target assets, excluding targets |
+| `getAnalytics(userId, productId?)` | `AnalyticsData` | Velocity by week, tasks by plan type, effort by month, debt by product, cycle time, estimation accuracy, computed insights |
+| `getActivityFeed(userId, limit?)` | `ActivityItem[]` | sync_log rows for the user's orgs mapped to feed entries |
+| `getIntegrations(orgId)` | `IntegrationSummary[]` | Connections + mirrored-item counts |
 | `getOrganization(id)` | `Organization & { memberCount }` \| `null` | memberCount = joined members only |
 | `getTeamMembers(orgId)` | `TeamMember[]` | Joined members only; includes nested `user` object |
 
@@ -192,8 +214,8 @@ Both redirect to `/` on success.
 #### Dashboard Layout (`/(dashboard)`)
 All routes share `AppShell`: 64px top header + 256px sidebar. Sidebar contains:
 - Product switcher dropdown — **wired**: "All Products" + per-product options; selection persisted in a cookie (`lib/product-scope-cookie.ts`) and scopes Dashboard, Products, Code Plans, Tasks, and Analytics
-- Primary nav: Dashboard, Products, Code Plans, Tasks, Analytics
-- Secondary nav: Team, Billing (hidden if `BILLING_ENABLED=false`), Settings
+- Primary nav: Dashboard, Products, Work Items, Code Plans, Tasks, Analytics
+- Secondary nav: Team, Integrations, Billing (hidden if `BILLING_ENABLED=false`), Settings
 - Org/user footer: org name + billing tier, links to Team/Billing/Settings
 
 **Header:** Global search input (cosmetic — not wired), bell icon (cosmetic), user avatar dropdown with sign out.
@@ -205,9 +227,9 @@ All routes share `AppShell`: 64px top header + 256px sidebar. Sidebar contains:
 |---|---|---|
 | Greeting (time-based) | user profile | Wired |
 | `StatCards` (4 cards) | `getDashboardStats` | Wired — real data |
-| `VelocityChart` | none | **Stub** — hardcoded placeholder chart |
+| `VelocityChart` | `getAnalytics` | Wired — tasks completed vs created per week (8 weeks) |
 | `PlansOverview` | `getCodePlans` | Wired — renders plan list |
-| `ActivityFeed` | none | **Stub** — always shows "No recent activity yet" (activities prop always `[]`) |
+| `ActivityFeed` | `getActivityFeed` | Wired — renders sync_log events (native mutations + sync runs) |
 
 ---
 
@@ -232,6 +254,10 @@ Two tabs: **Assets** and **Code Plans**.
 - Lists plans for this product: title (link to plan detail), description, status badge, task progress
 - "Create Plan" button → plan create side panel (product preselected) → `createCodePlanAction`
 
+**Dependencies tab** (`dependencies-section.tsx`):
+- Add-edge form (source, type, target, description) → `addAssetDependencyAction`
+- Adjacency view grouped by source asset with per-edge remove
+
 ---
 
 #### `/plans` — Code Plans List
@@ -250,6 +276,9 @@ Client component (`PlansClient`) with:
 - Action buttons (`plan-actions.tsx`): Edit (side panel → `updateCodePlanAction`), "Activate Plan" (draft only → `activatePlanAction`), "Mark Complete" (active only → `completePlanAction`), Delete → `deleteCodePlanAction`
 - Stats row: Overall Progress (% + progress bar + task count), Target Assets (count + names), Assignees (avatars)
 - Tags row
+- **Target Assets & PRs** (`plan-assets-section.tsx`): per-asset rows with branch, PR link, PR status badge; inline edit form; add/remove target assets → plan-asset actions
+- **Impact Analysis**: assets depending on the plan's targets (via `asset_dependencies`), with dependency path and health badges
+- **Linked Work Items**: items linked via `work_item_code_plans` with type/status badges
 - Tasks section: 3-column kanban by status (Not Started / In Progress / Done)
   - Done column capped at 5 shown
   - "Add Task" button → task create form → `createTaskAction`
@@ -273,6 +302,21 @@ Client component (`TasksClient`) with:
 
 ---
 
+#### `/work-items` — Work Items
+Client component (`WorkItemsClient`) with:
+- Stats: Open Items / In Progress / Resolved / Open Tech Debt
+- Status tabs (All/Open/Planned/In Progress/Resolved), type filter dropdown, view toggle: **List** / **Debt Register**
+- List: table with title (+ mirrored-source icon), type/severity badges, asset + area, linked plan links, status badge
+- Debt Register: open `tech_debt` items grouped by asset with critical/high rollups
+- Deep-linkable panel (`?item=<id>`): view/edit/create → work item actions; link/unlink to plans; mirrored items show provenance badge + external link and are view-only (Edit hidden; mutations also reject mirrored-field writes)
+
+#### `/integrations` — Integrations
+Client component (`IntegrationsClient`) with:
+- Connection cards: provider icon, name, repo, mirrored count, last sync, status badge, surfaced `lastError`
+- "Sync now" → `syncIntegrationAction` (runs the pull-only sync engine; shows created/updated/unchanged)
+- "New Connection" dialog (GitHub Issues): name, `owner/repo`, target product, token env-var name → `createIntegrationAction`
+- Delete with confirm (mirrored items are kept, stop syncing)
+
 #### `/team` — Team Management
 - Requires org membership; shows message if no org
 - `TeamClient` renders:
@@ -284,14 +328,13 @@ Client component (`TasksClient`) with:
 ---
 
 #### `/analytics` — Analytics
-All charts use **hardcoded static data** (not wired to real queries except `getDashboardStats` for the 4 metric cards at top). Charts (Recharts):
-- Team Velocity: area chart (actual vs estimated, 8 weeks — fake data)
-- Tasks by Type: donut chart (fake distribution)
-- Effort Estimation Accuracy: grouped bar chart by month (fake data)
-- Tech Debt by Product: bar-gauge list (fake data)
-- AI Insights panel: 3 hardcoded recommendation cards
-
-**Wiring gap:** All chart data is static placeholder.
+All charts are wired to `getAnalytics` (live data). Charts (Recharts):
+- Team Velocity: area chart, tasks completed vs created per week (8 weeks)
+- Tasks by Type: donut by parent plan type
+- Effort Estimation Accuracy: estimated vs actual hours by month (done tasks, 6 months)
+- Tech Debt by Product: average effective (manual ?? derived) asset scores
+- Insights panel: computed observations (worst-debt asset, velocity trend, overdue active plans)
+- Metric cards: velocity, completion rate, avg cycle time, estimation accuracy (within 20% variance)
 
 ---
 
@@ -337,13 +380,11 @@ in the current feature set.
 
 | Area | Gap |
 |---|---|
-| Assets | `asset_dependencies` table unused — no dependency CRUD or visualization |
 | Billing | Hardcoded usage data; no payment integration |
-| Analytics | All charts use hardcoded data; no time-range filtering |
-| Activity Feed | Always empty — no activity tracking system |
-| Velocity Chart (dashboard) | Placeholder/stub |
+| Analytics | No time-range filtering (fixed windows: 8 weeks / 6 months) |
 | Search | Header search input is cosmetic only |
 | Settings | Notifications + feature-flag toggles not persisted; photo upload, 2FA, Delete Account not wired |
-| `getCodePlan` | No auth/ownership guard — any authenticated user can fetch any plan by ID (fix scheduled: design-spec-v3 Phase 1) |
-| `asset.dependencies` | Always returns `[]` in `getProduct` — dependency resolution deferred |
+| Integrations | GitHub Issues only; sync is manual ("Sync now") — no scheduler/webhooks; assignee mapping not implemented (GitHub login stored in externalData) |
+| Task-level sync / PR auto-linking | Phase 5 of design-spec-v3 — not started |
+| Deprecated arrays | `code_plans.target_asset_ids` / `assignee_ids` still present (drop scheduled next release) |
 | Notifications | All toggles cosmetic; no notification system exists |
