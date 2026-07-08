@@ -27,7 +27,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { Github, Plus, RefreshCw, Trash2, AlertCircle, Plug } from 'lucide-react'
+import { Github, Gitlab, Plus, RefreshCw, Trash2, AlertCircle, Plug } from 'lucide-react'
 import type { IntegrationSummary } from '@/lib/db/queries'
 import { cn, formatDateShort } from '@/lib/utils'
 import { createIntegrationAction, deleteIntegrationAction, syncIntegrationAction } from '../actions'
@@ -38,6 +38,31 @@ const statusStyles: Record<string, string> = {
   active: 'bg-accent/20 text-accent',
   paused: 'bg-muted text-muted-foreground',
   error: 'bg-destructive/20 text-destructive',
+}
+
+const PROVIDERS = [
+  {
+    value: 'github',
+    label: 'GitHub Issues',
+    icon: Github,
+    repoLabel: 'Repository',
+    repoPlaceholder: 'owner/repo',
+    tokenHint: 'GitHub token with repo read access',
+    hasBaseUrl: false,
+  },
+  {
+    value: 'gitlab',
+    label: 'GitLab Issues',
+    icon: Gitlab,
+    repoLabel: 'Project path',
+    repoPlaceholder: 'group/project',
+    tokenHint: 'GitLab token with read_api scope',
+    hasBaseUrl: true,
+  },
+] as const
+
+function providerMeta(provider: string) {
+  return PROVIDERS.find((p) => p.value === provider) ?? PROVIDERS[0]
 }
 
 export function IntegrationsClient({
@@ -98,7 +123,7 @@ export function IntegrationsClient({
             <Plug className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium mb-1">No connections yet</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Connect a GitHub repository to mirror its issues as work items
+              Connect a GitHub or GitLab repository to mirror its issues as work items
             </p>
             <NewConnectionDialog
               products={products}
@@ -119,7 +144,7 @@ export function IntegrationsClient({
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted shrink-0">
-                      <Github className="h-5 w-5" />
+                      {(() => { const Icon = providerMeta(conn.provider).icon; return <Icon className="h-5 w-5" /> })()}
                     </div>
                     <div className="min-w-0">
                       <p className="font-medium">{conn.name}</p>
@@ -191,15 +216,18 @@ function NewConnectionDialog({
   trigger?: React.ReactNode
 }) {
   const [open, setOpen] = useState(false)
+  const [provider, setProvider] = useState<string>('github')
   const [productId, setProductId] = useState(products[0]?.id ?? '')
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+
+  const meta = providerMeta(provider)
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
     const fd = new FormData(e.currentTarget)
-    fd.set('provider', 'github')
+    fd.set('provider', provider)
     fd.set('productId', productId)
     startTransition(async () => {
       const result = await createIntegrationAction(fd)
@@ -223,20 +251,42 @@ function NewConnectionDialog({
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Connect GitHub Issues</DialogTitle>
+          <DialogTitle>Connect an issue tracker</DialogTitle>
           <DialogDescription>
-            Issues from one repository are mirrored as work items under a product. Pull-only: nothing is written back to GitHub.
+            Issues from one repository/project are mirrored as work items under a product. Pull-only: nothing is written back.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="ic-provider">Provider</Label>
+            <Select value={provider} onValueChange={setProvider}>
+              <SelectTrigger id="ic-provider">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PROVIDERS.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="ic-name">Connection name <span className="text-destructive">*</span></Label>
             <Input id="ic-name" name="name" placeholder="e.g. Web App issues" required />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="ic-repo">Repository <span className="text-destructive">*</span></Label>
-            <Input id="ic-repo" name="repo" placeholder="owner/repo" pattern="[^/]+/[^/]+" required />
+            <Label htmlFor="ic-repo">{meta.repoLabel} <span className="text-destructive">*</span></Label>
+            <Input id="ic-repo" name="repo" placeholder={meta.repoPlaceholder} required />
           </div>
+          {meta.hasBaseUrl && (
+            <div className="space-y-2">
+              <Label htmlFor="ic-baseurl">
+                Instance URL
+                <span className="ml-1 text-xs text-muted-foreground">(self-hosted only, optional)</span>
+              </Label>
+              <Input id="ic-baseurl" name="baseUrl" type="url" placeholder="https://gitlab.example.com" />
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="ic-product">Target product <span className="text-destructive">*</span></Label>
             <Select value={productId} onValueChange={setProductId}>
@@ -256,7 +306,7 @@ function NewConnectionDialog({
             </Label>
             <Input id="ic-authref" name="authRef" placeholder="e.g. GITHUB_SYNC_TOKEN" required />
             <p className="text-xs text-muted-foreground">
-              Name of an environment variable on the server holding a GitHub token with repo read access. The token itself is never stored in the database.
+              Name of an environment variable on the server holding a {meta.tokenHint}. The token itself is never stored in the database.
             </p>
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}

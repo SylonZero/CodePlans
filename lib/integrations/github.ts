@@ -101,8 +101,26 @@ export const githubConnector: Connector = {
     if (!res.ok) {
       throw new Error(`GitHub API ${res.status}: ${(await res.text()).slice(0, 200)}`)
     }
-    const milestones = (await res.json()) as { number: number; title: string; state: string }[]
-    return milestones.map((m) => ({ id: String(m.number), title: m.title, state: m.state }))
+    const milestones = (await res.json()) as {
+      number: number
+      title: string
+      state: string
+      html_url?: string
+    }[]
+    return milestones.map((m) => ({
+      id: String(m.number),
+      title: m.title,
+      state: m.state,
+      url: m.html_url,
+    }))
+  },
+
+  matchPrUrl(config, url) {
+    if (!config.repo) return null
+    const prefix = `https://github.com/${config.repo}/pull/`
+    if (!url.startsWith(prefix)) return null
+    const prNumber = url.slice(prefix.length).split(/[/?#]/)[0]
+    return /^\d+$/.test(prNumber) ? prNumber : null
   },
 
   async listScopeItems(auth, config, scopeId): Promise<ExternalItem[]> {

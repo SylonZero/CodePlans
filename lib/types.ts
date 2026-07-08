@@ -9,7 +9,7 @@ export type TaskStatus = 'not_started' | 'in_progress' | 'done'
 export type WorkItemType = 'feature' | 'bug' | 'enhancement' | 'ux' | 'tech_debt'
 export type WorkItemStatus = 'open' | 'planned' | 'in_progress' | 'resolved' | 'wont_do'
 export type WorkItemSeverity = 'low' | 'medium' | 'high' | 'critical'
-export type ItemSource = 'native' | 'github' | 'jira' | 'asana' | 'linear'
+export type ItemSource = 'native' | 'github' | 'gitlab' | 'jira' | 'asana' | 'linear'
 
 export interface User {
   id: string

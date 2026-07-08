@@ -14,11 +14,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Github, Link2, Unlink, ExternalLink } from 'lucide-react'
+import { Github, Gitlab, Link2, Unlink, ExternalLink } from 'lucide-react'
 import { listPlanScopesAction, linkPlanScopeAction, unlinkPlanScopeAction } from '../../actions'
 
 type ConnectionOption = { id: string; name: string; provider: string }
-type Scope = { id: string; title: string; state: string }
+type Scope = { id: string; title: string; state: string; url?: string }
 
 export function PlanSyncDialog({
   planId,
@@ -42,11 +42,13 @@ export function PlanSyncDialog({
 
   const isLinked = source && source !== 'native'
 
+  const SourceIcon = source === 'gitlab' ? Gitlab : Github
+
   if (isLinked) {
     return (
       <div className="flex items-center gap-2">
         <Badge variant="outline" className="gap-1.5">
-          <Github className="h-3.5 w-3.5" />
+          <SourceIcon className="h-3.5 w-3.5" />
           {externalKey ?? source}
           {externalUrl && (
             <a href={externalUrl} target="_blank" rel="noreferrer" title="Open milestone">
@@ -85,7 +87,7 @@ export function PlanSyncDialog({
     if (!scope) return
     setError(null)
     startTransition(async () => {
-      const result = await linkPlanScopeAction(planId, connectionId, scope.id, scope.title)
+      const result = await linkPlanScopeAction(planId, connectionId, scope.id, scope.title, scope.url)
       if (result?.error) {
         setError(result.error)
       } else {
@@ -98,13 +100,13 @@ export function PlanSyncDialog({
     <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setScopes(null); setScopeId(''); setError(null) } }}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
-          <Github className="mr-2 h-4 w-4" />
+          <Link2 className="mr-2 h-4 w-4" />
           Link Milestone
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Link a GitHub milestone</DialogTitle>
+          <DialogTitle>Link a milestone</DialogTitle>
           <DialogDescription>
             Issues in the milestone are mirrored as this plan&apos;s tasks (read-only here). Native tasks you add locally are kept alongside them.
           </DialogDescription>

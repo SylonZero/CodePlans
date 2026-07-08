@@ -28,8 +28,10 @@ export type ConnectorAuth = {
  * Each connection binds one bounded external scope to one CodePlans product.
  */
 export type IntegrationConfig = {
-  /** Provider-specific scope, e.g. GitHub "owner/repo". */
+  /** Provider-specific scope: GitHub "owner/repo", GitLab "group/project". */
   repo?: string
+  /** Provider host override for self-hosted instances (e.g. GitLab). */
+  baseUrl?: string
   /** Target product mirrored items are created under. */
   productId?: string
   /** Raw provider state → canonical status. Merged over the connector default. */
@@ -38,11 +40,12 @@ export type IntegrationConfig = {
   typeLabelMap?: Record<string, WorkItemType>
 }
 
-/** An epic-like grouping on the provider side (GitHub: a milestone). */
+/** An epic-like grouping on the provider side (GitHub/GitLab: a milestone). */
 export type ExternalScope = {
   id: string
   title: string
   state: string
+  url?: string
 }
 
 export type ExternalPrStatus = 'draft' | 'open' | 'merged' | 'closed'
@@ -66,12 +69,18 @@ export interface Connector {
     config: IntegrationConfig,
     scopeId: string,
   ): Promise<ExternalItem[]>
-  /** Current status of one pull request — used for PR auto-linking. */
+  /** Current status of one pull/merge request — used for PR auto-linking. */
   fetchPullRequest?(
     auth: ConnectorAuth,
     config: IntegrationConfig,
     prNumber: string,
   ): Promise<ExternalPrStatus | null>
+  /**
+   * If the URL is a pull/merge request in this connection's scope, return its
+   * number/iid; otherwise null. Owns provider URL shapes so the sync engine
+   * stays provider-neutral.
+   */
+  matchPrUrl?(config: IntegrationConfig, url: string): string | null
 }
 
 export type SyncResult = {

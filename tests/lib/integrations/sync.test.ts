@@ -259,6 +259,12 @@ describe('phase 5: milestone-linked plans & PR auto-linking', () => {
       listItems: async () => [],
       listScopeItems: async () => scopeItems,
       fetchPullRequest: async () => 'merged',
+      matchPrUrl: (config, url) => {
+        const prefix = `https://github.com/${config.repo}/pull/`
+        if (!url.startsWith(prefix)) return null
+        const n = url.slice(prefix.length).split(/[/?#]/)[0]
+        return /^\d+$/.test(n) ? n : null
+      },
     }
   }
 

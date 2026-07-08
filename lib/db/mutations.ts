@@ -11,7 +11,7 @@ import {
   workItemCodePlans,
   tasks,
 } from './schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, ne } from 'drizzle-orm'
 import type { WorkItemType, WorkItemStatus, WorkItemSeverity } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
@@ -296,7 +296,7 @@ export async function unlinkPlanFromExternalScope(planId: string) {
   await db
     .update(tasks)
     .set({ source: 'native', connectionId: null, externalId: null, updatedAt: new Date() })
-    .where(and(eq(tasks.codePlanId, planId), eq(tasks.source, 'github')))
+    .where(and(eq(tasks.codePlanId, planId), ne(tasks.source, 'native')))
   const [plan] = await db
     .update(codePlans)
     .set({

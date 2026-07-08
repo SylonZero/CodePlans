@@ -414,7 +414,7 @@ Feed goes live.
 CRUD + visualization for `asset_dependencies`; impact panel on plan detail; dependency
 data folded into analytics (which also moves off hardcoded chart data this phase).
 
-### Phase 4 — Integrations framework + first connector (v0.5) ✅ SHIPPED (GitHub Issues)
+### Phase 4 — Integrations framework + first connector (v0.5) ✅ SHIPPED (GitHub Issues; GitLab Issues added in v0.6.1)
 `integrations` table + connector interface + sync engine (pull-only); status-mapping
 config UI; first connector (**GitHub Issues** recommended first: OAuth simplicity,
 engineering-adjacent, doubles as groundwork for PR auto-linking; Jira second, Asana

@@ -732,6 +732,7 @@ export async function createIntegrationAction(formData: FormData) {
   const provider = formData.get('provider') as string
   const name = formData.get('name') as string
   const repo = (formData.get('repo') as string) || undefined
+  const baseUrl = (formData.get('baseUrl') as string) || undefined
   const authRef = (formData.get('authRef') as string) || undefined
   const productId = (formData.get('productId') as string) || undefined
 
@@ -742,7 +743,7 @@ export async function createIntegrationAction(formData: FormData) {
     provider,
     name,
     authRef,
-    config: { repo, productId },
+    config: { repo, baseUrl, productId },
   })
 
   revalidatePath('/integrations')
@@ -797,6 +798,7 @@ export async function linkPlanScopeAction(
   connectionId: string,
   scopeId: string,
   scopeTitle: string,
+  scopeUrl?: string,
 ) {
   const authUser = await requireUser()
   const { integrations } = await import('@/lib/db/schema')
@@ -805,13 +807,12 @@ export async function linkPlanScopeAction(
   })
   if (!integration) return { error: 'Connection not found.' }
 
-  const repo = (integration.config as Record<string, unknown>)?.repo
   await linkPlanToExternalScope(planId, {
     provider: integration.provider,
     connectionId,
     externalId: scopeId,
     externalKey: scopeTitle,
-    externalUrl: repo ? `https://github.com/${repo}/milestone/${scopeId}` : undefined,
+    externalUrl: scopeUrl,
   })
   await logActivity({
     entityType: 'code_plan',

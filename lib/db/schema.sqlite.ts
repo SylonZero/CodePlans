@@ -27,7 +27,7 @@ export type WorkItemStatus = 'open' | 'planned' | 'in_progress' | 'resolved' | '
 export type WorkItemSeverity = 'low' | 'medium' | 'high' | 'critical'
 export type PrStatus = 'none' | 'draft' | 'open' | 'merged' | 'closed'
 // Provider list is intentionally text (not enum) — new connectors must not need a migration.
-export type ItemSource = 'native' | 'github' | 'jira' | 'asana' | 'linear'
+export type ItemSource = 'native' | 'github' | 'gitlab' | 'jira' | 'asana' | 'linear'
 export type IntegrationStatus = 'active' | 'paused' | 'error'
 export type SyncEntityType = 'work_item' | 'task' | 'code_plan' | 'asset' | 'product'
 

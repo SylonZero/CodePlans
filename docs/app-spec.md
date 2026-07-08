@@ -315,7 +315,7 @@ Client component (`WorkItemsClient`) with:
 Client component (`IntegrationsClient`) with:
 - Connection cards: provider icon, name, repo, mirrored count, last sync, status badge, surfaced `lastError`
 - "Sync now" → `syncIntegrationAction` (runs the pull-only sync engine; shows created/updated/unchanged)
-- "New Connection" dialog (GitHub Issues): name, `owner/repo`, target product, token env-var name → `createIntegrationAction`
+- "New Connection" dialog: provider select (GitHub Issues / GitLab Issues), name, repo/project path, instance URL (GitLab self-hosted, optional), target product, token env-var name → `createIntegrationAction`
 - Delete with confirm (mirrored items are kept, stop syncing)
 
 #### `/team` — Team Management
@@ -385,7 +385,7 @@ in the current feature set.
 | Analytics | No time-range filtering (fixed windows: 8 weeks / 6 months) |
 | Search | Header search input is cosmetic only |
 | Settings | Notifications + feature-flag toggles not persisted; photo upload, 2FA, Delete Account not wired |
-| Integrations | GitHub Issues only; sync is manual ("Sync now") — no scheduler/webhooks; assignee mapping not implemented (GitHub login stored in externalData) |
+| Integrations | GitHub + GitLab Issues; sync is manual ("Sync now") — no scheduler/webhooks; assignee mapping not implemented (GitHub login stored in externalData) |
 | Scheduled sync | Sync remains manual ("Sync now" / link-time); no scheduler or webhooks |
 | Deprecated arrays | `code_plans.target_asset_ids` / `assignee_ids` still present (drop scheduled next release) |
 | Notifications | All toggles cosmetic; no notification system exists |

@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { integrations, workItems, codePlans, codePlanAssets, tasks, syncLog } from '@/lib/db/schema'
-import { eq, and, isNotNull, like } from 'drizzle-orm'
+import { eq, and, isNotNull } from 'drizzle-orm'
 import type { WorkItemStatus, WorkItemType, TaskStatus } from '@/lib/types'
 import type { Connector, ExternalItem, IntegrationConfig, SyncResult } from './types'
 import { getConnector } from './registry'
@@ -37,9 +37,11 @@ function emptyResult(error?: string): SyncResult {
   return { created: 0, updated: 0, unchanged: 0, tasksCreated: 0, tasksUpdated: 0, prsUpdated: 0, error }
 }
 
-// GitHub "open" gives no in-progress signal, so mirrored tasks are binary.
+// Issue trackers give no in-progress signal, so mirrored tasks are binary.
+// Keyed by raw provider state (GitHub: open/closed, GitLab: opened/closed).
 const TASK_STATUS_MAP: Record<string, TaskStatus> = {
   open: 'not_started',
+  opened: 'not_started',
   closed: 'done',
 }
 
@@ -200,7 +202,8 @@ async function syncPlanTasks(
 
 /**
  * PR auto-linking: plan-asset rows whose prUrl points at this connection's
- * repo get their prStatus refreshed from the provider.
+ * repo get their prStatus refreshed from the provider. URL shapes are owned
+ * by the connector (matchPrUrl), keeping this engine provider-neutral.
  */
 async function syncPrStatuses(
   integration: IntegrationRow,
@@ -208,9 +211,8 @@ async function syncPrStatuses(
   auth: { token: string },
   config: IntegrationConfig,
 ): Promise<number> {
-  if (!connector.fetchPullRequest || !config.repo) return 0
+  if (!connector.fetchPullRequest || !connector.matchPrUrl) return 0
 
-  const prefix = `https://github.com/${config.repo}/pull/`
   const rows = await db
     .select({
       id: codePlanAssets.id,
@@ -219,13 +221,13 @@ async function syncPrStatuses(
       prStatus: codePlanAssets.prStatus,
     })
     .from(codePlanAssets)
-    .where(like(codePlanAssets.prUrl, `${prefix}%`))
+    .where(isNotNull(codePlanAssets.prUrl))
 
   let updated = 0
   const statusCache = new Map<string, string | null>()
   for (const row of rows) {
-    const prNumber = row.prUrl!.slice(prefix.length).split(/[/?#]/)[0]
-    if (!/^\d+$/.test(prNumber)) continue
+    const prNumber = connector.matchPrUrl(config, row.prUrl!)
+    if (!prNumber) continue
 
     if (!statusCache.has(prNumber)) {
       statusCache.set(prNumber, await connector.fetchPullRequest(auth, config, prNumber))
