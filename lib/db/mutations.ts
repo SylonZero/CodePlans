@@ -214,15 +214,36 @@ type UpdateTaskData = Partial<Omit<CreateTaskData, 'codePlanId' | 'assigneeId'> 
 }>
 
 export async function updateTask(id: string, data: UpdateTaskData) {
+  const existing = await db.query.tasks.findFirst({ where: eq(tasks.id, id) })
+  if (!existing) return null
+
+  // Mirrored tasks: the external tracker owns title/description/status/tags.
+  // Assignee, effort, priority, and asset scope remain locally editable.
+  const patch: UpdateTaskData =
+    existing.source !== 'native'
+      ? {
+          assetId: data.assetId,
+          assigneeId: data.assigneeId,
+          priority: data.priority,
+          estimatedEffort: data.estimatedEffort,
+          actualEffort: data.actualEffort,
+        }
+      : data
+
   const [task] = await db
     .update(tasks)
-    .set({ ...data, updatedAt: new Date() })
+    .set({ ...patch, updatedAt: new Date() })
     .where(eq(tasks.id, id))
     .returning()
   return task ?? null
 }
 
 export async function updateTaskStatus(id: string, status: 'not_started' | 'in_progress' | 'done') {
+  const existing = await db.query.tasks.findFirst({ where: eq(tasks.id, id) })
+  if (!existing) return null
+  // Status is mirrored — close/reopen the issue in the external tracker instead.
+  if (existing.source !== 'native') return null
+
   const [task] = await db
     .update(tasks)
     .set({ status, updatedAt: new Date() })
@@ -237,6 +258,58 @@ export async function deleteTask(id: string) {
     .where(eq(tasks.id, id))
     .returning({ id: tasks.id })
   return deleted ?? null
+}
+
+// ---------------------------------------------------------------------------
+// Plan ↔ external scope linking (tier 2/3 task sync)
+// ---------------------------------------------------------------------------
+
+type LinkPlanScopeData = {
+  provider: string
+  connectionId: string
+  externalId: string
+  externalKey?: string
+  externalUrl?: string
+}
+
+export async function linkPlanToExternalScope(planId: string, data: LinkPlanScopeData) {
+  const [plan] = await db
+    .update(codePlans)
+    .set({
+      source: data.provider as typeof codePlans.$inferSelect.source,
+      connectionId: data.connectionId,
+      externalId: data.externalId,
+      externalKey: data.externalKey ?? null,
+      externalUrl: data.externalUrl ?? null,
+      updatedAt: new Date(),
+    })
+    .where(eq(codePlans.id, planId))
+    .returning()
+  return plan ?? null
+}
+
+/**
+ * Detach a plan from its external scope. Already-mirrored tasks are converted
+ * to native so they stay editable and are no longer touched by sync.
+ */
+export async function unlinkPlanFromExternalScope(planId: string) {
+  await db
+    .update(tasks)
+    .set({ source: 'native', connectionId: null, externalId: null, updatedAt: new Date() })
+    .where(and(eq(tasks.codePlanId, planId), eq(tasks.source, 'github')))
+  const [plan] = await db
+    .update(codePlans)
+    .set({
+      source: 'native',
+      connectionId: null,
+      externalId: null,
+      externalKey: null,
+      externalUrl: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(codePlans.id, planId))
+    .returning()
+  return plan ?? null
 }
 
 // ---------------------------------------------------------------------------

@@ -274,6 +274,7 @@ Client component (`PlansClient`) with:
 - Breadcrumb: Code Plans → plan title
 - Header: title, type badge, status badge, description, product link, date range, deadline
 - Action buttons (`plan-actions.tsx`): Edit (side panel → `updateCodePlanAction`), "Activate Plan" (draft only → `activatePlanAction`), "Mark Complete" (active only → `completePlanAction`), Delete → `deleteCodePlanAction`
+- **Link Milestone** (`plan-sync-dialog.tsx`): binds the plan to a GitHub milestone via an org connection; milestone issues mirror as read-only plan tasks (mixed with native tasks); Unlink converts mirrored tasks to native. Sync also refreshes `code_plan_assets.prStatus` for PR URLs in the connection's repo
 - Stats row: Overall Progress (% + progress bar + task count), Target Assets (count + names), Assignees (avatars)
 - Tags row
 - **Target Assets & PRs** (`plan-assets-section.tsx`): per-asset rows with branch, PR link, PR status badge; inline edit form; add/remove target assets → plan-asset actions
@@ -385,6 +386,6 @@ in the current feature set.
 | Search | Header search input is cosmetic only |
 | Settings | Notifications + feature-flag toggles not persisted; photo upload, 2FA, Delete Account not wired |
 | Integrations | GitHub Issues only; sync is manual ("Sync now") — no scheduler/webhooks; assignee mapping not implemented (GitHub login stored in externalData) |
-| Task-level sync / PR auto-linking | Phase 5 of design-spec-v3 — not started |
+| Scheduled sync | Sync remains manual ("Sync now" / link-time); no scheduler or webhooks |
 | Deprecated arrays | `code_plans.target_asset_ids` / `assignee_ids` still present (drop scheduled next release) |
 | Notifications | All toggles cosmetic; no notification system exists |

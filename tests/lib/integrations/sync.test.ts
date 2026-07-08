@@ -227,3 +227,138 @@ describe('githubConnector', () => {
     ).rejects.toThrow('GitHub API 403')
   })
 })
+
+describe('phase 5: milestone-linked plans & PR auto-linking', () => {
+  const scopeItems: ExternalItem[] = [
+    {
+      externalId: '101',
+      externalKey: '#101',
+      externalUrl: 'https://github.com/acme/app/issues/101',
+      title: 'Implement API endpoint',
+      description: '',
+      state: 'open',
+      labels: [],
+      updatedAt: '2026-07-05T00:00:00Z',
+    },
+    {
+      externalId: '102',
+      externalKey: '#102',
+      externalUrl: 'https://github.com/acme/app/issues/102',
+      title: 'Write migration',
+      description: '',
+      state: 'closed',
+      labels: [],
+      updatedAt: '2026-07-05T01:00:00Z',
+    },
+  ]
+
+  function fullStubConnector(): Connector {
+    return {
+      provider: 'github',
+      defaultStatusMap: { open: 'open', closed: 'resolved' },
+      listItems: async () => [],
+      listScopeItems: async () => scopeItems,
+      fetchPullRequest: async () => 'merged',
+    }
+  }
+
+  async function linkPlan(integrationId: string) {
+    const { linkPlanToExternalScope } = await import('@/lib/db/mutations')
+    await linkPlanToExternalScope(F.planActive, {
+      provider: 'github',
+      connectionId: integrationId,
+      externalId: '5',
+      externalKey: 'v1.0',
+    })
+  }
+
+  it('mirrors milestone issues as plan tasks (mixed with native tasks)', async () => {
+    const integration = await makeIntegration()
+    await linkPlan(integration.id)
+
+    const result = await runSync(integration as any, fullStubConnector())
+    expect(result.tasksCreated).toBe(2)
+
+    const { tasks } = await import('@/lib/db/schema.sqlite')
+    const planTasks = await d.select().from(tasks).where(eq(tasks.codePlanId, F.planActive))
+    // 3 native fixture tasks + 2 mirrored
+    expect(planTasks).toHaveLength(5)
+
+    const mirrored = planTasks.find((t: any) => t.externalId === '102')
+    expect(mirrored.source).toBe('github')
+    expect(mirrored.status).toBe('done') // closed → done
+
+    // Idempotent second run
+    const second = await runSync(integration as any, fullStubConnector())
+    expect(second.tasksCreated).toBe(0)
+    expect(second.tasksUpdated).toBe(0)
+  })
+
+  it('rejects local status changes on mirrored tasks; allows native fields', async () => {
+    const integration = await makeIntegration()
+    await linkPlan(integration.id)
+    await runSync(integration as any, fullStubConnector())
+
+    const { tasks } = await import('@/lib/db/schema.sqlite')
+    const { updateTask, updateTaskStatus } = await import('@/lib/db/mutations')
+    const [mirrored] = await d.select().from(tasks).where(eq(tasks.externalId, '101'))
+
+    expect(await updateTaskStatus(mirrored.id, 'done')).toBeNull()
+
+    const updated = await updateTask(mirrored.id, { title: 'renamed', assigneeId: F.bob, estimatedEffort: 4 })
+    expect(updated!.title).toBe('Implement API endpoint') // mirrored: unchanged
+    expect(updated!.assigneeId).toBe(F.bob)               // native: applied
+    expect(updated!.estimatedEffort).toBe(4)
+  })
+
+  it('unlinking converts mirrored tasks to native', async () => {
+    const integration = await makeIntegration()
+    await linkPlan(integration.id)
+    await runSync(integration as any, fullStubConnector())
+
+    const { unlinkPlanFromExternalScope } = await import('@/lib/db/mutations')
+    await unlinkPlanFromExternalScope(F.planActive)
+
+    const { tasks, codePlans } = await import('@/lib/db/schema.sqlite')
+    const planTasks = await d.select().from(tasks).where(eq(tasks.codePlanId, F.planActive))
+    expect(planTasks.every((t: any) => t.source === 'native')).toBe(true)
+    const [plan] = await d.select().from(codePlans).where(eq(codePlans.id, F.planActive))
+    expect(plan.source).toBe('native')
+    expect(plan.connectionId).toBeNull()
+  })
+
+  it('updates prStatus for plan assets whose PR URL points at the repo', async () => {
+    const integration = await makeIntegration()
+    const { updatePlanAsset } = await import('@/lib/db/mutations')
+    // fixture: planActive targets assetApi via code_plan_assets
+    await updatePlanAsset(F.planActive, F.assetApi, {
+      prUrl: 'https://github.com/acme/app/pull/42',
+      prStatus: 'open',
+    })
+
+    const result = await runSync(integration as any, fullStubConnector())
+    expect(result.prsUpdated).toBe(1)
+
+    const { codePlanAssets } = await import('@/lib/db/schema.sqlite')
+    const [row] = await d
+      .select()
+      .from(codePlanAssets)
+      .where(eq(codePlanAssets.codePlanId, F.planActive))
+    expect(row.prStatus).toBe('merged')
+
+    // Second run: status already merged → no update
+    const second = await runSync(integration as any, fullStubConnector())
+    expect(second.prsUpdated).toBe(0)
+  })
+
+  it('ignores PR URLs pointing at other repos', async () => {
+    const integration = await makeIntegration()
+    const { updatePlanAsset } = await import('@/lib/db/mutations')
+    await updatePlanAsset(F.planActive, F.assetApi, {
+      prUrl: 'https://github.com/other/repo/pull/9',
+      prStatus: 'open',
+    })
+    const result = await runSync(integration as any, fullStubConnector())
+    expect(result.prsUpdated).toBe(0)
+  })
+})

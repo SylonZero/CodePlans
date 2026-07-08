@@ -4,8 +4,9 @@ import { authAdapter } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { users } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { getCodePlan, getTeamMembers, getWorkItems, getAssetOptions, getImpactedAssets } from '@/lib/db/queries'
+import { getCodePlan, getTeamMembers, getWorkItems, getAssetOptions, getImpactedAssets, getIntegrations } from '@/lib/db/queries'
 import { PlanAssetsSection } from './plan-assets-section'
+import { PlanSyncDialog } from './plan-sync-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -53,11 +54,12 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
   if (!plan) notFound()
 
   const profile = await db.query.users.findFirst({ where: eq(users.id, user.id) })
-  const [teamMembers, linkedItems, assetOptions, impactedAssets] = await Promise.all([
+  const [teamMembers, linkedItems, assetOptions, impactedAssets, orgIntegrations] = await Promise.all([
     profile?.organizationId ? getTeamMembers(profile.organizationId) : Promise.resolve([]),
     getWorkItems(user.id, { planId: id }),
     getAssetOptions(user.id),
     getImpactedAssets(id),
+    profile?.organizationId ? getIntegrations(profile.organizationId) : Promise.resolve([]),
   ])
   const productAssetOptions = assetOptions
     .filter((a) => a.productId === plan.productId)
@@ -106,7 +108,14 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
             )}
           </div>
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
+          <PlanSyncDialog
+            planId={plan.id}
+            source={plan.source}
+            externalKey={plan.externalKey}
+            externalUrl={plan.externalUrl}
+            connections={orgIntegrations.map((c) => ({ id: c.id, name: c.name, provider: c.provider }))}
+          />
           <PlanEditSheet plan={plan} />
           <PlanStatusButtons plan={plan} />
         </div>
@@ -291,6 +300,9 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
                         <div className="flex items-start justify-between gap-2 mb-2">
                           <span className={cn('font-medium text-sm', status === 'done' && 'line-through text-muted-foreground')}>
                             {task.title}
+                            {task.externalKey && (
+                              <span className="ml-1.5 text-xs text-muted-foreground font-normal">{task.externalKey}</span>
+                            )}
                           </span>
                           {status !== 'done' && (
                             <Badge variant="secondary" className={cn('text-xs shrink-0', priorityStyles[task.priority])}>

@@ -33,6 +33,8 @@ import {
   deleteAssetDependency,
   createIntegration,
   deleteIntegration,
+  linkPlanToExternalScope,
+  unlinkPlanFromExternalScope,
 } from '@/lib/db/mutations'
 import type { UserRole, WorkItemType, WorkItemStatus, WorkItemSeverity } from '@/lib/types'
 
@@ -760,4 +762,83 @@ export async function syncIntegrationAction(id: string) {
   revalidatePath('/integrations')
   revalidatePath('/work-items')
   return result
+}
+
+// ---------------------------------------------------------------------------
+// Plan ↔ external scope (milestone) linking
+// ---------------------------------------------------------------------------
+
+export async function listPlanScopesAction(connectionId: string) {
+  await requireUser()
+  const { integrations } = await import('@/lib/db/schema')
+  const integration = await db.query.integrations.findFirst({
+    where: eq(integrations.id, connectionId),
+  })
+  if (!integration) return { error: 'Connection not found.' }
+
+  const { getConnector } = await import('@/lib/integrations/registry')
+  const connector = getConnector(integration.provider)
+  if (!connector?.listScopes) return { error: 'This provider does not support scopes.' }
+
+  const token = integration.authRef ? process.env[integration.authRef] : undefined
+  if (!token) return { error: `Auth token not found — set ${integration.authRef ?? '(unset)'}.` }
+
+  try {
+    const config = (integration.config ?? {}) as import('@/lib/integrations/types').IntegrationConfig
+    const scopes = await connector.listScopes({ token }, config)
+    return { scopes }
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+export async function linkPlanScopeAction(
+  planId: string,
+  connectionId: string,
+  scopeId: string,
+  scopeTitle: string,
+) {
+  const authUser = await requireUser()
+  const { integrations } = await import('@/lib/db/schema')
+  const integration = await db.query.integrations.findFirst({
+    where: eq(integrations.id, connectionId),
+  })
+  if (!integration) return { error: 'Connection not found.' }
+
+  const repo = (integration.config as Record<string, unknown>)?.repo
+  await linkPlanToExternalScope(planId, {
+    provider: integration.provider,
+    connectionId,
+    externalId: scopeId,
+    externalKey: scopeTitle,
+    externalUrl: repo ? `https://github.com/${repo}/milestone/${scopeId}` : undefined,
+  })
+  await logActivity({
+    entityType: 'code_plan',
+    entityId: planId,
+    event: 'linked_external_scope',
+    actorId: authUser.id,
+    payload: { scopeTitle },
+  })
+
+  // Pull the scope's tasks immediately for instant feedback.
+  const { syncConnection } = await import('@/lib/integrations/sync')
+  const result = await syncConnection(connectionId)
+
+  revalidatePath(`/plans/${planId}`)
+  revalidatePath('/tasks')
+  return result
+}
+
+export async function unlinkPlanScopeAction(planId: string) {
+  const authUser = await requireUser()
+  await unlinkPlanFromExternalScope(planId)
+  await logActivity({
+    entityType: 'code_plan',
+    entityId: planId,
+    event: 'unlinked_external_scope',
+    actorId: authUser.id,
+  })
+  revalidatePath(`/plans/${planId}`)
+  revalidatePath('/tasks')
 }

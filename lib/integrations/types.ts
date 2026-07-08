@@ -38,6 +38,15 @@ export type IntegrationConfig = {
   typeLabelMap?: Record<string, WorkItemType>
 }
 
+/** An epic-like grouping on the provider side (GitHub: a milestone). */
+export type ExternalScope = {
+  id: string
+  title: string
+  state: string
+}
+
+export type ExternalPrStatus = 'draft' | 'open' | 'merged' | 'closed'
+
 /**
  * The pluggable connector interface (mirrors the AUTH_PROVIDER / DB_PROVIDER
  * pattern). Providers implement pull-only sync; write-back is a later phase
@@ -49,11 +58,28 @@ export interface Connector {
   defaultStatusMap: Record<string, WorkItemStatus>
   /** Incremental pull of items in the connection's scope. */
   listItems(auth: ConnectorAuth, config: IntegrationConfig, since?: Date): Promise<ExternalItem[]>
+  /** Epic-like scopes a plan can be linked to (GitHub: milestones). */
+  listScopes?(auth: ConnectorAuth, config: IntegrationConfig): Promise<ExternalScope[]>
+  /** Items inside one scope — mirrored as a linked plan's tasks. */
+  listScopeItems?(
+    auth: ConnectorAuth,
+    config: IntegrationConfig,
+    scopeId: string,
+  ): Promise<ExternalItem[]>
+  /** Current status of one pull request — used for PR auto-linking. */
+  fetchPullRequest?(
+    auth: ConnectorAuth,
+    config: IntegrationConfig,
+    prNumber: string,
+  ): Promise<ExternalPrStatus | null>
 }
 
 export type SyncResult = {
   created: number
   updated: number
   unchanged: number
+  tasksCreated: number
+  tasksUpdated: number
+  prsUpdated: number
   error?: string
 }

@@ -28,7 +28,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { Clock, Pencil, Trash2, ArrowUpRight } from 'lucide-react'
+import { Clock, Pencil, Trash2, ArrowUpRight, ExternalLink } from 'lucide-react'
 import type { TaskStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { createTaskAction, updateTaskAction, deleteTaskAction } from '../actions'
@@ -44,6 +44,9 @@ export type TaskRow = {
   estimatedEffort?: number
   actualEffort?: number
   assigneeId?: string
+  source?: string
+  externalKey?: string
+  externalUrl?: string
   planTitle: string
   assetName: string | null
   assigneeName: string | null
@@ -128,6 +131,7 @@ export function TaskPanel({ open, mode, task, plans, members, onClose }: TaskPan
 
 function TaskDetails({ task, onEdit, onDeleted }: { task: TaskRow; onEdit: () => void; onDeleted: () => void }) {
   const [isPending, startTransition] = useTransition()
+  const isMirrored = !!task.source && task.source !== 'native'
 
   function handleDelete() {
     startTransition(async () => {
@@ -146,18 +150,37 @@ function TaskDetails({ task, onEdit, onDeleted }: { task: TaskRow; onEdit: () =>
           <Badge variant="secondary" className={cn('text-xs capitalize', priorityStyles[task.priority])}>
             {task.priority}
           </Badge>
+          {isMirrored && (
+            <Badge variant="outline" className="text-xs capitalize">
+              {task.source}
+              {task.externalKey ? ` · ${task.externalKey}` : ''}
+            </Badge>
+          )}
         </div>
         <SheetTitle className={cn('text-lg', task.status === 'done' && 'line-through text-muted-foreground')}>
           {task.title}
         </SheetTitle>
         <SheetDescription asChild>
-          <Link
-            href={`/plans/${task.codePlanId}`}
-            className="flex items-center gap-1 hover:text-accent transition-colors w-fit"
-          >
-            {task.planTitle}
-            <ArrowUpRight className="h-3.5 w-3.5" />
-          </Link>
+          <span className="flex items-center gap-3">
+            <Link
+              href={`/plans/${task.codePlanId}`}
+              className="flex items-center gap-1 hover:text-accent transition-colors w-fit"
+            >
+              {task.planTitle}
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </Link>
+            {task.externalUrl && (
+              <a
+                href={task.externalUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1 hover:text-accent transition-colors w-fit"
+              >
+                View in {task.source}
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            )}
+          </span>
         </SheetDescription>
       </SheetHeader>
 
@@ -244,10 +267,12 @@ function TaskDetails({ task, onEdit, onDeleted }: { task: TaskRow; onEdit: () =>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-        <Button size="sm" onClick={onEdit}>
-          <Pencil className="mr-2 h-4 w-4" />
-          Edit
-        </Button>
+        {!isMirrored && (
+          <Button size="sm" onClick={onEdit}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit
+          </Button>
+        )}
       </SheetFooter>
     </>
   )

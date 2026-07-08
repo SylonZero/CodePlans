@@ -1,8 +1,10 @@
 # CodePlans v3 — Target Design & Roadmap
 
-> **Status: Canonical spec — Phases 1 through 4 shipped** (2026-07, v0.5.0).
+> **Status: Canonical spec — Phases 1 through 5 shipped** (2026-07, v0.6.0).
 > Describes the target data model, integration architecture, and the phased
-> roadmap. Phases 1, 1.5, 2, 3, and 4 are implemented; Phases 5–6 remain.
+> roadmap. Phases 1 through 5 are implemented; Phase 6 remains (the
+> `repositories` table from Phase 5 moved to Phase 6 — `repositoryUrl` +
+> `repoPath` + connection config cover current needs).
 > Supersedes `functional-spec-v2.md` and `data-model-enhancement-plan.md`.
 > The current implemented state is documented in `docs/app-spec.md`.
 
@@ -419,7 +421,7 @@ engineering-adjacent, doubles as groundwork for PR auto-linking; Jira second, As
 third); import + link-existing flows; provenance badges/read-only treatment
 everywhere.
 
-### Phase 5 — Task-level sync & mixed plans (v0.6)
+### Phase 5 — Task-level sync & mixed plans (v0.6) ✅ SHIPPED (except repositories table → Phase 6)
 Plan ↔ external epic linking; mirrored tasks inside plans (tiers 2/3 of §7);
 `repositories` table + PR auto-link from the GitHub connector (updates
 `code_plan_assets.prStatus`).

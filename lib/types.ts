@@ -101,6 +101,10 @@ export interface CodePlan {
   productId: string
   type: CodePlanType
   status: CodePlanStatus
+  source?: ItemSource
+  connectionId?: string
+  externalKey?: string
+  externalUrl?: string
   tags: string[]
   targetAssetIds: string[]
   startDate?: string
@@ -122,6 +126,9 @@ export interface Task {
   title: string
   description: string
   status: TaskStatus
+  source?: ItemSource
+  externalKey?: string
+  externalUrl?: string
   tags: string[]
   assigneeId?: string
   estimatedEffort?: number // hours

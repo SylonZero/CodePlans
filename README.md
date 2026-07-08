@@ -5,7 +5,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-SQLite_%7C_Postgres-C5F74F?logo=drizzle&logoColor=black)](https://orm.drizzle.team)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![Tests](https://img.shields.io/badge/Tests-129_passing-brightgreen?logo=vitest&logoColor=white)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-134_passing-brightgreen?logo=vitest&logoColor=white)](tests/)
 [![Status](https://img.shields.io/badge/Status-Coming%20Soon-blue)](https://codeplans.ai)
 
 **Coordinate and track changes across your software architecture.**
@@ -52,7 +52,8 @@ CodePlans sits between your issue tracker and your architecture diagram:
 | Activity feed | ✅ Available |
 | GitHub Issues integration (pull-only mirror into work items) | ✅ Available |
 | Jira / Asana / Linear connectors | 🔜 Planned |
-| Task-level sync & PR auto-linking | 🔜 Planned |
+| Milestone-linked plans with mirrored tasks (mixed mode) | ✅ Available |
+| PR auto-linking (plan-asset PR status refreshed on sync) | ✅ Available |
 | AI-assisted effort estimation | 🔜 Planned |
 | Billing / subscription management | 🔜 Planned (optional, feature-flagged) |
 
@@ -69,7 +70,7 @@ CodePlans sits between your issue tracker and your architecture diagram:
 | Database | SQLite (local / libsql) or PostgreSQL (cloud) |
 | Auth | Local (bcrypt + session cookie) or Supabase |
 | Charts | Recharts |
-| Testing | Vitest (129 tests) |
+| Testing | Vitest (134 tests) |
 
 ---
 
@@ -326,7 +327,7 @@ Please keep PRs focused. Bug fixes, test coverage improvements, and documentatio
 - [x] **v0.3 — Work items & tech debt UI:** backlog views, debt register by asset/area, activity feed (event log)
 - [x] **v0.4 — Dependency mapping & impact analysis;** analytics wired to real data
 - [x] **v0.5 — Integrations framework** + first connector (GitHub Issues), pull-only sync
-- [ ] **v0.6 — Task-level sync & mixed plans;** PR auto-linking
+- [x] **v0.6 — Task-level sync & mixed plans;** PR auto-linking
 - [ ] Jira / Asana / Linear connectors
 - [ ] AI-assisted effort estimation
 

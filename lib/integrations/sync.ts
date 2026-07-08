@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
-import { integrations, workItems, syncLog } from '@/lib/db/schema'
-import { eq, and } from 'drizzle-orm'
-import type { WorkItemStatus, WorkItemType } from '@/lib/types'
+import { integrations, workItems, codePlans, codePlanAssets, tasks, syncLog } from '@/lib/db/schema'
+import { eq, and, isNotNull, like } from 'drizzle-orm'
+import type { WorkItemStatus, WorkItemType, TaskStatus } from '@/lib/types'
 import type { Connector, ExternalItem, IntegrationConfig, SyncResult } from './types'
 import { getConnector } from './registry'
 
@@ -33,6 +33,16 @@ function mapStatus(
 
 type IntegrationRow = typeof integrations.$inferSelect
 
+function emptyResult(error?: string): SyncResult {
+  return { created: 0, updated: 0, unchanged: 0, tasksCreated: 0, tasksUpdated: 0, prsUpdated: 0, error }
+}
+
+// GitHub "open" gives no in-progress signal, so mirrored tasks are binary.
+const TASK_STATUS_MAP: Record<string, TaskStatus> = {
+  open: 'not_started',
+  closed: 'done',
+}
+
 /**
  * Core sync pass: pull items from the connector and upsert mirrored work
  * items. Mirrored fields (title, description, status, tags, external*) are
@@ -43,17 +53,14 @@ type IntegrationRow = typeof integrations.$inferSelect
 export async function runSync(integration: IntegrationRow, connector: Connector): Promise<SyncResult> {
   const config = (integration.config ?? {}) as IntegrationConfig
   if (!config.productId) {
-    return { created: 0, updated: 0, unchanged: 0, error: 'Connection has no target product configured' }
+    return emptyResult('Connection has no target product configured')
   }
 
   const token = integration.authRef ? process.env[integration.authRef] : undefined
   if (!token) {
-    return {
-      created: 0,
-      updated: 0,
-      unchanged: 0,
-      error: `Auth token not found — set the ${integration.authRef ?? '(unset)'} environment variable`,
-    }
+    return emptyResult(
+      `Auth token not found — set the ${integration.authRef ?? '(unset)'} environment variable`,
+    )
   }
 
   const statusMap = { ...connector.defaultStatusMap, ...(config.statusMap ?? {}) }
@@ -119,7 +126,133 @@ export async function runSync(integration: IntegrationRow, connector: Connector)
     }
   }
 
-  return { created, updated, unchanged }
+  const taskStats = await syncPlanTasks(integration, connector, { token }, config)
+  const prsUpdated = await syncPrStatuses(integration, connector, { token }, config)
+
+  return { created, updated, unchanged, ...taskStats, prsUpdated }
+}
+
+/**
+ * Tier 2/3 of the task model: plans linked to an external scope (GitHub
+ * milestone) mirror the scope's issues as tasks. Native tasks in the same
+ * plan are untouched — mixed mode.
+ */
+async function syncPlanTasks(
+  integration: IntegrationRow,
+  connector: Connector,
+  auth: { token: string },
+  config: IntegrationConfig,
+): Promise<{ tasksCreated: number; tasksUpdated: number }> {
+  let tasksCreated = 0
+  let tasksUpdated = 0
+  if (!connector.listScopeItems) return { tasksCreated, tasksUpdated }
+
+  const linkedPlans = await db
+    .select({ id: codePlans.id, externalId: codePlans.externalId })
+    .from(codePlans)
+    .where(and(eq(codePlans.connectionId, integration.id), isNotNull(codePlans.externalId)))
+
+  for (const plan of linkedPlans) {
+    const items = await connector.listScopeItems(auth, config, plan.externalId!)
+    for (const item of items) {
+      const existing = await db.query.tasks.findFirst({
+        where: and(eq(tasks.connectionId, integration.id), eq(tasks.externalId, item.externalId)),
+      })
+
+      const mirrored = {
+        title: item.title,
+        description: item.description,
+        status: TASK_STATUS_MAP[item.state] ?? 'not_started',
+        tags: item.labels,
+        externalKey: item.externalKey ?? null,
+        externalUrl: item.externalUrl,
+        externalData: {
+          state: item.state,
+          assigneeName: item.assigneeName ?? null,
+          providerUpdatedAt: item.updatedAt,
+        },
+        syncedAt: new Date(),
+      }
+
+      if (existing) {
+        const providerUpdatedAt = (existing.externalData as Record<string, unknown>)?.providerUpdatedAt
+        if (providerUpdatedAt === item.updatedAt) continue
+        // Mirrored fields only — assignee/effort/asset/priority stay native.
+        await db
+          .update(tasks)
+          .set({ ...mirrored, updatedAt: new Date() })
+          .where(eq(tasks.id, existing.id))
+        tasksUpdated += 1
+      } else {
+        await db.insert(tasks).values({
+          codePlanId: plan.id,
+          source: integration.provider,
+          connectionId: integration.id,
+          externalId: item.externalId,
+          ...mirrored,
+        })
+        tasksCreated += 1
+      }
+    }
+  }
+  return { tasksCreated, tasksUpdated }
+}
+
+/**
+ * PR auto-linking: plan-asset rows whose prUrl points at this connection's
+ * repo get their prStatus refreshed from the provider.
+ */
+async function syncPrStatuses(
+  integration: IntegrationRow,
+  connector: Connector,
+  auth: { token: string },
+  config: IntegrationConfig,
+): Promise<number> {
+  if (!connector.fetchPullRequest || !config.repo) return 0
+
+  const prefix = `https://github.com/${config.repo}/pull/`
+  const rows = await db
+    .select({
+      id: codePlanAssets.id,
+      codePlanId: codePlanAssets.codePlanId,
+      prUrl: codePlanAssets.prUrl,
+      prStatus: codePlanAssets.prStatus,
+    })
+    .from(codePlanAssets)
+    .where(like(codePlanAssets.prUrl, `${prefix}%`))
+
+  let updated = 0
+  const statusCache = new Map<string, string | null>()
+  for (const row of rows) {
+    const prNumber = row.prUrl!.slice(prefix.length).split(/[/?#]/)[0]
+    if (!/^\d+$/.test(prNumber)) continue
+
+    if (!statusCache.has(prNumber)) {
+      statusCache.set(prNumber, await connector.fetchPullRequest(auth, config, prNumber))
+    }
+    const status = statusCache.get(prNumber)
+    if (!status || status === row.prStatus) continue
+
+    await db
+      .update(codePlanAssets)
+      .set({ prStatus: status as 'draft' | 'open' | 'merged' | 'closed', updatedAt: new Date() })
+      .where(eq(codePlanAssets.id, row.id))
+    updated += 1
+    try {
+      await db.insert(syncLog).values({
+        organizationId: integration.organizationId,
+        connectionId: integration.id,
+        entityType: 'code_plan',
+        entityId: row.codePlanId,
+        event: 'pr_status_changed',
+        actorId: null,
+        payload: { prUrl: row.prUrl, prStatus: status },
+      })
+    } catch (err) {
+      console.error('[sync] log failed:', err)
+    }
+  }
+  return updated
 }
 
 async function logSyncEvent(integration: IntegrationRow, workItemId: string, event: string, item: ExternalItem) {
@@ -143,11 +276,11 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
   const integration = await db.query.integrations.findFirst({
     where: eq(integrations.id, connectionId),
   })
-  if (!integration) return { created: 0, updated: 0, unchanged: 0, error: 'Connection not found' }
+  if (!integration) return emptyResult('Connection not found')
 
   const connector = getConnector(integration.provider)
   if (!connector) {
-    return { created: 0, updated: 0, unchanged: 0, error: `No connector for provider "${integration.provider}"` }
+    return emptyResult(`No connector for provider "${integration.provider}"`)
   }
 
   try {
@@ -168,6 +301,6 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
       .update(integrations)
       .set({ lastError: message, status: 'error', updatedAt: new Date() })
       .where(eq(integrations.id, connectionId))
-    return { created: 0, updated: 0, unchanged: 0, error: message }
+    return emptyResult(message)
   }
 }
