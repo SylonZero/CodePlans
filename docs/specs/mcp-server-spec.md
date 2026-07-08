@@ -1,6 +1,6 @@
 # MCP Server Interface — Design (v0.3.1)
 
-> **Status: SHIPPED in v0.3.1; management tools added in v0.3.2** (26 tools:
+> **Status: SHIPPED in v0.3.1; management tools added in v0.3.2** (28 tools incl. get_modeling_guide and update_code_plan:
 > products, assets, dependencies, plan lifecycle/targets, full work-item edit). Companion to
 > `design-spec-v3.md`; reuses its data layer and access model unchanged.
 
