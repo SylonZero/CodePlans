@@ -31,6 +31,8 @@ import {
   unlinkWorkItemFromPlan,
   createAssetDependency,
   deleteAssetDependency,
+  createIntegration,
+  deleteIntegration,
 } from '@/lib/db/mutations'
 import type { UserRole, WorkItemType, WorkItemStatus, WorkItemSeverity } from '@/lib/types'
 
@@ -714,4 +716,48 @@ export async function removeAssetDependencyAction(id: string, productSlug: strin
   await requireUser()
   await deleteAssetDependency(id)
   revalidatePath(`/products/${productSlug}`)
+}
+
+// ---------------------------------------------------------------------------
+// Integrations
+// ---------------------------------------------------------------------------
+
+export async function createIntegrationAction(formData: FormData) {
+  const authUser = await requireUser()
+  const profile = await getUserProfile(authUser.id)
+  if (!profile?.organizationId) return { error: 'You are not part of an organization.' }
+
+  const provider = formData.get('provider') as string
+  const name = formData.get('name') as string
+  const repo = (formData.get('repo') as string) || undefined
+  const authRef = (formData.get('authRef') as string) || undefined
+  const productId = (formData.get('productId') as string) || undefined
+
+  if (!productId) return { error: 'Select a target product for mirrored items.' }
+
+  await createIntegration({
+    organizationId: profile.organizationId,
+    provider,
+    name,
+    authRef,
+    config: { repo, productId },
+  })
+
+  revalidatePath('/integrations')
+  return {}
+}
+
+export async function deleteIntegrationAction(id: string) {
+  await requireUser()
+  await deleteIntegration(id)
+  revalidatePath('/integrations')
+}
+
+export async function syncIntegrationAction(id: string) {
+  await requireUser()
+  const { syncConnection } = await import('@/lib/integrations/sync')
+  const result = await syncConnection(id)
+  revalidatePath('/integrations')
+  revalidatePath('/work-items')
+  return result
 }

@@ -3,6 +3,7 @@ import {
   products,
   assets,
   assetDependencies,
+  integrations,
   codePlans,
   codePlanAssets,
   codePlanAssignees,
@@ -270,15 +271,30 @@ type UpdateWorkItemData = Partial<
 >
 
 export async function updateWorkItem(id: string, data: UpdateWorkItemData) {
+  const existing = await db.query.workItems.findFirst({ where: eq(workItems.id, id) })
+  if (!existing) return null
+
+  // Mirrored items: the external tracker owns title/description/status/type/tags.
+  // Only the native annotation fields may be edited locally.
+  const patch: UpdateWorkItemData =
+    existing.source !== 'native'
+      ? { assetId: data.assetId, area: data.area, severity: data.severity }
+      : data
+
   const [item] = await db
     .update(workItems)
-    .set({ ...data, updatedAt: new Date() })
+    .set({ ...patch, updatedAt: new Date() })
     .where(eq(workItems.id, id))
     .returning()
   return item ?? null
 }
 
 export async function updateWorkItemStatus(id: string, status: WorkItemStatus) {
+  const existing = await db.query.workItems.findFirst({ where: eq(workItems.id, id) })
+  if (!existing) return null
+  // Status is a mirrored field — change it in the external tracker instead.
+  if (existing.source !== 'native') return null
+
   const [item] = await db
     .update(workItems)
     .set({ status, updatedAt: new Date() })
@@ -392,5 +408,30 @@ export async function deleteAssetDependency(id: string) {
     .delete(assetDependencies)
     .where(eq(assetDependencies.id, id))
     .returning({ id: assetDependencies.id })
+  return deleted ?? null
+}
+
+// ---------------------------------------------------------------------------
+// Integrations
+// ---------------------------------------------------------------------------
+
+type CreateIntegrationData = {
+  organizationId: string
+  provider: string
+  name: string
+  authRef?: string
+  config: Record<string, unknown>
+}
+
+export async function createIntegration(data: CreateIntegrationData) {
+  const [row] = await db.insert(integrations).values(data).returning()
+  return row
+}
+
+export async function deleteIntegration(id: string) {
+  const [deleted] = await db
+    .delete(integrations)
+    .where(eq(integrations.id, id))
+    .returning({ id: integrations.id })
   return deleted ?? null
 }

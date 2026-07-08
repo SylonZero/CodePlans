@@ -32,6 +32,7 @@ import {
   Search,
   Building2,
   Layers,
+  Plug,
 } from 'lucide-react'
 import { signOut } from '@/app/(auth)/actions'
 import { setProductScopeAction } from '@/lib/actions/product-scope'
@@ -58,6 +59,7 @@ const navigation = [
 
 const secondaryNavigationBase = [
   { name: 'Team', href: '/team', icon: Users },
+  { name: 'Integrations', href: '/integrations', icon: Plug },
   { name: 'Billing', href: '/billing', icon: CreditCard, billingOnly: true },
   { name: 'Settings', href: '/settings', icon: Settings },
 ]

@@ -13,6 +13,7 @@ import {
   organizations,
   organizationMembers,
   syncLog,
+  integrations,
 } from './schema'
 import { eq, and, sql, desc, or, inArray, gte, isNotNull } from 'drizzle-orm'
 import type {
@@ -1169,5 +1170,47 @@ export async function getTeamMembers(orgId: string): Promise<TeamMember[]> {
       featureFlags: (r.userFeatureFlags as { alpha?: boolean; beta?: boolean; aiAssistance?: boolean }) ?? {},
       createdAt: r.userCreatedAt.toISOString(),
     },
+  }))
+}
+
+// ---------------------------------------------------------------------------
+// Integrations
+// ---------------------------------------------------------------------------
+
+export type IntegrationSummary = {
+  id: string
+  provider: string
+  name: string
+  authRef: string | null
+  config: Record<string, unknown>
+  status: string
+  lastSyncAt: string | null
+  lastError: string | null
+  mirroredCount: number
+}
+
+export async function getIntegrations(orgId: string): Promise<IntegrationSummary[]> {
+  const rows = await db
+    .select({
+      id: integrations.id,
+      provider: integrations.provider,
+      name: integrations.name,
+      authRef: integrations.authRef,
+      config: integrations.config,
+      status: integrations.status,
+      lastSyncAt: integrations.lastSyncAt,
+      lastError: integrations.lastError,
+      mirroredCount: sql<number>`(
+        select CAST(count(*) AS INTEGER) from work_items where work_items.connection_id = integrations.id
+      )`,
+    })
+    .from(integrations)
+    .where(eq(integrations.organizationId, orgId))
+    .orderBy(integrations.name)
+
+  return rows.map((r) => ({
+    ...r,
+    config: (r.config ?? {}) as Record<string, unknown>,
+    lastSyncAt: r.lastSyncAt?.toISOString() ?? null,
   }))
 }
