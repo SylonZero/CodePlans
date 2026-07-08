@@ -251,6 +251,18 @@ export const syncLog = sqliteTable('sync_log', {
   index('sync_log_org_created_idx').on(t.organizationId, t.createdAt),
 ])
 
+export const apiKeys = sqliteTable('api_keys', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  keyHash: text('key_hash').notNull().unique(),
+  keyPrefix: text('key_prefix').notNull(),
+  scope: text('scope').$type<'read' | 'write'>().notNull().default('read'),
+  lastUsedAt: integer('last_used_at', { mode: 'timestamp' }),
+  revokedAt: integer('revoked_at', { mode: 'timestamp' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+})
+
 export const emailVerificationTokens = sqliteTable('email_verification_tokens', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),

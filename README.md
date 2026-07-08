@@ -5,7 +5,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-SQLite_%7C_Postgres-C5F74F?logo=drizzle&logoColor=black)](https://orm.drizzle.team)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![Tests](https://img.shields.io/badge/Tests-150_passing-brightgreen?logo=vitest&logoColor=white)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-153_passing-brightgreen?logo=vitest&logoColor=white)](tests/)
 [![Status](https://img.shields.io/badge/Status-Coming%20Soon-blue)](https://codeplans.ai)
 
 **Coordinate and track changes across your software architecture.**
@@ -51,6 +51,7 @@ CodePlans sits between your issue tracker and your architecture diagram:
 | Analytics wired to real data (velocity, effort accuracy, debt by product) | ✅ Available |
 | Activity feed | ✅ Available |
 | GitHub & GitLab Issues integrations (pull-only mirror into work items) | ✅ Available |
+| MCP server — connect Claude Code/Desktop via API key | ✅ Available |
 | Jira / Asana / Linear connectors | 🔜 Planned |
 | Milestone-linked plans with mirrored tasks (mixed mode) | ✅ Available |
 | PR auto-linking (plan-asset PR status refreshed on sync) | ✅ Available |
@@ -70,7 +71,7 @@ CodePlans sits between your issue tracker and your architecture diagram:
 | Database | SQLite (local / libsql) or PostgreSQL (cloud) |
 | Auth | Local (bcrypt + session cookie) or Supabase |
 | Charts | Recharts |
-| Testing | Vitest (150 tests) |
+| Testing | Vitest (153 tests) |
 
 ---
 
@@ -316,6 +317,19 @@ Please keep PRs focused. Bug fixes, test coverage improvements, and documentatio
 
 ---
 
+## Connect Claude (MCP)
+
+CodePlans ships an MCP server at `/api/mcp/mcp` (Streamable HTTP). Create an API key in **Settings → API Keys**, then:
+
+```bash
+claude mcp add --transport http codeplans http://localhost:3000/api/mcp/mcp \
+  --header "Authorization: Bearer cpk_your_key"
+```
+
+Claude can then read plans/work items/tech debt and (with a write-scope key) file work items, manage tasks, and record branch/PR status on plan assets. Keys act as your user, so org access rules and mirrored-field protections apply unchanged. See [`docs/specs/mcp-server-spec.md`](docs/specs/mcp-server-spec.md).
+
+---
+
 ## Roadmap
 
 - [x] Product & asset CRUD forms — shipped in v0.1.5 (side panels & quick modals)
@@ -329,6 +343,7 @@ Please keep PRs focused. Bug fixes, test coverage improvements, and documentatio
 - [x] **v0.2.4 — Task-level sync & mixed plans;** PR auto-linking
 - [x] **v0.2.5 — GitLab Issues connector** (incl. self-hosted instances)
 - [x] **v0.3.0 — Write-back:** plan-completion comments on mirrored tracker issues; deprecated plan array columns dropped
+- [x] **v0.3.1 — MCP server:** API-key auth, 13 tools for Claude Code/Desktop
 - [ ] Jira / Asana / Linear connectors
 - [ ] AI-assisted effort estimation
 

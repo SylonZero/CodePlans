@@ -1,6 +1,6 @@
 # MCP Server Interface — Design (v0.3.1)
 
-> **Status: Design** (2026-07). Targets v0.3.1. Companion to
+> **Status: SHIPPED in v0.3.1** (2026-07). Companion to
 > `design-spec-v3.md`; reuses its data layer and access model unchanged.
 
 ## Goal

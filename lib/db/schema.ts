@@ -25,6 +25,7 @@ export const {
   workItemCodePlans,
   tasks,
   syncLog,
+  apiKeys,
   emailVerificationTokens,
   // pg enums — undefined in SQLite mode (not used in app code, only in schema definitions)
   userRoleEnum,

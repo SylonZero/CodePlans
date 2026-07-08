@@ -5,6 +5,7 @@ import { users, emailVerificationTokens } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { getOrganization } from '@/lib/db/queries'
 import { SettingsClient } from './settings-client'
+import { listApiKeys } from '@/lib/mcp/auth'
 import { config } from '@/lib/config'
 
 interface Props {
@@ -33,8 +34,11 @@ export default async function SettingsPage({ searchParams }: Props) {
 
   const { emailVerified } = await searchParams
 
+  const apiKeys = await listApiKeys(authUser.id)
+
   return (
     <SettingsClient
+      apiKeys={apiKeys}
       user={{
         name: profile.name,
         email: profile.email,

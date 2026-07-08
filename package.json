@@ -1,6 +1,6 @@
 {
   "name": "codeplans",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Manage and track coordinated changes across your software architecture.",
   "author": "Sai Prakash <sylonzero@gmail.com>",
   "homepage": "https://codeplans.ai",
@@ -63,6 +63,7 @@
     "embla-carousel-react": "8.6.0",
     "input-otp": "1.4.2",
     "lucide-react": "^0.564.0",
+    "mcp-handler": "^1.1.0",
     "next": "16.2.0",
     "next-auth": "5.0.0-beta.31",
     "next-themes": "^0.4.6",

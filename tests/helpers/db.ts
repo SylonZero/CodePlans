@@ -16,6 +16,7 @@ import {
   workItemCodePlans,
   tasks,
   syncLog,
+  apiKeys,
 } from '@/lib/db/schema.sqlite'
 
 const MIGRATIONS_PATH = path.join(process.cwd(), 'lib/db/migrations/sqlite')
@@ -27,6 +28,7 @@ export async function runMigrations() {
 export async function clearTables() {
   const d = db as any
   // Delete children before parents to respect FK order
+  await d.delete(apiKeys)
   await d.delete(syncLog)
   await d.delete(workItemCodePlans)
   await d.delete(workItems)
