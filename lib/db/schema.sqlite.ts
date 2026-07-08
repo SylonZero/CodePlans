@@ -131,14 +131,10 @@ export const codePlans = sqliteTable('code_plans', {
   type: text('type').$type<CodePlanType>().notNull(),
   status: text('status').$type<CodePlanStatus>().notNull().default('draft'),
   tags: text('tags', { mode: 'json' }).$type<string[]>().notNull().default([]),
-  // Deprecated: superseded by code_plan_assets join table. Kept one release for rollback.
-  targetAssetIds: text('target_asset_ids', { mode: 'json' }).$type<string[]>().notNull().default([]),
   startDate: text('start_date'),
   endDate: text('end_date'),
   deadline: text('deadline'),
   creatorId: text('creator_id').notNull().references(() => users.id),
-  // Deprecated: superseded by code_plan_assignees join table. Kept one release for rollback.
-  assigneeIds: text('assignee_ids', { mode: 'json' }).$type<string[]>().notNull().default([]),
   source: text('source').$type<ItemSource>().notNull().default('native'),
   connectionId: text('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
   externalId: text('external_id'),

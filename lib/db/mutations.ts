@@ -116,8 +116,8 @@ type CreateCodePlanData = {
   assigneeIds: string[]
 }
 
-// Join tables are the source of truth for plan↔asset and plan↔assignee links.
-// The deprecated array columns are still written for one release (rollback safety).
+// Join tables are the source of truth for plan↔asset and plan↔assignee links
+// (the deprecated array columns were dropped in v0.3.0).
 
 async function syncPlanAssets(planId: string, assetIds: string[]) {
   const existing = await db
@@ -148,16 +148,17 @@ async function syncPlanAssignees(planId: string, userIds: string[]) {
 }
 
 export async function createCodePlan(data: CreateCodePlanData, userId: string) {
+  const { targetAssetIds, assigneeIds, ...columns } = data
   const [plan] = await db
     .insert(codePlans)
     .values({
-      ...data,
+      ...columns,
       creatorId: userId,
       status: 'draft',
     })
     .returning()
-  await syncPlanAssets(plan.id, data.targetAssetIds)
-  await syncPlanAssignees(plan.id, data.assigneeIds)
+  await syncPlanAssets(plan.id, targetAssetIds)
+  await syncPlanAssignees(plan.id, assigneeIds)
   return plan
 }
 
@@ -168,14 +169,15 @@ type UpdateCodePlanData = Partial<
 >
 
 export async function updateCodePlan(id: string, data: UpdateCodePlanData) {
+  const { targetAssetIds, assigneeIds, ...columns } = data
   const [plan] = await db
     .update(codePlans)
-    .set({ ...data, updatedAt: new Date() })
+    .set({ ...columns, updatedAt: new Date() })
     .where(eq(codePlans.id, id))
     .returning()
   if (!plan) return null
-  if (data.targetAssetIds !== undefined) await syncPlanAssets(id, data.targetAssetIds)
-  if (data.assigneeIds !== undefined) await syncPlanAssignees(id, data.assigneeIds)
+  if (targetAssetIds !== undefined) await syncPlanAssets(id, targetAssetIds)
+  if (assigneeIds !== undefined) await syncPlanAssignees(id, assigneeIds)
   return plan
 }
 

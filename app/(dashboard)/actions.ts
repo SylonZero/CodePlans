@@ -297,6 +297,9 @@ export async function completePlanAction(id: string) {
       actorId: authUser.id,
       payload: { title: plan.title },
     })
+    // Write-back: comment on mirrored tracker issues linked to this plan.
+    const { notifyPlanCompleted } = await import('@/lib/integrations/writeback')
+    await notifyPlanCompleted(id)
   }
   revalidatePath(`/plans/${id}`)
 }

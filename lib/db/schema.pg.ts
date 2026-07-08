@@ -137,14 +137,10 @@ export const codePlans = pgTable('code_plans', {
   type: codePlanTypeEnum('type').notNull(),
   status: codePlanStatusEnum('status').notNull().default('draft'),
   tags: text('tags').array().notNull().default([]),
-  // Deprecated: superseded by code_plan_assets join table. Kept one release for rollback.
-  targetAssetIds: uuid('target_asset_ids').array().notNull().default([]),
   startDate: date('start_date'),
   endDate: date('end_date'),
   deadline: date('deadline'),
   creatorId: uuid('creator_id').notNull().references(() => users.id),
-  // Deprecated: superseded by code_plan_assignees join table. Kept one release for rollback.
-  assigneeIds: uuid('assignee_ids').array().notNull().default([]),
   source: text('source').notNull().default('native'),
   connectionId: uuid('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
   externalId: text('external_id'),

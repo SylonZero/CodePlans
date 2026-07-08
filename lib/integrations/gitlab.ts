@@ -136,6 +136,18 @@ export const gitlabConnector: Connector = {
     return 'open'
   },
 
+  async postComment(auth, config, externalId, body) {
+    const res = await fetch(
+      `${apiBase(config)}/projects/${projectPath(config)}/issues/${externalId}/notes`,
+      {
+        method: 'POST',
+        headers: { ...glHeaders(auth), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body }),
+      },
+    )
+    if (!res.ok) throw new Error(`GitLab API ${res.status}: ${(await res.text()).slice(0, 200)}`)
+  },
+
   matchPrUrl(config, url) {
     if (!config.repo) return null
     const prefix = `${webBase(config)}/${config.repo}/-/merge_requests/`

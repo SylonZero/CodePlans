@@ -368,3 +368,45 @@ describe('phase 5: milestone-linked plans & PR auto-linking', () => {
     expect(result.prsUpdated).toBe(0)
   })
 })
+
+describe('write-back: notifyPlanCompleted', () => {
+  it('comments on mirrored linked items and logs the event', async () => {
+    const integration = await makeIntegration()
+    await runSync(integration as any, stubConnector(makeItems()))
+
+    const { linkWorkItemToPlan } = await import('@/lib/db/mutations')
+    const [mirrored] = await d.select().from(workItems).where(eq(workItems.externalId, '1'))
+    await linkWorkItemToPlan(mirrored.id, F.planActive)
+
+    const posted: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        posted.push(`${init?.method} ${url}`)
+        return new Response('{}', { status: 201 })
+      }),
+    )
+
+    const { notifyPlanCompleted } = await import('@/lib/integrations/writeback')
+    const count = await notifyPlanCompleted(F.planActive)
+    expect(count).toBe(1)
+    expect(posted[0]).toBe('POST https://api.github.com/repos/acme/app/issues/1/comments')
+
+    const logs = await d.select().from(syncLog).where(eq(syncLog.event, 'writeback_comment'))
+    expect(logs).toHaveLength(1)
+  })
+
+  it('is a no-op for plans with only native linked items and never throws on API failure', async () => {
+    expect(await (await import('@/lib/integrations/writeback')).notifyPlanCompleted(F.planActive)).toBe(0)
+
+    const integration = await makeIntegration()
+    await runSync(integration as any, stubConnector(makeItems()))
+    const { linkWorkItemToPlan } = await import('@/lib/db/mutations')
+    const [mirrored] = await d.select().from(workItems).where(eq(workItems.externalId, '1'))
+    await linkWorkItemToPlan(mirrored.id, F.planActive)
+
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('nope', { status: 403 })))
+    const { notifyPlanCompleted } = await import('@/lib/integrations/writeback')
+    expect(await notifyPlanCompleted(F.planActive)).toBe(0) // failed but didn't throw
+  })
+})

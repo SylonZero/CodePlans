@@ -198,8 +198,6 @@ export async function seedFixtures() {
       type: 'feature',
       status: 'active',
       tags: [],
-      targetAssetIds: [F.assetApi],
-      assigneeIds: [F.bob],
       creatorId: F.alice,
     },
     {
@@ -210,8 +208,6 @@ export async function seedFixtures() {
       type: 'refactor',
       status: 'draft',
       tags: ['tech-debt'],
-      targetAssetIds: [],
-      assigneeIds: [],
       creatorId: F.alice,
     },
     {
@@ -222,8 +218,6 @@ export async function seedFixtures() {
       type: 'bugfix',
       status: 'completed',
       tags: [],
-      targetAssetIds: [],
-      assigneeIds: [],
       creatorId: F.alice,
     },
   ])

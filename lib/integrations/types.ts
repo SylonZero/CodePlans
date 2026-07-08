@@ -81,6 +81,11 @@ export interface Connector {
    * stays provider-neutral.
    */
   matchPrUrl?(config: IntegrationConfig, url: string): string | null
+  /**
+   * Write-back (narrow, explicit): post a comment on one external item.
+   * The only write CodePlans ever performs against a provider.
+   */
+  postComment?(auth: ConnectorAuth, config: IntegrationConfig, externalId: string, body: string): Promise<void>
 }
 
 export type SyncResult = {

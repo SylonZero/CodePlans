@@ -41,7 +41,7 @@ describe('gitlabConnector.listItems', () => {
     })
 
     // Project path is URL-encoded; token sent via PRIVATE-TOKEN header
-    const [url, init] = mock.mock.calls[0] as [string, RequestInit]
+    const [url, init] = mock.mock.calls[0] as unknown as [string, RequestInit]
     expect(url).toContain('/api/v4/projects/acme%2Fapp/issues')
     expect((init.headers as Record<string, string>)['PRIVATE-TOKEN']).toBe('t')
   })
@@ -78,7 +78,7 @@ describe('gitlabConnector.listScopeItems', () => {
   it('filters issues by milestone title', async () => {
     const mock = stubFetch([])
     await gitlabConnector.listScopeItems!(auth, config, 'v1.0 beta')
-    const [url] = mock.mock.calls[0] as [string]
+    const [url] = mock.mock.calls[0] as unknown as [string]
     expect(url).toContain('milestone=v1.0+beta')
   })
 })

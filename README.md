@@ -5,7 +5,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-SQLite_%7C_Postgres-C5F74F?logo=drizzle&logoColor=black)](https://orm.drizzle.team)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![Tests](https://img.shields.io/badge/Tests-148_passing-brightgreen?logo=vitest&logoColor=white)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-150_passing-brightgreen?logo=vitest&logoColor=white)](tests/)
 [![Status](https://img.shields.io/badge/Status-Coming%20Soon-blue)](https://codeplans.ai)
 
 **Coordinate and track changes across your software architecture.**
@@ -70,7 +70,7 @@ CodePlans sits between your issue tracker and your architecture diagram:
 | Database | SQLite (local / libsql) or PostgreSQL (cloud) |
 | Auth | Local (bcrypt + session cookie) or Supabase |
 | Charts | Recharts |
-| Testing | Vitest (148 tests) |
+| Testing | Vitest (150 tests) |
 
 ---
 
@@ -328,6 +328,7 @@ Please keep PRs focused. Bug fixes, test coverage improvements, and documentatio
 - [x] **v0.2.3 — Integrations framework** + first connector (GitHub Issues), pull-only sync
 - [x] **v0.2.4 — Task-level sync & mixed plans;** PR auto-linking
 - [x] **v0.2.5 — GitLab Issues connector** (incl. self-hosted instances)
+- [x] **v0.3.0 — Write-back:** plan-completion comments on mirrored tracker issues; deprecated plan array columns dropped
 - [ ] Jira / Asana / Linear connectors
 - [ ] AI-assisted effort estimation
 

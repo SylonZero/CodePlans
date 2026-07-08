@@ -115,6 +115,16 @@ export const githubConnector: Connector = {
     }))
   },
 
+  async postComment(auth, config, externalId, body) {
+    if (!config.repo) throw new Error('GitHub connection is missing config.repo (owner/name)')
+    const res = await fetch(`${API_BASE}/repos/${config.repo}/issues/${externalId}/comments`, {
+      method: 'POST',
+      headers: { ...ghHeaders(auth), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body }),
+    })
+    if (!res.ok) throw new Error(`GitHub API ${res.status}: ${(await res.text()).slice(0, 200)}`)
+  },
+
   matchPrUrl(config, url) {
     if (!config.repo) return null
     const prefix = `https://github.com/${config.repo}/pull/`

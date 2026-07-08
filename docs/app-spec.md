@@ -1,8 +1,7 @@
 ## CodePlans App Spec
 
-> **Status:** current implemented state as of **v0.2.5** (2026-07). For the target
-> design and rationale, see `docs/specs/design-spec-v3.md` (Phases 1–4 shipped;
-> Phases 5–6 remain).
+> **Status:** current implemented state as of **v0.3.0** (2026-07). For the target
+> design and rationale, see `docs/specs/design-spec-v3.md` (all phases shipped).
 
 ### Overview
 
@@ -134,7 +133,7 @@ CodePlans is a **code change coordination tool** for engineering teams. It organ
 | `integrations` | Org-scoped connections: `provider`, `authRef` (env-var name — token never stored), `config` (repo, target productId, status/type maps), `status`, `lastSyncAt`, `lastError` |
 | `sync_log` | Item-level events (native mutations + sync runs); drives the activity feed |
 
-Provenance columns (`source` default `native`, `connectionId`, `externalId/Key/Url`, `externalData`, `externalDeleted`, `syncedAt`) exist on `work_items`, `code_plans`, and `tasks`, with a unique index on `(connection_id, external_id)`. `assets` gained `repo_path` for monorepo folders. The `code_plans.target_asset_ids` / `assignee_ids` arrays are **deprecated** (join tables are authoritative; arrays kept one release for rollback).
+Provenance columns (`source` default `native`, `connectionId`, `externalId/Key/Url`, `externalData`, `externalDeleted`, `syncedAt`) exist on `work_items`, `code_plans`, and `tasks`, with a unique index on `(connection_id, external_id)`. `assets` gained `repo_path` for monorepo folders. The `code_plans.target_asset_ids` / `assignee_ids` arrays were **dropped in v0.3.0** (join tables are authoritative).
 
 ---
 
@@ -385,7 +384,6 @@ in the current feature set.
 | Analytics | No time-range filtering (fixed windows: 8 weeks / 6 months) |
 | Search | Header search input is cosmetic only |
 | Settings | Notifications + feature-flag toggles not persisted; photo upload, 2FA, Delete Account not wired |
-| Integrations | GitHub + GitLab Issues; sync is manual ("Sync now") — no scheduler/webhooks; assignee mapping not implemented (GitHub login stored in externalData) |
+| Integrations | GitHub + GitLab Issues; sync is manual ("Sync now") — no scheduler/webhooks; assignee mapping not implemented (provider login stored in externalData). Write-back is completion comments only |
 | Scheduled sync | Sync remains manual ("Sync now" / link-time); no scheduler or webhooks |
-| Deprecated arrays | `code_plans.target_asset_ids` / `assignee_ids` still present (drop scheduled next release) |
 | Notifications | All toggles cosmetic; no notification system exists |

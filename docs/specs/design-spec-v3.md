@@ -1,10 +1,9 @@
 # CodePlans v3 — Target Design & Roadmap
 
-> **Status: Canonical spec — Phases 1 through 5 shipped** (2026-07, v0.2.5).
-> Describes the target data model, integration architecture, and the phased
-> roadmap. Phases 1 through 5 are implemented; Phase 6 remains (the
-> `repositories` table from Phase 5 moved to Phase 6 — `repositoryUrl` +
-> `repoPath` + connection config cover current needs).
+> **Status: Canonical spec — Phases 1 through 6 shipped** (2026-07, v0.3.0).
+> All phases implemented. Remaining on the hosted track (not OSS-blocking):
+> multi-org user UI, billing enforcement, and the `repositories` table
+> (`repositoryUrl` + `repoPath` + connection config cover current needs).
 > Supersedes `functional-spec-v2.md` and `data-model-enhancement-plan.md`.
 > The current implemented state is documented in `docs/app-spec.md`.
 
@@ -426,7 +425,7 @@ Plan ↔ external epic linking; mirrored tasks inside plans (tiers 2/3 of §7);
 `repositories` table + PR auto-link from the GitHub connector (updates
 `code_plan_assets.prStatus`).
 
-### Phase 6 — Write-back & hosted polish (v0.3.0+)
+### Phase 6 — Write-back & hosted polish (v0.3.0) ✅ SHIPPED (write-back + array-column drop; multi-org UI, billing, repositories table stay on the hosted track)
 Narrow write-back actions (post plan link as comment; optional status transition on
 plan completion); multi-org users; billing enforcement for hosted tiers.
 
