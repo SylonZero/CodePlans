@@ -23,6 +23,13 @@ export async function signUp(formData: FormData) {
     formData.get('name') as string,
   )
   if (result?.error) return result
+
+  // Team mode: every user belongs to the single workspace.
+  const user = await authAdapter.getUser()
+  if (user) {
+    const { joinTeamWorkspace } = await import('@/lib/db/bootstrap')
+    await joinTeamWorkspace(user.id)
+  }
   redirect('/')
 }
 

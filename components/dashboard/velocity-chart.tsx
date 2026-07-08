@@ -11,18 +11,9 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 
-const velocityData = [
-  { week: 'W1', tasks: 8, planned: 10 },
-  { week: 'W2', tasks: 12, planned: 10 },
-  { week: 'W3', tasks: 10, planned: 12 },
-  { week: 'W4', tasks: 15, planned: 12 },
-  { week: 'W5', tasks: 11, planned: 14 },
-  { week: 'W6', tasks: 14, planned: 14 },
-  { week: 'W7', tasks: 13, planned: 14 },
-  { week: 'W8', tasks: 16, planned: 15 },
-]
+export type VelocityWeek = { week: string; completed: number; created: number }
 
-export function VelocityChart() {
+export function VelocityChart({ data = [] }: { data?: VelocityWeek[] }) {
   return (
     <Card className="bg-card border-border">
       <CardHeader>
@@ -31,7 +22,7 @@ export function VelocityChart() {
       <CardContent>
         <div className="h-[200px]">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={velocityData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+            <AreaChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
               <defs>
                 <linearGradient id="colorTasks" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="oklch(0.7 0.15 145)" stopOpacity={0.3} />
@@ -51,6 +42,7 @@ export function VelocityChart() {
                 fontSize={12}
                 tickLine={false}
                 axisLine={false}
+                allowDecimals={false}
               />
               <Tooltip
                 contentStyle={{
@@ -63,16 +55,16 @@ export function VelocityChart() {
               />
               <Area
                 type="monotone"
-                dataKey="planned"
+                dataKey="created"
                 stroke="oklch(0.6 0 0)"
                 strokeWidth={1}
                 strokeDasharray="4 4"
                 fill="none"
-                name="Planned"
+                name="Created"
               />
               <Area
                 type="monotone"
-                dataKey="tasks"
+                dataKey="completed"
                 stroke="oklch(0.7 0.15 145)"
                 strokeWidth={2}
                 fill="url(#colorTasks)"
@@ -88,7 +80,7 @@ export function VelocityChart() {
           </div>
           <div className="flex items-center gap-2">
             <div className="h-3 w-3 rounded-full border border-dashed border-muted-foreground" />
-            <span className="text-muted-foreground">Planned</span>
+            <span className="text-muted-foreground">Created</span>
           </div>
         </div>
       </CardContent>

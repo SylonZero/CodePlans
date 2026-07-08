@@ -131,6 +131,17 @@ describe('getProducts', () => {
     expect(() => new Date(prods[0].createdAt)).not.toThrow()
     expect(prods[0].createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
   })
+
+  it('membership rows govern access, not users.organizationId', async () => {
+    // Null out bob's current-org pointer; his organization_members row remains.
+    const { db } = await import('@/lib/db/index')
+    const { users } = await import('@/lib/db/schema.sqlite')
+    const { eq } = await import('drizzle-orm')
+    await (db as any).update(users).set({ organizationId: null }).where(eq(users.id, F.bob))
+
+    const prods = await getProducts(F.bob)
+    expect(prods.map((p) => p.id)).toContain(F.productShared)
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -228,7 +239,7 @@ describe('getCodePlans', () => {
 
 describe('getCodePlan', () => {
   it('returns plan with tasks, assignees, and target assets', async () => {
-    const plan = await getCodePlan(F.planActive)
+    const plan = await getCodePlan(F.planActive, F.alice)
     expect(plan).not.toBeNull()
     expect(plan!.tasks).toHaveLength(3)
     expect(plan!.assignees).toHaveLength(1)
@@ -238,12 +249,12 @@ describe('getCodePlan', () => {
   })
 
   it('returns null for unknown id', async () => {
-    const plan = await getCodePlan('nonexistent-id')
+    const plan = await getCodePlan('nonexistent-id', F.alice)
     expect(plan).toBeNull()
   })
 
   it('computes progress correctly', async () => {
-    const plan = await getCodePlan(F.planActive)
+    const plan = await getCodePlan(F.planActive, F.alice)
     // 1 done out of 3 = 33%
     expect(plan!.progress).toBe(33)
     expect(plan!.taskCount).toBe(3)
@@ -251,13 +262,27 @@ describe('getCodePlan', () => {
   })
 
   it('returns empty assignees and assets when none set', async () => {
-    const plan = await getCodePlan(F.planDraft)
+    const plan = await getCodePlan(F.planDraft, F.alice)
     expect(plan!.assignees).toEqual([])
     expect(plan!.targetAssets).toEqual([])
   })
 
+  it('denies access to plans outside the user scope', async () => {
+    // carol is not in the org and did not create the shared product
+    const plan = await getCodePlan(F.planActive, F.carol)
+    expect(plan).toBeNull()
+  })
+
+  it('exposes per-asset plan rows (planAssets)', async () => {
+    const plan = await getCodePlan(F.planActive, F.alice)
+    expect(plan!.planAssets).toHaveLength(1)
+    expect(plan!.planAssets[0].assetId).toBe(F.assetApi)
+    expect(plan!.planAssets[0].assetName).toBe('API Service')
+    expect(plan!.planAssets[0].prStatus).toBe('none')
+  })
+
   it('task fields are mapped correctly', async () => {
-    const plan = await getCodePlan(F.planActive)
+    const plan = await getCodePlan(F.planActive, F.alice)
     const t1 = plan!.tasks.find((t) => t.id === F.task1)!
     expect(t1.status).toBe('not_started')
     expect(t1.priority).toBe('high')

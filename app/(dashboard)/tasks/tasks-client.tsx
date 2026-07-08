@@ -52,9 +52,11 @@ function StatusCycleButton({ task }: { task: TaskRow }) {
   const [isPending, startTransition] = useTransition()
   const [optimisticStatus, setOptimisticStatus] = useState<TaskStatus>(task.status)
 
+  const isMirrored = !!task.source && task.source !== 'native'
   const next = nextStatus(optimisticStatus)
 
   function cycle() {
+    if (isMirrored) return
     const newStatus = next
     setOptimisticStatus(newStatus)
     startTransition(() => updateTaskStatusAction(task.id, newStatus))
@@ -64,8 +66,8 @@ function StatusCycleButton({ task }: { task: TaskRow }) {
   return (
     <Checkbox
       checked={optimisticStatus === 'done'}
-      disabled={isPending}
-      title={`Mark as ${statusLabels[next]}`}
+      disabled={isPending || isMirrored}
+      title={isMirrored ? `Mirrored from ${task.source} — change status there` : `Mark as ${statusLabels[next]}`}
       onClick={(e) => { e.stopPropagation(); cycle() }}
       className={cn(
         'border-muted-foreground transition-colors',
@@ -81,9 +83,11 @@ function BoardTaskCard({ task, onOpen }: { task: TaskRow; onOpen: (task: TaskRow
   const [optimisticStatus, setOptimisticStatus] = useState<TaskStatus>(task.status)
   const StatusIcon = statusIcons[optimisticStatus]
 
+  const isMirrored = !!task.source && task.source !== 'native'
+
   function cycleStatus(e: React.MouseEvent) {
     e.stopPropagation()
-    if (isPending) return
+    if (isPending || isMirrored) return
     const newStatus = nextStatus(optimisticStatus)
     setOptimisticStatus(newStatus)
     startTransition(() => updateTaskStatusAction(task.id, newStatus))
@@ -299,6 +303,9 @@ export function TasksClient({
                       <div>
                         <p className={cn('font-medium', task.status === 'done' && 'line-through text-muted-foreground')}>
                           {task.title}
+                          {task.externalKey && (
+                            <span className="ml-1.5 text-xs text-muted-foreground font-normal">{task.externalKey}</span>
+                          )}
                         </p>
                         {task.tags.length > 0 && (
                           <div className="flex gap-1 mt-1">

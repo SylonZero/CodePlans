@@ -15,6 +15,20 @@
       "when": 1780866046101,
       "tag": "0001_brainy_ogun",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1783479408873,
+      "tag": "0002_keen_mantis",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1783511371437,
+      "tag": "0003_lethal_blacklash",
+      "breakpoints": true
     }
   ]
 }

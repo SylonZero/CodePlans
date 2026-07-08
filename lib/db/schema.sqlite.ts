@@ -2,6 +2,10 @@ import {
   sqliteTable,
   text,
   integer,
+  index,
+  uniqueIndex,
+  primaryKey,
+  type AnySQLiteColumn,
 } from 'drizzle-orm/sqlite-core'
 
 // ---------------------------------------------------------------------------
@@ -18,6 +22,14 @@ export type CodePlanStatus = 'draft' | 'active' | 'completed' | 'cancelled'
 export type CodePlanType = 'refactor' | 'feature' | 'improvement' | 'bugfix'
 export type TaskStatus = 'not_started' | 'in_progress' | 'done'
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical'
+export type WorkItemType = 'feature' | 'bug' | 'enhancement' | 'ux' | 'tech_debt'
+export type WorkItemStatus = 'open' | 'planned' | 'in_progress' | 'resolved' | 'wont_do'
+export type WorkItemSeverity = 'low' | 'medium' | 'high' | 'critical'
+export type PrStatus = 'none' | 'draft' | 'open' | 'merged' | 'closed'
+// Provider list is intentionally text (not enum) — new connectors must not need a migration.
+export type ItemSource = 'native' | 'github' | 'gitlab' | 'jira' | 'asana' | 'linear'
+export type IntegrationStatus = 'active' | 'paused' | 'error'
+export type SyncEntityType = 'work_item' | 'task' | 'code_plan' | 'asset' | 'product'
 
 // ---------------------------------------------------------------------------
 // Tables
@@ -56,6 +68,22 @@ export const organizationMembers = sqliteTable('organization_members', {
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 })
 
+export const integrations = sqliteTable('integrations', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  provider: text('provider').$type<Exclude<ItemSource, 'native'>>().notNull(),
+  name: text('name').notNull(),
+  // Reference to a credential (env var name / secret id) — never the secret itself.
+  authRef: text('auth_ref'),
+  // Scope (project/repo/JQL filter), status map, user-mapping overrides, target productId.
+  config: text('config', { mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
+  status: text('status').$type<IntegrationStatus>().notNull().default('active'),
+  lastSyncAt: integer('last_sync_at', { mode: 'timestamp' }),
+  lastError: text('last_error'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+})
+
 export const products = sqliteTable('products', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   name: text('name').notNull(),
@@ -78,6 +106,8 @@ export const assets = sqliteTable('assets', {
   status: text('status').$type<AssetStatus>().notNull().default('active'),
   techDebtScore: integer('tech_debt_score'),
   repositoryUrl: text('repository_url'),
+  // Path within the repository for monorepo assets (e.g. apps/web, packages/ui).
+  repoPath: text('repo_path'),
   documentationUrl: text('documentation_url'),
   metadata: text('metadata', { mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
@@ -101,15 +131,84 @@ export const codePlans = sqliteTable('code_plans', {
   type: text('type').$type<CodePlanType>().notNull(),
   status: text('status').$type<CodePlanStatus>().notNull().default('draft'),
   tags: text('tags', { mode: 'json' }).$type<string[]>().notNull().default([]),
-  targetAssetIds: text('target_asset_ids', { mode: 'json' }).$type<string[]>().notNull().default([]),
   startDate: text('start_date'),
   endDate: text('end_date'),
   deadline: text('deadline'),
   creatorId: text('creator_id').notNull().references(() => users.id),
-  assigneeIds: text('assignee_ids', { mode: 'json' }).$type<string[]>().notNull().default([]),
+  source: text('source').$type<ItemSource>().notNull().default('native'),
+  connectionId: text('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
+  externalId: text('external_id'),
+  externalKey: text('external_key'),
+  externalUrl: text('external_url'),
+  externalData: text('external_data', { mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
+  externalDeleted: integer('external_deleted', { mode: 'boolean' }).notNull().default(false),
+  syncedAt: integer('synced_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
-})
+}, (t) => [
+  uniqueIndex('code_plans_connection_external_idx').on(t.connectionId, t.externalId),
+])
+
+export const codePlanAssets = sqliteTable('code_plan_assets', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  codePlanId: text('code_plan_id').notNull().references(() => codePlans.id, { onDelete: 'cascade' }),
+  assetId: text('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
+  branch: text('branch'),
+  prUrl: text('pr_url'),
+  prStatus: text('pr_status').$type<PrStatus>().notNull().default('none'),
+  notes: text('notes'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('code_plan_assets_plan_asset_idx').on(t.codePlanId, t.assetId),
+])
+
+export const codePlanAssignees = sqliteTable('code_plan_assignees', {
+  codePlanId: text('code_plan_id').notNull().references(() => codePlans.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  primaryKey({ columns: [t.codePlanId, t.userId] }),
+])
+
+export const workItems = sqliteTable('work_items', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  productId: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  assetId: text('asset_id').references(() => assets.id, { onDelete: 'set null' }),
+  // Free-text locus within the asset (module, path, domain) — where the item lives.
+  area: text('area'),
+  parentId: text('parent_id').references((): AnySQLiteColumn => workItems.id, { onDelete: 'set null' }),
+  type: text('type').$type<WorkItemType>().notNull(),
+  title: text('title').notNull(),
+  description: text('description').notNull().default(''),
+  status: text('status').$type<WorkItemStatus>().notNull().default('open'),
+  severity: text('severity').$type<WorkItemSeverity>().notNull().default('medium'),
+  tags: text('tags', { mode: 'json' }).$type<string[]>().notNull().default([]),
+  reporterId: text('reporter_id').references(() => users.id, { onDelete: 'set null' }),
+  source: text('source').$type<ItemSource>().notNull().default('native'),
+  connectionId: text('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
+  externalId: text('external_id'),
+  externalKey: text('external_key'),
+  externalUrl: text('external_url'),
+  externalData: text('external_data', { mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
+  externalDeleted: integer('external_deleted', { mode: 'boolean' }).notNull().default(false),
+  syncedAt: integer('synced_at', { mode: 'timestamp' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('work_items_connection_external_idx').on(t.connectionId, t.externalId),
+  index('work_items_product_idx').on(t.productId),
+  index('work_items_asset_idx').on(t.assetId),
+])
+
+export const workItemCodePlans = sqliteTable('work_item_code_plans', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  workItemId: text('work_item_id').notNull().references(() => workItems.id, { onDelete: 'cascade' }),
+  codePlanId: text('code_plan_id').notNull().references(() => codePlans.id, { onDelete: 'cascade' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('work_item_code_plans_item_plan_idx').on(t.workItemId, t.codePlanId),
+])
 
 export const tasks = sqliteTable('tasks', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -123,9 +222,34 @@ export const tasks = sqliteTable('tasks', {
   assigneeId: text('assignee_id').references(() => users.id, { onDelete: 'set null' }),
   estimatedEffort: integer('estimated_effort'),
   actualEffort: integer('actual_effort'),
+  source: text('source').$type<ItemSource>().notNull().default('native'),
+  connectionId: text('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
+  externalId: text('external_id'),
+  externalKey: text('external_key'),
+  externalUrl: text('external_url'),
+  externalData: text('external_data', { mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
+  externalDeleted: integer('external_deleted', { mode: 'boolean' }).notNull().default(false),
+  syncedAt: integer('synced_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
-})
+}, (t) => [
+  uniqueIndex('tasks_connection_external_idx').on(t.connectionId, t.externalId),
+])
+
+export const syncLog = sqliteTable('sync_log', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  connectionId: text('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
+  entityType: text('entity_type').$type<SyncEntityType>().notNull(),
+  entityId: text('entity_id').notNull(),
+  event: text('event').notNull(),
+  // Null when a connection (not a user) is the actor.
+  actorId: text('actor_id').references(() => users.id, { onDelete: 'set null' }),
+  payload: text('payload', { mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('sync_log_org_created_idx').on(t.organizationId, t.createdAt),
+])
 
 export const emailVerificationTokens = sqliteTable('email_verification_tokens', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),

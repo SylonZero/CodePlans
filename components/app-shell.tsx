@@ -20,6 +20,7 @@ import {
   Package,
   FileCode2,
   CheckSquare,
+  ClipboardList,
   BarChart3,
   Settings,
   Users,
@@ -31,6 +32,7 @@ import {
   Search,
   Building2,
   Layers,
+  Plug,
 } from 'lucide-react'
 import { signOut } from '@/app/(auth)/actions'
 import { setProductScopeAction } from '@/lib/actions/product-scope'
@@ -49,6 +51,7 @@ type AppShellProps = {
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Products', href: '/products', icon: Package },
+  { name: 'Work Items', href: '/work-items', icon: ClipboardList },
   { name: 'Code Plans', href: '/plans', icon: FileCode2 },
   { name: 'Tasks', href: '/tasks', icon: CheckSquare },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
@@ -56,6 +59,7 @@ const navigation = [
 
 const secondaryNavigationBase = [
   { name: 'Team', href: '/team', icon: Users },
+  { name: 'Integrations', href: '/integrations', icon: Plug },
   { name: 'Billing', href: '/billing', icon: CreditCard, billingOnly: true },
   { name: 'Settings', href: '/settings', icon: Settings },
 ]

@@ -4,7 +4,9 @@ import { authAdapter } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { users } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { getCodePlan, getTeamMembers } from '@/lib/db/queries'
+import { getCodePlan, getTeamMembers, getWorkItems, getAssetOptions, getImpactedAssets, getIntegrations } from '@/lib/db/queries'
+import { PlanAssetsSection } from './plan-assets-section'
+import { PlanSyncDialog } from './plan-sync-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -48,13 +50,20 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
   const user = await authAdapter.getUser()
   if (!user) return null
 
-  const plan = await getCodePlan(id)
+  const plan = await getCodePlan(id, user.id)
   if (!plan) notFound()
 
   const profile = await db.query.users.findFirst({ where: eq(users.id, user.id) })
-  const teamMembers = profile?.organizationId
-    ? await getTeamMembers(profile.organizationId)
-    : []
+  const [teamMembers, linkedItems, assetOptions, impactedAssets, orgIntegrations] = await Promise.all([
+    profile?.organizationId ? getTeamMembers(profile.organizationId) : Promise.resolve([]),
+    getWorkItems(user.id, { planId: id }),
+    getAssetOptions(user.id),
+    getImpactedAssets(id),
+    profile?.organizationId ? getIntegrations(profile.organizationId) : Promise.resolve([]),
+  ])
+  const productAssetOptions = assetOptions
+    .filter((a) => a.productId === plan.productId)
+    .map((a) => ({ id: a.id, name: a.name }))
 
   const tasksByStatus = {
     not_started: plan.tasks.filter((t) => t.status === 'not_started'),
@@ -99,7 +108,14 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
             )}
           </div>
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
+          <PlanSyncDialog
+            planId={plan.id}
+            source={plan.source}
+            externalKey={plan.externalKey}
+            externalUrl={plan.externalUrl}
+            connections={orgIntegrations.map((c) => ({ id: c.id, name: c.name, provider: c.provider }))}
+          />
           <PlanEditSheet plan={plan} />
           <PlanStatusButtons plan={plan} />
         </div>
@@ -171,6 +187,80 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
         </div>
       )}
 
+      {/* Per-asset delivery: branch + PR per targeted asset */}
+      <PlanAssetsSection planId={plan.id} planAssets={plan.planAssets} assetOptions={productAssetOptions} />
+
+      {/* Impact analysis: assets that depend on this plan's targets */}
+      {impactedAssets.length > 0 && (
+        <Card className="bg-card border-border border-l-2 border-l-warning">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Impact Analysis — {impactedAssets.length} dependent asset{impactedAssets.length > 1 ? 's' : ''}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-3">
+              These assets depend on what this plan changes. Review them for breakage and coordinate their owners.
+            </p>
+            <ul className="space-y-2">
+              {impactedAssets.map((impacted) => (
+                <li key={`${impacted.id}-${impacted.viaAssetId}`} className="flex items-center gap-2 text-sm flex-wrap">
+                  <span className="font-medium">{impacted.name}</span>
+                  <Badge variant="secondary" className="text-xs capitalize">{impacted.type}</Badge>
+                  <span className="text-muted-foreground text-xs">
+                    {impacted.dependencyType.replace('_', ' ')} → {impacted.viaAssetName}
+                  </span>
+                  {impacted.health !== 'healthy' && (
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        'text-xs capitalize',
+                        impacted.health === 'critical' ? 'bg-destructive/20 text-destructive' : 'bg-warning/20 text-warning',
+                      )}
+                    >
+                      {impacted.health}
+                    </Badge>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Linked work items — what this plan delivers or fixes */}
+      {linkedItems.length > 0 && (
+        <Card className="bg-card border-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Linked Work Items ({linkedItems.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="divide-y divide-border">
+              {linkedItems.map((item) => (
+                <li key={item.id} className="flex items-center justify-between gap-3 py-2.5">
+                  <Link
+                    href={`/work-items?item=${item.id}`}
+                    className="min-w-0 text-sm font-medium truncate hover:text-accent transition-colors"
+                  >
+                    {item.title}
+                  </Link>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge variant="secondary" className="text-xs capitalize">
+                      {item.type.replace('_', ' ')}
+                    </Badge>
+                    <Badge variant="outline" className="text-xs capitalize">
+                      {item.status.replace('_', ' ')}
+                    </Badge>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Tasks */}
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -210,6 +300,9 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
                         <div className="flex items-start justify-between gap-2 mb-2">
                           <span className={cn('font-medium text-sm', status === 'done' && 'line-through text-muted-foreground')}>
                             {task.title}
+                            {task.externalKey && (
+                              <span className="ml-1.5 text-xs text-muted-foreground font-normal">{task.externalKey}</span>
+                            )}
                           </span>
                           {status !== 'done' && (
                             <Badge variant="secondary" className={cn('text-xs shrink-0', priorityStyles[task.priority])}>

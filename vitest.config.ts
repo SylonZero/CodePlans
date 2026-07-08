@@ -12,6 +12,7 @@ export default defineConfig({
       AUTH_PROVIDER: 'local',
       AUTH_SECRET: 'test-secret-at-least-32-bytes-xxxx',
       BILLING_ENABLED: 'false',
+      HOST_MODE: 'team',
     },
   },
   resolve: {

@@ -15,6 +15,7 @@ import {
   updateTaskStatus,
   deleteTask,
 } from '@/lib/db/mutations'
+import { getCodePlan } from '@/lib/db/queries'
 
 beforeAll(async () => {
   await runMigrations()
@@ -185,8 +186,11 @@ describe('createCodePlan', () => {
     expect(plan.title).toBe('New Plan')
     expect(plan.status).toBe('draft')
     expect(plan.creatorId).toBe(F.alice)
-    expect(plan.targetAssetIds).toEqual([F.assetApi])
-    expect(plan.assigneeIds).toEqual([F.bob])
+
+    // Links live in the join tables (array columns dropped in v0.3.0)
+    const detail = await getCodePlan(plan.id, F.alice)
+    expect(detail!.targetAssetIds).toEqual([F.assetApi])
+    expect(detail!.assigneeIds).toEqual([F.bob])
   })
 })
 
@@ -205,7 +209,8 @@ describe('updateCodePlan', () => {
     })
     expect(updated!.title).toBe('Renamed Plan')
     expect(updated!.tags).toEqual(['new-tag'])
-    expect(updated!.assigneeIds).toEqual([])
+    const detail = await getCodePlan(F.planActive, F.alice)
+    expect(detail!.assigneeIds).toEqual([])
   })
 
   it('returns null for non-existent plan', async () => {

@@ -17,6 +17,8 @@ import {
   products,
   assets,
   codePlans,
+  codePlanAssets,
+  codePlanAssignees,
   tasks,
 } from './schema'
 import { eq, inArray } from 'drizzle-orm'
@@ -278,7 +280,10 @@ async function seed() {
   // ── Code Plans ─────────────────────────────────────────────────────────────
   console.log('\nCreating code plans...')
 
-  async function findOrCreatePlan(title: string, values: typeof codePlans.$inferInsert) {
+  async function findOrCreatePlan(
+    title: string,
+    values: typeof codePlans.$inferInsert & { targetAssetIds?: string[]; assigneeIds?: string[] },
+  ) {
     const existing = await db.query.codePlans.findFirst({
       where: (p, { eq }) => eq(p.title, title),
     })
@@ -286,7 +291,16 @@ async function seed() {
       console.log(`  plan exists: ${title}`)
       return existing.id
     }
-    const [p] = await db.insert(codePlans).values(values).returning()
+    const { targetAssetIds: _t, assigneeIds: _a, ...columns } = values
+    const [p] = await db.insert(codePlans).values(columns).returning()
+    const assetIds = (values.targetAssetIds ?? []) as string[]
+    if (assetIds.length > 0) {
+      await db.insert(codePlanAssets).values(assetIds.map((assetId) => ({ codePlanId: p.id, assetId })))
+    }
+    const assigneeIds = (values.assigneeIds ?? []) as string[]
+    if (assigneeIds.length > 0) {
+      await db.insert(codePlanAssignees).values(assigneeIds.map((userId) => ({ codePlanId: p.id, userId })))
+    }
     console.log(`  created plan: ${title}`)
     return p.id
   }

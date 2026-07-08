@@ -15,6 +15,20 @@
       "when": 1749254400000,
       "tag": "0001_email_verification",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783300000000,
+      "tag": "0002_v3_foundations",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783350000000,
+      "tag": "0003_drop_plan_arrays",
+      "breakpoints": true
     }
   ]
 }

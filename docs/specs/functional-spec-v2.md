@@ -1,5 +1,11 @@
 # Code Plans v2 — Functional Specification
 
+> **Status: SUPERSEDED** (2026-07). This spec described an earlier `src/`-based
+> codebase and feature set (Calendar, org pages, product-level invitations, account
+> conversion wizard) that does not match the current app. It is kept for historical
+> context only. See `docs/app-spec.md` for the implemented state and
+> `docs/specs/design-spec-v3.md` for the target design and roadmap.
+
 ## Purpose
 
 **Code Plans** is a system designed to help engineering teams manage and track coordinated sets of changes across a software system's architecture. A Code Plan spans changes across assets such as services, applications, libraries, and infrastructure components. The platform integrates AI to assist with effort estimation, tech debt analysis, and codebase insights.
