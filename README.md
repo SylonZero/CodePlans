@@ -317,6 +317,12 @@ Please keep PRs focused. Bug fixes, test coverage improvements, and documentatio
 
 ---
 
+## Design Specs
+
+Specs live in git (`docs/specs/*.md` by convention), not in CodePlans. Link a spec's blob URL to any plan or work item via the **Spec URL** field: plan pages render the markdown read-only (private repos render through your GitHub/GitLab connection tokens; anything else is a link-out). See the [guide](https://sylonzero.github.io/CodePlans/guides/using-specs.md).
+
+---
+
 ## Connect Claude (MCP)
 
 CodePlans ships an MCP server at `/api/mcp/mcp` (Streamable HTTP). Create an API key in **Settings → API Keys**, then:
@@ -345,6 +351,7 @@ Claude can then read plans/work items/tech debt and (with a write-scope key) mod
 - [x] **v0.3.0 — Write-back:** plan-completion comments on mirrored tracker issues; deprecated plan array columns dropped
 - [x] **v0.3.1 — MCP server:** API-key auth, 13 tools for Claude Code/Desktop
 - [x] **v0.3.2 — MCP management tools:** products, assets, dependencies, plan lifecycle/targets (25 tools total)
+- [x] **v0.3.4 — Linked design specs:** Spec URL on plans/work items, read-only in-app markdown rendering (private repos via connection tokens)
 - [ ] Jira / Asana / Linear connectors
 - [ ] AI-assisted effort estimation
 

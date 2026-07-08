@@ -147,6 +147,19 @@ export function PlanEditSheet({ plan }: { plan: CodePlanDetail }) {
             </div>
           </div>
           <div className="space-y-2">
+            <Label htmlFor="edit-spec">
+              Spec URL
+              <span className="ml-1 text-xs text-muted-foreground">(markdown in your repo, optional)</span>
+            </Label>
+            <Input
+              id="edit-spec"
+              name="specUrl"
+              type="url"
+              defaultValue={plan.specUrl ?? ''}
+              placeholder="https://github.com/org/repo/blob/main/docs/specs/my-plan.md"
+            />
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="edit-tags">
               Tags
               <span className="ml-2 text-xs text-muted-foreground">(comma-separated)</span>

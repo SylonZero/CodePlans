@@ -246,6 +246,25 @@ const handler = createMcpHandler(
 
     // ── Plan lifecycle & targets ───────────────────────────────────────────
     server.tool(
+      'update_code_plan',
+      'Edit a plan: title, description, type, tags, deadline, or specUrl (link the design spec markdown).',
+      {
+        id: z.string(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        type: z.enum(['refactor', 'feature', 'improvement', 'bugfix']).optional(),
+        tags: z.array(z.string()).optional(),
+        deadline: z.string().optional(),
+        specUrl: z.string().optional(),
+      },
+      async ({ id, ...data }, extra) => {
+        requireWrite(extra)
+        if (!(await getCodePlan(id, uid(extra)))) return json({ error: 'Plan not found or not accessible' })
+        return json(await updateCodePlan(id, data))
+      },
+    )
+
+    server.tool(
       'activate_plan',
       'Move a draft code plan to active.',
       { id: z.string() },
@@ -303,6 +322,7 @@ const handler = createMcpHandler(
         severity: z.enum(['low', 'medium', 'high', 'critical']).optional(),
         assetId: z.string().nullable().optional(),
         area: z.string().nullable().optional(),
+        specUrl: z.string().optional(),
         tags: z.array(z.string()).optional(),
       },
       async ({ id, ...data }, extra) => {
@@ -333,6 +353,7 @@ const handler = createMcpHandler(
         severity: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
         assetId: z.string().optional(),
         area: z.string().optional(),
+        specUrl: z.string().optional(),
         tags: z.array(z.string()).default([]),
       },
       async (args, extra) => {
@@ -373,6 +394,7 @@ const handler = createMcpHandler(
         tags: z.array(z.string()).default([]),
         targetAssetIds: z.array(z.string()).default([]),
         deadline: z.string().optional(),
+        specUrl: z.string().optional(),
         workItemIds: z.array(z.string()).default([]),
       },
       async ({ workItemIds, ...data }, extra) => {

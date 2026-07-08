@@ -135,6 +135,8 @@ export const codePlans = sqliteTable('code_plans', {
   endDate: text('end_date'),
   deadline: text('deadline'),
   creatorId: text('creator_id').notNull().references(() => users.id),
+  // Link to the design spec (markdown in the repo, or any doc URL).
+  specUrl: text('spec_url'),
   source: text('source').$type<ItemSource>().notNull().default('native'),
   connectionId: text('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
   externalId: text('external_id'),
@@ -185,6 +187,7 @@ export const workItems = sqliteTable('work_items', {
   severity: text('severity').$type<WorkItemSeverity>().notNull().default('medium'),
   tags: text('tags', { mode: 'json' }).$type<string[]>().notNull().default([]),
   reporterId: text('reporter_id').references(() => users.id, { onDelete: 'set null' }),
+  specUrl: text('spec_url'),
   source: text('source').$type<ItemSource>().notNull().default('native'),
   connectionId: text('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
   externalId: text('external_id'),

@@ -81,6 +81,8 @@ export interface Connector {
    * stays provider-neutral.
    */
   matchPrUrl?(config: IntegrationConfig, url: string): string | null
+  /** Fetch a raw file from the connection's repo (for rendering linked specs). */
+  fetchFile?(auth: ConnectorAuth, config: IntegrationConfig, path: string, ref?: string): Promise<string | null>
   /**
    * Write-back (narrow, explicit): post a comment on one external item.
    * The only write CodePlans ever performs against a provider.

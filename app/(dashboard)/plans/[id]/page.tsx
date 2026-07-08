@@ -6,6 +6,8 @@ import { users } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { getCodePlan, getTeamMembers, getWorkItems, getAssetOptions, getImpactedAssets, getIntegrations } from '@/lib/db/queries'
 import { PlanAssetsSection } from './plan-assets-section'
+import { SpecCard } from '@/components/spec-card'
+import { fetchSpecMarkdown } from '@/lib/specs'
 import { PlanSyncDialog } from './plan-sync-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -185,6 +187,14 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
         <div className="flex flex-wrap gap-2">
           {plan.tags.map((tag) => <Badge key={tag} variant="secondary">{tag}</Badge>)}
         </div>
+      )}
+
+      {/* Linked design spec, rendered read-only from its source */}
+      {plan.specUrl && (
+        <SpecCard
+          specUrl={plan.specUrl}
+          markdown={await fetchSpecMarkdown(plan.specUrl, profile?.organizationId ?? null)}
+        />
       )}
 
       {/* Per-asset delivery: branch + PR per targeted asset */}

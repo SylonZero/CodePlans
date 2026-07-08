@@ -126,6 +126,14 @@ export function PlanCreatePanel({
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="np-spec">
+                Spec URL
+                <span className="ml-2 text-xs text-muted-foreground">(markdown in your repo, optional)</span>
+              </Label>
+              <Input id="np-spec" name="specUrl" type="url" placeholder="https://github.com/org/repo/blob/main/docs/specs/my-plan.md" />
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="np-tags">
                 Tags
                 <span className="ml-2 text-xs text-muted-foreground">(comma-separated)</span>
