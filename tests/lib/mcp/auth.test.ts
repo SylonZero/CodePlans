@@ -38,3 +38,13 @@ describe('API keys', () => {
     expect(keys[0].revoked).toBe(false)
   })
 })
+
+describe('resolveAssigneeEmail', () => {
+  it('resolves shared-workspace members and rejects outsiders/unknowns', async () => {
+    const { resolveAssigneeEmail } = await import('@/lib/mcp/users')
+    expect(await resolveAssigneeEmail(F.alice, 'bob@test.local')).toBe(F.bob)
+    // carol exists but shares no org with alice
+    await expect(resolveAssigneeEmail(F.alice, 'carol@test.local')).rejects.toThrow('No workspace member')
+    await expect(resolveAssigneeEmail(F.alice, 'ghost@test.local')).rejects.toThrow('No workspace member')
+  })
+})

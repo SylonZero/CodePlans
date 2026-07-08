@@ -25,12 +25,14 @@ import {
   createCodePlan,
   updateCodePlan,
   createTask,
+  updateTask,
   updateTaskStatus,
   updatePlanAsset,
   addPlanAsset,
   removePlanAsset,
 } from '@/lib/db/mutations'
 import { getAssetOptions } from '@/lib/db/queries'
+import { resolveAssigneeEmail } from '@/lib/mcp/users'
 
 /** Guard: the key's user must be able to see the product. */
 async function assertProductAccess(userId: string, productId: string) {
@@ -383,19 +385,50 @@ const handler = createMcpHandler(
 
     server.tool(
       'create_task',
-      'Add a task to a code plan.',
+      'Add a task to a code plan. assigneeEmail must be a workspace member.',
       {
         codePlanId: z.string(),
         title: z.string(),
         description: z.string().default(''),
         priority: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
         assetId: z.string().optional(),
+        assigneeEmail: z.string().optional(),
         estimatedEffort: z.number().optional(),
         tags: z.array(z.string()).default([]),
       },
-      async (args, extra) => {
+      async ({ assigneeEmail, ...args }, extra) => {
         requireWrite(extra)
-        return json(await createTask(args))
+        const assigneeId = assigneeEmail
+          ? await resolveAssigneeEmail(uid(extra), assigneeEmail)
+          : undefined
+        return json(await createTask({ ...args, assigneeId }))
+      },
+    )
+
+    server.tool(
+      'update_task',
+      'Edit a task: title/description/priority/effort/assignee (by email; null email unassigns). Mirrored tasks: only assignee, priority, effort, and asset are editable.',
+      {
+        id: z.string(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        priority: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+        assetId: z.string().optional(),
+        assigneeEmail: z.string().nullable().optional(),
+        estimatedEffort: z.number().optional(),
+        actualEffort: z.number().optional(),
+        tags: z.array(z.string()).optional(),
+      },
+      async ({ id, assigneeEmail, ...data }, extra) => {
+        requireWrite(extra)
+        const assigneeId =
+          assigneeEmail === undefined
+            ? undefined
+            : assigneeEmail === null
+              ? null
+              : await resolveAssigneeEmail(uid(extra), assigneeEmail)
+        const task = await updateTask(id, { ...data, ...(assigneeId !== undefined ? { assigneeId } : {}) })
+        return json(task ?? { error: 'Task not found' })
       },
     )
 

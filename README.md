@@ -51,7 +51,7 @@ CodePlans sits between your issue tracker and your architecture diagram:
 | Analytics wired to real data (velocity, effort accuracy, debt by product) | ✅ Available |
 | Activity feed | ✅ Available |
 | GitHub & GitLab Issues integrations (pull-only mirror into work items) | ✅ Available |
-| MCP server — 25 tools incl. full product/asset/dependency management | ✅ Available |
+| MCP server — 26 tools incl. product/asset/dependency management & email-based task assignment | ✅ Available |
 | Jira / Asana / Linear connectors | 🔜 Planned |
 | Milestone-linked plans with mirrored tasks (mixed mode) | ✅ Available |
 | PR auto-linking (plan-asset PR status refreshed on sync) | ✅ Available |

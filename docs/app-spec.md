@@ -319,7 +319,7 @@ Client component (`IntegrationsClient`) with:
 - Delete with confirm (mirrored items are kept, stop syncing)
 
 #### `/api/mcp/[transport]` — MCP server (no UI)
-Streamable HTTP MCP endpoint (`mcp-handler`) with 25 tools wrapping the query/mutation layer — reads, plus management of products/assets/dependencies, plan lifecycle (activate/complete incl. write-back), plan targets, work items, and tasks; record deletes are deliberately excluded (link removals only) — see `docs/specs/mcp-server-spec.md`. Auth: `Authorization: Bearer cpk_…` resolved by `lib/mcp/auth.ts` to a user (scopes: read/write); 401 without a valid key. `proxy.ts` exempts this path from session redirects. Connect: `claude mcp add --transport http codeplans <base>/api/mcp/mcp --header "Authorization: Bearer <key>"`.
+Streamable HTTP MCP endpoint (`mcp-handler`) with 26 tools wrapping the query/mutation layer (task assignees resolved by workspace-member email) — reads, plus management of products/assets/dependencies, plan lifecycle (activate/complete incl. write-back), plan targets, work items, and tasks; record deletes are deliberately excluded (link removals only) — see `docs/specs/mcp-server-spec.md`. Auth: `Authorization: Bearer cpk_…` resolved by `lib/mcp/auth.ts` to a user (scopes: read/write); 401 without a valid key. `proxy.ts` exempts this path from session redirects. Connect: `claude mcp add --transport http codeplans <base>/api/mcp/mcp --header "Authorization: Bearer <key>"`.
 
 #### `/team` — Team Management
 - Requires org membership; shows message if no org
