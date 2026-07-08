@@ -1,6 +1,7 @@
 # MCP Server Interface — Design (v0.3.1)
 
-> **Status: SHIPPED in v0.3.1** (2026-07). Companion to
+> **Status: SHIPPED in v0.3.1; management tools added in v0.3.2** (25 tools:
+> products, assets, dependencies, plan lifecycle/targets, full work-item edit). Companion to
 > `design-spec-v3.md`; reuses its data layer and access model unchanged.
 
 ## Goal
@@ -89,6 +90,7 @@ tab pattern.
 ## Out of scope for v0.3.1
 
 OAuth, per-product key scoping, rate limiting (single-team instances),
+deletes of records (link removals only — destructive tools stay UI-only),
 MCP resources/prompts (tools only), write-back via MCP (exists via plan
 completion already), analytics tools.
 

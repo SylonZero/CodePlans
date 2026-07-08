@@ -51,7 +51,7 @@ CodePlans sits between your issue tracker and your architecture diagram:
 | Analytics wired to real data (velocity, effort accuracy, debt by product) | ✅ Available |
 | Activity feed | ✅ Available |
 | GitHub & GitLab Issues integrations (pull-only mirror into work items) | ✅ Available |
-| MCP server — connect Claude Code/Desktop via API key | ✅ Available |
+| MCP server — 25 tools incl. full product/asset/dependency management | ✅ Available |
 | Jira / Asana / Linear connectors | 🔜 Planned |
 | Milestone-linked plans with mirrored tasks (mixed mode) | ✅ Available |
 | PR auto-linking (plan-asset PR status refreshed on sync) | ✅ Available |
@@ -326,7 +326,7 @@ claude mcp add --transport http codeplans http://localhost:3000/api/mcp/mcp \
   --header "Authorization: Bearer cpk_your_key"
 ```
 
-Claude can then read plans/work items/tech debt and (with a write-scope key) file work items, manage tasks, and record branch/PR status on plan assets. Keys act as your user, so org access rules and mirrored-field protections apply unchanged. See [`docs/specs/mcp-server-spec.md`](docs/specs/mcp-server-spec.md).
+Claude can then read plans/work items/tech debt and (with a write-scope key) model products, assets, and dependencies, manage plans end-to-end (create, target assets, activate/complete), file work items, manage tasks, and record branch/PR status on plan assets. Keys act as your user, so org access rules and mirrored-field protections apply unchanged. See [`docs/specs/mcp-server-spec.md`](docs/specs/mcp-server-spec.md).
 
 ---
 
@@ -344,6 +344,7 @@ Claude can then read plans/work items/tech debt and (with a write-scope key) fil
 - [x] **v0.2.5 — GitLab Issues connector** (incl. self-hosted instances)
 - [x] **v0.3.0 — Write-back:** plan-completion comments on mirrored tracker issues; deprecated plan array columns dropped
 - [x] **v0.3.1 — MCP server:** API-key auth, 13 tools for Claude Code/Desktop
+- [x] **v0.3.2 — MCP management tools:** products, assets, dependencies, plan lifecycle/targets (25 tools total)
 - [ ] Jira / Asana / Linear connectors
 - [ ] AI-assisted effort estimation
 

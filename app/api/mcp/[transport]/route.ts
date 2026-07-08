@@ -11,14 +11,32 @@ import {
   getImpactedAssets,
 } from '@/lib/db/queries'
 import {
+  createProduct,
+  updateProduct,
+  createAsset,
+  updateAsset,
+  createAssetDependency,
+  deleteAssetDependency,
   createWorkItem,
+  updateWorkItem,
   updateWorkItemStatus,
   linkWorkItemToPlan,
+  unlinkWorkItemFromPlan,
   createCodePlan,
+  updateCodePlan,
   createTask,
   updateTaskStatus,
   updatePlanAsset,
+  addPlanAsset,
+  removePlanAsset,
 } from '@/lib/db/mutations'
+import { getAssetOptions } from '@/lib/db/queries'
+
+/** Guard: the key's user must be able to see the product. */
+async function assertProductAccess(userId: string, productId: string) {
+  const visible = await getProducts(userId, productId)
+  if (visible.length === 0) throw new Error('Product not found or not accessible')
+}
 
 // The authenticated caller, injected by the auth wrapper below.
 type ToolExtra = { authInfo?: { scopes?: string[]; extra?: Record<string, unknown> } }
@@ -117,6 +135,187 @@ const handler = createMcpHandler(
           getWorkItems(userId, { planId: id }),
         ])
         return json({ ...plan, impactedAssets, linkedWorkItems })
+      },
+    )
+
+    // ── Product & asset management ─────────────────────────────────────────
+    server.tool(
+      'create_product',
+      'Create a product (planning boundary for assets and plans) in your workspace.',
+      { name: z.string(), description: z.string().default(''), tags: z.array(z.string()).default([]), slug: z.string().optional() },
+      async ({ name, slug, ...rest }, extra) => {
+        requireWrite(extra)
+        const userId = uid(extra)
+        const { db } = await import('@/lib/db')
+        const { users } = await import('@/lib/db/schema')
+        const { eq } = await import('drizzle-orm')
+        const profile = await db.query.users.findFirst({ where: eq(users.id, userId) })
+        const finalSlug = slug ?? name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+        return json(await createProduct(
+          { name, slug: finalSlug, organizationId: profile?.organizationId ?? undefined, ...rest },
+          userId,
+        ))
+      },
+    )
+
+    server.tool(
+      'update_product',
+      'Update a product you created (name, description, tags).',
+      { id: z.string(), name: z.string().optional(), description: z.string().optional(), tags: z.array(z.string()).optional() },
+      async ({ id, ...data }, extra) => {
+        requireWrite(extra)
+        const row = await updateProduct(id, data, uid(extra))
+        return json(row ?? { error: 'Not found, or only the product creator can update it' })
+      },
+    )
+
+    server.tool(
+      'create_asset',
+      'Add an asset (app, service, library, datastore, or platform) to a product. Use repoPath for monorepo folders.',
+      {
+        productId: z.string(),
+        name: z.string(),
+        type: z.enum(['app', 'service', 'library', 'datastore', 'platform']),
+        description: z.string().default(''),
+        tags: z.array(z.string()).default([]),
+        repositoryUrl: z.string().optional(),
+        repoPath: z.string().optional(),
+        documentationUrl: z.string().optional(),
+      },
+      async (args, extra) => {
+        requireWrite(extra)
+        await assertProductAccess(uid(extra), args.productId)
+        return json(await createAsset(args))
+      },
+    )
+
+    server.tool(
+      'update_asset',
+      'Update an asset: description, tags, health, manual tech-debt score, repo details.',
+      {
+        id: z.string(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+        health: z.enum(['healthy', 'warning', 'critical']).optional(),
+        techDebtScore: z.number().int().min(0).max(100).optional(),
+        repositoryUrl: z.string().optional(),
+        repoPath: z.string().optional(),
+        documentationUrl: z.string().optional(),
+      },
+      async ({ id, ...data }, extra) => {
+        requireWrite(extra)
+        const options = await getAssetOptions(uid(extra))
+        if (!options.some((a) => a.id === id)) return json({ error: 'Asset not found or not accessible' })
+        return json(await updateAsset(id, data))
+      },
+    )
+
+    server.tool(
+      'add_asset_dependency',
+      'Record that one asset depends on / integrates with / aggregates another — powers plan impact analysis.',
+      {
+        sourceAssetId: z.string(),
+        targetAssetId: z.string(),
+        dependencyType: z.enum(['depends_on', 'integrates_with', 'aggregates']).default('depends_on'),
+        description: z.string().optional(),
+      },
+      async (args, extra) => {
+        requireWrite(extra)
+        const options = await getAssetOptions(uid(extra))
+        const ids = new Set(options.map((a) => a.id))
+        if (!ids.has(args.sourceAssetId) || !ids.has(args.targetAssetId)) {
+          return json({ error: 'One or both assets not found or not accessible' })
+        }
+        const edge = await createAssetDependency(args)
+        return json(edge ?? { error: 'Self-dependencies are not allowed' })
+      },
+    )
+
+    server.tool(
+      'remove_asset_dependency',
+      'Remove a dependency edge by its id (see get_product dependencies).',
+      { id: z.string() },
+      async ({ id }, extra) => {
+        requireWrite(extra)
+        return json((await deleteAssetDependency(id)) ?? { error: 'Edge not found' })
+      },
+    )
+
+    // ── Plan lifecycle & targets ───────────────────────────────────────────
+    server.tool(
+      'activate_plan',
+      'Move a draft code plan to active.',
+      { id: z.string() },
+      async ({ id }, extra) => {
+        requireWrite(extra)
+        if (!(await getCodePlan(id, uid(extra)))) return json({ error: 'Plan not found or not accessible' })
+        return json(await updateCodePlan(id, { status: 'active' }))
+      },
+    )
+
+    server.tool(
+      'complete_plan',
+      'Mark a code plan completed. Also posts completion comments to mirrored tracker issues linked to it.',
+      { id: z.string() },
+      async ({ id }, extra) => {
+        requireWrite(extra)
+        if (!(await getCodePlan(id, uid(extra)))) return json({ error: 'Plan not found or not accessible' })
+        const plan = await updateCodePlan(id, { status: 'completed' })
+        const { notifyPlanCompleted } = await import('@/lib/integrations/writeback')
+        const commentsPosted = await notifyPlanCompleted(id)
+        return json({ ...plan, commentsPosted })
+      },
+    )
+
+    server.tool(
+      'add_plan_asset',
+      'Add a target asset to an existing plan (creates its branch/PR row).',
+      { codePlanId: z.string(), assetId: z.string() },
+      async ({ codePlanId, assetId }, extra) => {
+        requireWrite(extra)
+        if (!(await getCodePlan(codePlanId, uid(extra)))) return json({ error: 'Plan not found or not accessible' })
+        return json(await addPlanAsset(codePlanId, assetId))
+      },
+    )
+
+    server.tool(
+      'remove_plan_asset',
+      'Remove a target asset from a plan.',
+      { codePlanId: z.string(), assetId: z.string() },
+      async ({ codePlanId, assetId }, extra) => {
+        requireWrite(extra)
+        return json((await removePlanAsset(codePlanId, assetId)) ?? { error: 'Not a target of this plan' })
+      },
+    )
+
+    server.tool(
+      'update_work_item',
+      'Edit a work item (native fields only on mirrored items: asset, area, severity).',
+      {
+        id: z.string(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        type: z.enum(['feature', 'bug', 'enhancement', 'ux', 'tech_debt']).optional(),
+        status: z.enum(['open', 'planned', 'in_progress', 'resolved', 'wont_do']).optional(),
+        severity: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+        assetId: z.string().nullable().optional(),
+        area: z.string().nullable().optional(),
+        tags: z.array(z.string()).optional(),
+      },
+      async ({ id, ...data }, extra) => {
+        requireWrite(extra)
+        return json((await updateWorkItem(id, data)) ?? { error: 'Work item not found' })
+      },
+    )
+
+    server.tool(
+      'unlink_work_item_from_plan',
+      'Remove a work item ↔ plan link.',
+      { workItemId: z.string(), codePlanId: z.string() },
+      async ({ workItemId, codePlanId }, extra) => {
+        requireWrite(extra)
+        return json((await unlinkWorkItemFromPlan(workItemId, codePlanId)) ?? { error: 'Link not found' })
       },
     )
 
