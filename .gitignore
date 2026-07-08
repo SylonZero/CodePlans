@@ -25,3 +25,4 @@ docs-private/
 
 # UI mockup reference code (not part of the app)
 /refs
+tsconfig.tsbuildinfo
