@@ -322,13 +322,12 @@ Please keep PRs focused. Bug fixes, test coverage improvements, and documentatio
 - [x] Code Plan create/edit flows — shipped in v0.1.5
 - [x] Task create/edit panel + inline status updates — shipped in v0.1.5
 - [x] Team invite flow (invite, change role, remove)
-- [x] **v0.2 — Schema foundations:** work items + plan links, per-asset plan rows (branch/PR fields), repo paths, provenance columns
-- [x] **v0.2.x — Single-team cleanup:** default-org bootstrap, org-membership access model
-- [x] **v0.3 — Work items & tech debt UI:** backlog views, debt register by asset/area, activity feed (event log)
-- [x] **v0.4 — Dependency mapping & impact analysis;** analytics wired to real data
-- [x] **v0.5 — Integrations framework** + first connector (GitHub Issues), pull-only sync
-- [x] **v0.6 — Task-level sync & mixed plans;** PR auto-linking
-- [x] GitLab Issues connector (incl. self-hosted instances)
+- [x] **v0.2.0 — Schema foundations & single-team cleanup:** work items + plan links, per-asset plan rows (branch/PR fields), repo paths, provenance columns; default-org bootstrap, org-membership access model
+- [x] **v0.2.1 — Work items & tech debt UI:** backlog views, debt register by asset/area, activity feed (event log)
+- [x] **v0.2.2 — Dependency mapping & impact analysis;** analytics wired to real data
+- [x] **v0.2.3 — Integrations framework** + first connector (GitHub Issues), pull-only sync
+- [x] **v0.2.4 — Task-level sync & mixed plans;** PR auto-linking
+- [x] **v0.2.5 — GitLab Issues connector** (incl. self-hosted instances)
 - [ ] Jira / Asana / Linear connectors
 - [ ] AI-assisted effort estimation
 

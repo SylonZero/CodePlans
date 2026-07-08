@@ -1,6 +1,6 @@
 # CodePlans v3 — Target Design & Roadmap
 
-> **Status: Canonical spec — Phases 1 through 5 shipped** (2026-07, v0.6.0).
+> **Status: Canonical spec — Phases 1 through 5 shipped** (2026-07, v0.2.5).
 > Describes the target data model, integration architecture, and the phased
 > roadmap. Phases 1 through 5 are implemented; Phase 6 remains (the
 > `repositories` table from Phase 5 moved to Phase 6 — `repositoryUrl` +
@@ -388,7 +388,7 @@ One schema, three usage tiers:
 Phases are sequential but 1.5 (org cleanup) can slot anywhere after Phase 1.
 Each phase ships migrations for **both** PG and SQLite, seed updates, and tests.
 
-### Phase 1 — Schema foundations (v0.2) ✅ SHIPPED
+### Phase 1 — Schema foundations (v0.2.0) ✅ SHIPPED
 1. `work_items` + `work_item_code_plans` (with provenance columns from day one —
    retrofitting provenance is far more expensive than shipping unused columns).
 2. `code_plan_assets` + `code_plan_assignees`; backfill from `targetAssetIds` /
@@ -400,33 +400,33 @@ Each phase ships migrations for **both** PG and SQLite, seed updates, and tests.
 *Exit criteria*: cross-asset plan queries run on joins; work items creatable via API
 (no UI yet); all existing UI works unchanged.
 
-### Phase 1.5 — Org cleanup for OSS (v0.2.x) ✅ SHIPPED
+### Phase 1.5 — Org cleanup for OSS (v0.2.0) ✅ SHIPPED
 Default-org bootstrap; membership via `organization_members` only; product visibility
 = org membership; `TEAMS_ENABLED` flag; backfill org onto org-less products.
 
-### Phase 2 — Work items & debt UI (v0.3) ✅ SHIPPED
+### Phase 2 — Work items & debt UI (v0.2.1) ✅ SHIPPED
 Work Items nav page (list/board, filters); create/link-to-plan flows; tech debt
 register view + derived `techDebtScore`; plan detail shows linked items and per-asset
 branch/PR fields (manually entered); `sync_log` writes on native mutations → Activity
 Feed goes live.
 
-### Phase 3 — Dependency graph & impact analysis (v0.4) ✅ SHIPPED
+### Phase 3 — Dependency graph & impact analysis (v0.2.2) ✅ SHIPPED
 CRUD + visualization for `asset_dependencies`; impact panel on plan detail; dependency
 data folded into analytics (which also moves off hardcoded chart data this phase).
 
-### Phase 4 — Integrations framework + first connector (v0.5) ✅ SHIPPED (GitHub Issues; GitLab Issues added in v0.6.1)
+### Phase 4 — Integrations framework + first connector (v0.2.3) ✅ SHIPPED (GitHub Issues; GitLab Issues added in v0.2.5)
 `integrations` table + connector interface + sync engine (pull-only); status-mapping
 config UI; first connector (**GitHub Issues** recommended first: OAuth simplicity,
 engineering-adjacent, doubles as groundwork for PR auto-linking; Jira second, Asana
 third); import + link-existing flows; provenance badges/read-only treatment
 everywhere.
 
-### Phase 5 — Task-level sync & mixed plans (v0.6) ✅ SHIPPED (except repositories table → Phase 6)
+### Phase 5 — Task-level sync & mixed plans (v0.2.4) ✅ SHIPPED (except repositories table → Phase 6)
 Plan ↔ external epic linking; mirrored tasks inside plans (tiers 2/3 of §7);
 `repositories` table + PR auto-link from the GitHub connector (updates
 `code_plan_assets.prStatus`).
 
-### Phase 6 — Write-back & hosted polish (v0.7+)
+### Phase 6 — Write-back & hosted polish (v0.3.0+)
 Narrow write-back actions (post plan link as comment; optional status transition on
 plan completion); multi-org users; billing enforcement for hosted tiers.
 

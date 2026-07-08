@@ -1,6 +1,6 @@
 ## CodePlans App Spec
 
-> **Status:** current implemented state as of **v0.5.0** (2026-07). For the target
+> **Status:** current implemented state as of **v0.2.5** (2026-07). For the target
 > design and rationale, see `docs/specs/design-spec-v3.md` (Phases 1–4 shipped;
 > Phases 5–6 remain).
 
