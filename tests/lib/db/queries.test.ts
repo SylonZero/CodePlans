@@ -131,6 +131,17 @@ describe('getProducts', () => {
     expect(() => new Date(prods[0].createdAt)).not.toThrow()
     expect(prods[0].createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
   })
+
+  it('membership rows govern access, not users.organizationId', async () => {
+    // Null out bob's current-org pointer; his organization_members row remains.
+    const { db } = await import('@/lib/db/index')
+    const { users } = await import('@/lib/db/schema.sqlite')
+    const { eq } = await import('drizzle-orm')
+    await (db as any).update(users).set({ organizationId: null }).where(eq(users.id, F.bob))
+
+    const prods = await getProducts(F.bob)
+    expect(prods.map((p) => p.id)).toContain(F.productShared)
+  })
 })
 
 // ---------------------------------------------------------------------------

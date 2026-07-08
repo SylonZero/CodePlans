@@ -10,7 +10,7 @@ import {
   organizations,
   organizationMembers,
 } from './schema'
-import { eq, and, sql, desc, or, inArray, gte } from 'drizzle-orm'
+import { eq, and, sql, desc, or, inArray, gte, isNotNull } from 'drizzle-orm'
 import type {
   Product,
   Asset,
@@ -29,12 +29,17 @@ import type {
 /**
  * Drizzle condition selecting the products a user may see.
  * Single source of truth for product visibility — every query goes through this.
+ * Membership lives in organization_members (joined only); users.organizationId
+ * is just a "current org" pointer and is deliberately not consulted here.
  */
 export async function productAccessWhere(userId: string) {
-  const user = await db.query.users.findFirst({ where: eq(users.id, userId) })
-  const orgId = user?.organizationId ?? null
-  return orgId
-    ? or(eq(products.creatorId, userId), eq(products.organizationId, orgId))
+  const memberships = await db
+    .select({ organizationId: organizationMembers.organizationId })
+    .from(organizationMembers)
+    .where(and(eq(organizationMembers.userId, userId), isNotNull(organizationMembers.joinedAt)))
+  const orgIds = memberships.map((m) => m.organizationId)
+  return orgIds.length > 0
+    ? or(eq(products.creatorId, userId), inArray(products.organizationId, orgIds))
     : eq(products.creatorId, userId)
 }
 
