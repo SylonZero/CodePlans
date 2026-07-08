@@ -56,7 +56,11 @@ The MCP server embeds this guidance: agents get the short form in the
 heuristic from the **`get_modeling_guide`** tool.
 
 Save this as a Claude Code skill at `~/.claude/skills/codeplans-model/SKILL.md`,
-then run `/codeplans-model` inside any repo:
+then run `/codeplans-model` inside any repo. It is **safe to re-run** as the
+repo grows: it diffs the inventory against the existing product and proposes
+only the delta (new assets, keystone promotions, missing edges, moved
+folders) — and `create_asset` is idempotent by (product, name) server-side,
+so duplicates can't happen even outside the skill:
 
 ```markdown
 ---
@@ -71,15 +75,27 @@ Using the codeplans MCP server:
    nx.json, turbo.json, or package layout) and identify apps, services, and
    libraries. Classify libraries into keystone (high-fanout/high-churn) vs
    long-tail, and group the long tail into 2-4 domain clusters.
-3. Propose the model to me BEFORE creating anything: target product, the
-   tiered asset list (name, type, repoPath), and 10-25 coordination-risk
-   dependency edges. Wait for my approval and apply any corrections.
-4. On approval: create the product if needed (call list_products first to
-   check), then create_asset for each asset, then add_asset_dependency for
-   each approved edge.
-5. Verify by calling get_product and show me the resulting asset list and
+3. Reconcile before proposing: call list_products, and if the target product
+   exists, call get_product and diff the inventory against its existing assets
+   and dependency edges. The proposal must contain ONLY the delta:
+   - new assets (or note when a new package belongs inside an existing cluster
+     — that needs no asset change)
+   - keystone promotions: a clustered lib that has grown high-fanout/high-churn
+   - missing coordination-risk edges; repoPath corrections for moved folders
+   - assets whose folders no longer exist — FLAG these for manual review in the
+     UI (never attempt deletion; deletes are UI-only)
+   On a first run against an empty/absent product, the delta is everything.
+4. Propose the delta to me and WAIT for approval; apply corrections.
+5. On approval: create the product if needed, then create_asset /
+   update_asset / add_asset_dependency as approved.
+6. Verify by calling get_product and show me the resulting asset list and
    dependency count.
 ```
+
+**Model vs. log:** structural change (new packages, moved folders) is this
+skill's job. *Engineering work* — features shipped, PRs opened, debt found —
+belongs to its companion, [`/codeplans-log`](logging-work.md), which runs at a
+different cadence: reconcile the model occasionally, log work constantly.
 
 The proposal step (3) is the important one — you approve the model before the
 agent writes anything.
