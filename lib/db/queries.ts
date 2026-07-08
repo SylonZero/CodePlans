@@ -297,6 +297,7 @@ export async function getCodePlans(userId: string, filters: PlanFilters = {}): P
       endDate: codePlans.endDate,
       deadline: codePlans.deadline,
       creatorId: codePlans.creatorId,
+      specUrl: codePlans.specUrl,
       createdAt: codePlans.createdAt,
       updatedAt: codePlans.updatedAt,
       productName: products.name,
@@ -338,6 +339,7 @@ export async function getCodePlans(userId: string, filters: PlanFilters = {}): P
 
   return rows.map((r) => ({
     ...r,
+    specUrl: r.specUrl ?? undefined,
     targetAssetIds: assetsByPlan.get(r.id) ?? [],
     assigneeIds: assigneesByPlan.get(r.id) ?? [],
     startDate: r.startDate ?? undefined,

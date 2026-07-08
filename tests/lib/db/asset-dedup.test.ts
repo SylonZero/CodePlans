@@ -26,3 +26,17 @@ describe('createAsset dedup', () => {
     expect(a.id).not.toBe(b.id)
   })
 })
+
+describe('createTask dedup & plan list specUrl', () => {
+  it('returns the existing task for a duplicate (plan, title)', async () => {
+    const { createTask, updateCodePlan } = await import('@/lib/db/mutations')
+    const { getCodePlans } = await import('@/lib/db/queries')
+    const a = await createTask({ codePlanId: F.planDraft, title: 'Same task', description: '', priority: 'medium', tags: [] })
+    const b = await createTask({ codePlanId: F.planDraft, title: 'Same task', description: 'x', priority: 'high', tags: [] })
+    expect(b.id).toBe(a.id)
+
+    await updateCodePlan(F.planDraft, { specUrl: 'https://github.com/o/r/blob/main/docs/spec.md' })
+    const plans = await getCodePlans(F.alice)
+    expect(plans.find((p) => p.id === F.planDraft)?.specUrl).toContain('docs/spec.md')
+  })
+})

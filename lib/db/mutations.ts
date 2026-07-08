@@ -211,6 +211,11 @@ type CreateTaskData = {
 }
 
 export async function createTask(data: CreateTaskData) {
+  // Idempotent by (plan, title) so agent re-runs can't duplicate tasks.
+  const existing = await db.query.tasks.findFirst({
+    where: and(eq(tasks.codePlanId, data.codePlanId), eq(tasks.title, data.title)),
+  })
+  if (existing) return existing
   const [task] = await db.insert(tasks).values(data).returning()
   return task
 }
