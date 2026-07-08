@@ -846,3 +846,24 @@ export async function unlinkPlanScopeAction(planId: string) {
   revalidatePath(`/plans/${planId}`)
   revalidatePath('/tasks')
 }
+
+// ---------------------------------------------------------------------------
+// API keys (MCP access)
+// ---------------------------------------------------------------------------
+
+export async function createApiKeyAction(formData: FormData) {
+  const authUser = await requireUser()
+  const { createApiKey } = await import('@/lib/mcp/auth')
+  const name = (formData.get('name') as string) || 'Unnamed key'
+  const scope = formData.get('scope') === 'write' ? 'write' : 'read'
+  const key = await createApiKey(authUser.id, name, scope)
+  revalidatePath('/settings')
+  return key // plaintext shown once in the UI, never again
+}
+
+export async function revokeApiKeyAction(id: string) {
+  const authUser = await requireUser()
+  const { revokeApiKey } = await import('@/lib/mcp/auth')
+  await revokeApiKey(id, authUser.id)
+  revalidatePath('/settings')
+}

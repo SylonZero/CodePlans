@@ -7,10 +7,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ApiKeysPanel, type ApiKeyRow } from './api-keys-panel'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { User, Bell, Shield, Sparkles, Key, Upload } from 'lucide-react'
+import { User, Bell, Shield, Sparkles, Key, KeyRound, Upload } from 'lucide-react'
 import type { UserRole, BillingTier } from '@/lib/types'
 import { updateProfileAction, changePasswordAction, requestEmailChangeAction, cancelEmailChangeAction } from '../actions'
 
@@ -29,6 +30,7 @@ interface Props {
   billingEnabled?: boolean
   pendingEmailChange?: { newEmail: string; expiresAt: string } | null
   emailJustVerified?: boolean
+  apiKeys?: ApiKeyRow[]
 }
 
 function ProfileTab({ user, org, billingEnabled, pendingEmailChange, emailJustVerified }: Props) {
@@ -303,7 +305,7 @@ function SecurityTab() {
   )
 }
 
-export function SettingsClient({ user, org, billingEnabled = true, pendingEmailChange, emailJustVerified }: Props) {
+export function SettingsClient({ user, org, billingEnabled = true, pendingEmailChange, emailJustVerified, apiKeys = [] }: Props) {
   return (
     <div className="space-y-8">
       <div>
@@ -329,7 +331,15 @@ export function SettingsClient({ user, org, billingEnabled = true, pendingEmailC
             <Shield className="h-4 w-4" />
             Security
           </TabsTrigger>
+          <TabsTrigger value="api-keys" className="gap-2">
+            <KeyRound className="h-4 w-4" />
+            API Keys
+          </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="api-keys" className="space-y-6">
+          <ApiKeysPanel keys={apiKeys} />
+        </TabsContent>
 
         <TabsContent value="profile">
           <ProfileTab

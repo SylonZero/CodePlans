@@ -1,6 +1,6 @@
 ## CodePlans App Spec
 
-> **Status:** current implemented state as of **v0.3.0** (2026-07). For the target
+> **Status:** current implemented state as of **v0.3.1** (2026-07). For the target
 > design and rationale, see `docs/specs/design-spec-v3.md` (all phases shipped).
 
 ### Overview
@@ -132,6 +132,7 @@ CodePlans is a **code change coordination tool** for engineering teams. It organ
 | `code_plan_assignees` | Source of truth for plan assignees (composite PK) |
 | `integrations` | Org-scoped connections: `provider`, `authRef` (env-var name — token never stored), `config` (repo, target productId, status/type maps), `status`, `lastSyncAt`, `lastError` |
 | `sync_log` | Item-level events (native mutations + sync runs); drives the activity feed |
+| `api_keys` | MCP access: per-user hashed `cpk_` tokens (`keyHash` sha256, `keyPrefix` for display, `scope` read/write, soft revoke) |
 
 Provenance columns (`source` default `native`, `connectionId`, `externalId/Key/Url`, `externalData`, `externalDeleted`, `syncedAt`) exist on `work_items`, `code_plans`, and `tasks`, with a unique index on `(connection_id, external_id)`. `assets` gained `repo_path` for monorepo folders. The `code_plans.target_asset_ids` / `assignee_ids` arrays were **dropped in v0.3.0** (join tables are authoritative).
 
@@ -317,6 +318,9 @@ Client component (`IntegrationsClient`) with:
 - "New Connection" dialog: provider select (GitHub Issues / GitLab Issues), name, repo/project path, instance URL (GitLab self-hosted, optional), target product, token env-var name → `createIntegrationAction`
 - Delete with confirm (mirrored items are kept, stop syncing)
 
+#### `/api/mcp/[transport]` — MCP server (no UI)
+Streamable HTTP MCP endpoint (`mcp-handler`) with 13 tools wrapping the query/mutation layer — see `docs/specs/mcp-server-spec.md`. Auth: `Authorization: Bearer cpk_…` resolved by `lib/mcp/auth.ts` to a user (scopes: read/write); 401 without a valid key. `proxy.ts` exempts this path from session redirects. Connect: `claude mcp add --transport http codeplans <base>/api/mcp/mcp --header "Authorization: Bearer <key>"`.
+
 #### `/team` — Team Management
 - Requires org membership; shows message if no org
 - `TeamClient` renders:
@@ -344,6 +348,7 @@ Client component with 4 tabs:
 - **Notifications:** Email and in-app notification toggles (cosmetic — not persisted)
 - **Features:** Feature flag toggles for AI Assistance / Beta / Alpha (reads from props but writes not wired)
 - **Security:** Password change form → `changePasswordAction`; 2FA setup and Delete Account button (not wired)
+- **API Keys** (`api-keys-panel.tsx`): create (name + read/write scope; plaintext shown once), list (prefix, scope, last-used), revoke → API key actions
 
 ---
 
