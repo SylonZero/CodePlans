@@ -49,6 +49,9 @@ CodePlans sits between your issue tracker and your architecture diagram:
 | Asset dependency graph | 🚧 In progress |
 | Activity feed | 🚧 In progress |
 | AI-assisted effort estimation | 🔜 Planned |
+| Work items — features, bugs & tech debt register, linkable to code plans | 🔜 Planned |
+| Per-asset branch & PR tracking on code plans | 🔜 Planned |
+| External integrations (GitHub Issues, Jira, Asana, Linear) | 🔜 Planned |
 | Billing / subscription management | 🔜 Planned (optional, feature-flagged) |
 
 ---
@@ -314,13 +317,16 @@ Please keep PRs focused. Bug fixes, test coverage improvements, and documentatio
 - [x] Product & asset CRUD forms — shipped in v0.1.5 (side panels & quick modals)
 - [x] Code Plan create/edit flows — shipped in v0.1.5
 - [x] Task create/edit panel + inline status updates — shipped in v0.1.5
-- [ ] Asset dependency graph visualisation
-- [ ] Activity feed (event log)
-- [ ] Analytics wired to real data
+- [x] Team invite flow (invite, change role, remove)
+- [ ] **v0.2 — Schema foundations:** work items + plan links, per-asset plan rows (branch/PR fields), repo paths, provenance columns
+- [ ] **v0.2.x — Single-team cleanup:** default-org bootstrap, org-membership access model, `TEAMS_ENABLED` flag
+- [ ] **v0.3 — Work items & tech debt UI:** backlog views, debt register by asset/area, activity feed (event log)
+- [ ] **v0.4 — Dependency graph & impact analysis;** analytics wired to real data
+- [ ] **v0.5 — Integrations framework** + first connector (GitHub Issues), pull-only sync
+- [ ] **v0.6 — Task-level sync & mixed plans;** PR auto-linking
 - [ ] AI-assisted effort estimation
-- [ ] Team invite flow
 
-See [`docs/app-spec.md`](docs/app-spec.md) for the full current state of the app including wiring gaps.
+See [`docs/app-spec.md`](docs/app-spec.md) for the full current state of the app, and [`docs/specs/design-spec-v3.md`](docs/specs/design-spec-v3.md) for the target design and detailed roadmap.
 
 ---
 

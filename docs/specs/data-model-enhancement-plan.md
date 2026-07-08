@@ -1,5 +1,12 @@
 # Data Model Enhancement Plan: Assets & Team Collaboration
 
+> **Status: SUPERSEDED** (2026-07). The core of this plan shipped: `assets`,
+> `asset_dependencies`, `tasks.asset_id`, `code_plans.target_asset_ids`, and
+> organization-level membership (`organization_members`). The proposed
+> `product_members` (product-level roles) was **not adopted** — org-level roles are
+> the access model; product-level membership is deferred as a possible hosted-tier
+> feature. Next steps for the data model live in `docs/specs/design-spec-v3.md`.
+
 ## Overview
 
 This document outlines the required changes to support product-to-component mapping and multi-user collaboration as specified in functional-spec-v2.md.

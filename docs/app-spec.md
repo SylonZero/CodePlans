@@ -1,8 +1,12 @@
 ## CodePlans App Spec
 
+> **Status:** current implemented state as of **v0.1.5** (2026-07). For the target
+> design and roadmap (work items, integrations, repo/PR layer), see
+> `docs/specs/design-spec-v3.md`.
+
 ### Overview
 
-CodePlans is a **code change coordination tool** for engineering teams. It organizes work around a three-level hierarchy: **Products → Assets → Code Plans → Tasks**. Users track technical debt, coordinate architectural changes, and measure team velocity. Deployed at `codeplans.ai`. Stack: Next.js 15 (App Router), Drizzle ORM, pluggable auth/DB (SQLite local / Supabase+Postgres cloud).
+CodePlans is a **code change coordination tool** for engineering teams. It organizes work around a three-level hierarchy: **Products → Assets → Code Plans → Tasks**. Users track technical debt, coordinate architectural changes, and measure team velocity. Deployed at `codeplans.ai`. Stack: Next.js 16 (App Router), Drizzle ORM, pluggable auth/DB (SQLite local / Supabase+Postgres cloud).
 
 ---
 
@@ -140,8 +144,8 @@ CodePlans is a **code change coordination tool** for engineering teams. It organ
 
 | Function | Returns | Key behavior |
 |---|---|---|
-| `getDashboardStats(userId)` | `DashboardStats` | Org-aware product scope; velocity = tasksThisWeek (rolling 7 days, done status) |
-| `getProducts(userId)` | `Product[]` | Org-aware; includes `assetCount` + `activePlanCount` via correlated subqueries |
+| `getDashboardStats(userId, productId?)` | `DashboardStats` | Org-aware product scope, optionally narrowed to one product; velocity = tasksThisWeek (rolling 7 days, done status) |
+| `getProducts(userId, productId?)` | `Product[]` | Org-aware, optionally narrowed; includes `assetCount` + `activePlanCount` via correlated subqueries |
 | `getProduct(slug, userId)` | `Product & { assets }` \| `null` | Org-aware; assets ordered by createdAt desc; `dependencies` always `[]` |
 | `getCodePlans(userId, filters?)` | `CodePlan[]` | Org-aware; filters: `productId`, `status`, `type`; includes `taskCount`, `completedTaskCount`, `progress`, `productName` |
 | `getCodePlan(id)` | `CodePlanDetail` \| `null` | No auth check; includes full `tasks[]`, `assignees[]`, `targetAssets[]`; `progress` = % done |
@@ -187,7 +191,7 @@ Both redirect to `/` on success.
 
 #### Dashboard Layout (`/(dashboard)`)
 All routes share `AppShell`: 64px top header + 256px sidebar. Sidebar contains:
-- Product switcher dropdown (cosmetic — switches `selectedProduct` local state but doesn't filter content)
+- Product switcher dropdown — **wired**: "All Products" + per-product options; selection persisted in a cookie (`lib/product-scope-cookie.ts`) and scopes Dashboard, Products, Code Plans, Tasks, and Analytics
 - Primary nav: Dashboard, Products, Code Plans, Tasks, Analytics
 - Secondary nav: Team, Billing (hidden if `BILLING_ENABLED=false`), Settings
 - Org/user footer: org name + billing tier, links to Team/Billing/Settings
@@ -209,26 +213,24 @@ All routes share `AppShell`: 64px top header + 256px sidebar. Sidebar contains:
 
 #### `/products` — Products List
 - Grid of product cards with name, description (truncated), tags (max 3 shown), asset count, active plan count
-- "New Product" button → `/products/new` (route does not exist yet)
-- Card dropdown: View Details, Edit Product → `/products/[slug]/edit` (not exists), Add Asset → `/products/[slug]/assets/new` (not exists), Delete (no action wired)
-- "Add Product" card as last grid item → `/products/new`
-
-**Wiring gaps:** New/edit/delete product actions not implemented.
+- "New Product" button and "Add Product" card open the quick-create modal (`ProductCreateDialog`, also reachable from the sidebar switcher) → `createProductAction`
+- Card dropdown: View Details, Edit Product (edit side panel → `updateProductAction`), Delete (confirm → `deleteProductAction`)
 
 ---
 
 #### `/products/[slug]` — Product Detail
 Two tabs: **Assets** and **Code Plans**.
 
-**Assets tab:**
+**Assets tab** (`assets-section.tsx`):
 - Assets grouped by type (app, service, library, datastore, platform)
 - Each card shows: name, type label, health status with color-coded icon, description, tags, tech debt score bar (if present)
-- "Add Asset" button → `/products/[slug]/assets/new` (not exists)
-- "Settings" button → `/products/[slug]/edit` (not exists)
+- Asset card click → view side panel; edit panel (all fields incl. health + tech debt score) → `updateAssetAction`; delete with confirm → `deleteAssetAction`
+- "Add Asset" button → create side panel → `createAssetAction`
+- "Settings" button → product edit side panel (`product-edit-panel.tsx`)
 
 **Plans tab:**
 - Lists plans for this product: title (link to plan detail), description, status badge, task progress
-- "Create Plan" button → `/plans/new?product=[id]` (route not exists)
+- "Create Plan" button → plan create side panel (product preselected) → `createCodePlanAction`
 
 ---
 
@@ -238,22 +240,20 @@ Client component (`PlansClient`) with:
 - Tab filter: All / Active / Draft / Completed (client-side)
 - Product dropdown filter (client-side)
 - Plan cards: title (link to detail), type badge, status badge, product name, deadline, assignee count, progress bar, tags
-- "New Plan" button → `/plans/new` (route not exists)
+- "New Plan" button → plan create side panel (`plan-create-panel.tsx`; preselects the scoped product) → `createCodePlanAction`
 
 ---
 
 #### `/plans/[id]` — Plan Detail
 - Breadcrumb: Code Plans → plan title
 - Header: title, type badge, status badge, description, product link, date range, deadline
-- Action buttons: "Edit" (not wired), "Activate Plan" (draft only, not wired), "Mark Complete" (active only, not wired)
+- Action buttons (`plan-actions.tsx`): Edit (side panel → `updateCodePlanAction`), "Activate Plan" (draft only → `activatePlanAction`), "Mark Complete" (active only → `completePlanAction`), Delete → `deleteCodePlanAction`
 - Stats row: Overall Progress (% + progress bar + task count), Target Assets (count + names), Assignees (avatars)
 - Tags row
 - Tasks section: 3-column kanban by status (Not Started / In Progress / Done)
   - Done column capped at 5 shown
-  - "Add Task" button (not wired)
+  - "Add Task" button → task create form → `createTaskAction`
   - Task cards: title (strikethrough if done), priority badge, effort hours
-
-**Wiring gap:** No task status changes from the UI; all task cards are read-only.
 
 ---
 
@@ -263,24 +263,23 @@ Client component (`TasksClient`) with:
 - Tab filter by status, plan dropdown filter (active plans only)
 - View toggle: List view / Board view
 
-**List view:** Table with columns: checkbox (cosmetic, reflects status), task title+tags, code plan link, asset name, priority badge, assignee avatar, effort, status.
+**List view:** Table with columns: status checkbox (wired → `updateTaskStatusAction`), task title+tags, code plan link, asset name, priority badge, assignee avatar, effort, status.
 
 **Board view:** 3 kanban columns (up to 8 per column); task cards with priority badge, plan title, assignee avatar, effort.
 
-**Wiring gaps:**
-- Checkbox not wired to `updateTaskStatus`
-- "New Task" button not wired (no form/modal)
-- No task detail/edit view
+**Task panel** (`task-panel.tsx`, Sheet-based, deep-linkable via `?task=<id>`):
+- View mode with full task context; edit mode with all fields incl. status, assignee, actual effort → `updateTaskAction`; delete → `deleteTaskAction`
+- "New Task" button opens the panel in create mode → `createTaskAction`
 
 ---
 
 #### `/team` — Team Management
 - Requires org membership; shows message if no org
 - `TeamClient` renders:
-  - Org info card: name, member count, billing tier, admins count, pending invites (hardcoded 0)
+  - Org info card: name, member count, billing tier, admins count, pending invites
   - Members table: avatar, name, email, role badge (with crown for owner), joined date, kebab menu per row
-  - Kebab menu options: "Change Role" / "Remove from Team" (neither wired)
-- "Invite Member" button opens dialog with email + role select → button closes dialog only (not wired to any action)
+  - Kebab menu options: "Change Role" → `changeMemberRoleAction`, "Remove from Team" → `removeMemberAction`
+- "Invite Member" button opens dialog with email + role select → `inviteMemberAction`
 
 ---
 
@@ -297,11 +296,11 @@ All charts use **hardcoded static data** (not wired to real queries except `getD
 ---
 
 #### `/settings` — Settings
-Client component with 4 tabs (all cosmetic/unactionable):
-- **Profile:** Name + email inputs, photo upload button, org info card with billing tier
-- **Notifications:** Email and in-app notification toggles (not persisted)
+Client component with 4 tabs:
+- **Profile:** Name update → `updateProfileAction`; email change with verification flow → `requestEmailChangeAction` / `cancelEmailChangeAction`; photo upload button (not wired); org info card with billing tier
+- **Notifications:** Email and in-app notification toggles (cosmetic — not persisted)
 - **Features:** Feature flag toggles for AI Assistance / Beta / Alpha (reads from props but writes not wired)
-- **Security:** Password change form, 2FA setup, Delete Account button (none wired)
+- **Security:** Password change form → `changePasswordAction`; 2FA setup and Delete Account button (not wired)
 
 ---
 
@@ -332,20 +331,19 @@ Guarded by `BILLING_ENABLED` env flag (redirects to `/` if false). Shows:
 
 ### Known Gaps & Unwired Features
 
+Structural/roadmap gaps (work items, integrations, repo/PR layer, org cleanup) are
+tracked in `docs/specs/design-spec-v3.md`; the list below covers implementation gaps
+in the current feature set.
+
 | Area | Gap |
 |---|---|
-| Products | No create/edit/delete forms |
-| Assets | No create/edit/delete forms; `asset_dependencies` table unused |
-| Code Plans | No create/edit forms; status transitions (Activate, Complete) not wired |
-| Tasks | No create form/modal; status changes not wired; no task detail view |
-| Team | Invite flow not wired; role change and remove not wired |
-| Settings | All save/update actions not wired |
+| Assets | `asset_dependencies` table unused — no dependency CRUD or visualization |
 | Billing | Hardcoded usage data; no payment integration |
 | Analytics | All charts use hardcoded data; no time-range filtering |
 | Activity Feed | Always empty — no activity tracking system |
 | Velocity Chart (dashboard) | Placeholder/stub |
 | Search | Header search input is cosmetic only |
-| Product switcher | Sidebar switcher changes local state only — doesn't filter views |
-| `getCodePlan` | No auth/ownership guard — any authenticated user can fetch any plan by ID |
+| Settings | Notifications + feature-flag toggles not persisted; photo upload, 2FA, Delete Account not wired |
+| `getCodePlan` | No auth/ownership guard — any authenticated user can fetch any plan by ID (fix scheduled: design-spec-v3 Phase 1) |
 | `asset.dependencies` | Always returns `[]` in `getProduct` — dependency resolution deferred |
 | Notifications | All toggles cosmetic; no notification system exists |
