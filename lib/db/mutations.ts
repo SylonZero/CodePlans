@@ -1,6 +1,16 @@
 import { db } from './index'
-import { products, assets, codePlans, codePlanAssets, codePlanAssignees, tasks } from './schema'
+import {
+  products,
+  assets,
+  codePlans,
+  codePlanAssets,
+  codePlanAssignees,
+  workItems,
+  workItemCodePlans,
+  tasks,
+} from './schema'
 import { eq, and } from 'drizzle-orm'
+import type { WorkItemType, WorkItemStatus, WorkItemSeverity } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
 // Products
@@ -55,6 +65,7 @@ type CreateAssetData = {
   description: string
   tags: string[]
   repositoryUrl?: string
+  repoPath?: string
   documentationUrl?: string
 }
 
@@ -223,5 +234,129 @@ export async function deleteTask(id: string) {
     .delete(tasks)
     .where(eq(tasks.id, id))
     .returning({ id: tasks.id })
+  return deleted ?? null
+}
+
+// ---------------------------------------------------------------------------
+// Work Items
+// ---------------------------------------------------------------------------
+
+type CreateWorkItemData = {
+  productId: string
+  assetId?: string
+  area?: string
+  type: WorkItemType
+  title: string
+  description: string
+  severity: WorkItemSeverity
+  tags: string[]
+}
+
+export async function createWorkItem(data: CreateWorkItemData, userId: string) {
+  const [item] = await db
+    .insert(workItems)
+    .values({ ...data, reporterId: userId })
+    .returning()
+  return item
+}
+
+type UpdateWorkItemData = Partial<
+  Omit<CreateWorkItemData, 'productId' | 'assetId' | 'area'> & {
+    status: WorkItemStatus
+    assetId: string | null
+    area: string | null
+  }
+>
+
+export async function updateWorkItem(id: string, data: UpdateWorkItemData) {
+  const [item] = await db
+    .update(workItems)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(workItems.id, id))
+    .returning()
+  return item ?? null
+}
+
+export async function updateWorkItemStatus(id: string, status: WorkItemStatus) {
+  const [item] = await db
+    .update(workItems)
+    .set({ status, updatedAt: new Date() })
+    .where(eq(workItems.id, id))
+    .returning()
+  return item ?? null
+}
+
+export async function deleteWorkItem(id: string) {
+  const [deleted] = await db
+    .delete(workItems)
+    .where(eq(workItems.id, id))
+    .returning({ id: workItems.id })
+  return deleted ?? null
+}
+
+// ---------------------------------------------------------------------------
+// Plan assets (per-asset branch/PR tracking)
+// ---------------------------------------------------------------------------
+// Note: the deprecated code_plans.target_asset_ids array is not maintained by
+// these mutations — the join table is the sole source of truth going forward.
+
+export async function addPlanAsset(codePlanId: string, assetId: string) {
+  const existing = await db.query.codePlanAssets.findFirst({
+    where: and(eq(codePlanAssets.codePlanId, codePlanId), eq(codePlanAssets.assetId, assetId)),
+  })
+  if (existing) return existing
+  const [row] = await db.insert(codePlanAssets).values({ codePlanId, assetId }).returning()
+  return row
+}
+
+export async function removePlanAsset(codePlanId: string, assetId: string) {
+  const [deleted] = await db
+    .delete(codePlanAssets)
+    .where(and(eq(codePlanAssets.codePlanId, codePlanId), eq(codePlanAssets.assetId, assetId)))
+    .returning({ id: codePlanAssets.id })
+  return deleted ?? null
+}
+
+type UpdatePlanAssetData = Partial<{
+  branch: string | null
+  prUrl: string | null
+  prStatus: 'none' | 'draft' | 'open' | 'merged' | 'closed'
+  notes: string | null
+}>
+
+export async function updatePlanAsset(codePlanId: string, assetId: string, data: UpdatePlanAssetData) {
+  const [row] = await db
+    .update(codePlanAssets)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(eq(codePlanAssets.codePlanId, codePlanId), eq(codePlanAssets.assetId, assetId)))
+    .returning()
+  return row ?? null
+}
+
+export async function linkWorkItemToPlan(workItemId: string, codePlanId: string) {
+  const existing = await db.query.workItemCodePlans.findFirst({
+    where: and(
+      eq(workItemCodePlans.workItemId, workItemId),
+      eq(workItemCodePlans.codePlanId, codePlanId),
+    ),
+  })
+  if (existing) return existing
+  const [link] = await db
+    .insert(workItemCodePlans)
+    .values({ workItemId, codePlanId })
+    .returning()
+  return link
+}
+
+export async function unlinkWorkItemFromPlan(workItemId: string, codePlanId: string) {
+  const [deleted] = await db
+    .delete(workItemCodePlans)
+    .where(
+      and(
+        eq(workItemCodePlans.workItemId, workItemId),
+        eq(workItemCodePlans.codePlanId, codePlanId),
+      ),
+    )
+    .returning({ id: workItemCodePlans.id })
   return deleted ?? null
 }

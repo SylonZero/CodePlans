@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { authAdapter } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { users, organizationMembers, emailVerificationTokens } from '@/lib/db/schema'
+import { users, organizationMembers, emailVerificationTokens, workItems, syncLog } from '@/lib/db/schema'
 import { eq, and, gt } from 'drizzle-orm'
 import {
   createProduct,
@@ -20,8 +20,17 @@ import {
   updateTask,
   updateTaskStatus,
   deleteTask,
+  addPlanAsset,
+  removePlanAsset,
+  updatePlanAsset,
+  createWorkItem,
+  updateWorkItem,
+  updateWorkItemStatus,
+  deleteWorkItem,
+  linkWorkItemToPlan,
+  unlinkWorkItemFromPlan,
 } from '@/lib/db/mutations'
-import type { UserRole } from '@/lib/types'
+import type { UserRole, WorkItemType, WorkItemStatus, WorkItemSeverity } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -52,6 +61,33 @@ async function getUserProfile(userId: string) {
   return db.query.users.findFirst({ where: eq(users.id, userId) })
 }
 
+/**
+ * Append an event to sync_log — the activity stream. Never throws: activity
+ * logging must not fail the mutation it accompanies.
+ */
+async function logActivity(entry: {
+  entityType: 'work_item' | 'task' | 'code_plan' | 'asset' | 'product'
+  entityId: string
+  event: string
+  actorId: string
+  payload?: Record<string, unknown>
+}) {
+  try {
+    const profile = await getUserProfile(entry.actorId)
+    if (!profile?.organizationId) return
+    await db.insert(syncLog).values({
+      organizationId: profile.organizationId,
+      entityType: entry.entityType,
+      entityId: entry.entityId,
+      event: entry.event,
+      actorId: entry.actorId,
+      payload: entry.payload ?? {},
+    })
+  } catch (err) {
+    console.error('[activity] log failed:', err)
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Products
 // ---------------------------------------------------------------------------
@@ -76,6 +112,13 @@ export async function createProductAction(formData: FormData) {
     authUser.id,
   )
 
+  await logActivity({
+    entityType: 'product',
+    entityId: product.id,
+    event: 'created',
+    actorId: authUser.id,
+    payload: { name: product.name },
+  })
   redirect(`/products/${product.slug}`)
 }
 
@@ -105,23 +148,32 @@ export async function deleteProductAction(id: string, slug: string) {
 // ---------------------------------------------------------------------------
 
 export async function createAssetAction(productId: string, productSlug: string, formData: FormData) {
-  await requireUser()
+  const authUser = await requireUser()
 
   const name = formData.get('name') as string
   const type = formData.get('type') as 'app' | 'service' | 'library' | 'datastore' | 'platform'
   const description = formData.get('description') as string
   const tags = parseTags(formData.get('tags') as string)
   const repositoryUrl = (formData.get('repositoryUrl') as string) || undefined
+  const repoPath = (formData.get('repoPath') as string) || undefined
   const documentationUrl = (formData.get('documentationUrl') as string) || undefined
 
-  await createAsset({
+  const asset = await createAsset({
     productId,
     name,
     type,
     description,
     tags,
     repositoryUrl,
+    repoPath,
     documentationUrl,
+  })
+  await logActivity({
+    entityType: 'asset',
+    entityId: asset.id,
+    event: 'created',
+    actorId: authUser.id,
+    payload: { name: asset.name },
   })
 
   revalidatePath(`/products/${productSlug}`)
@@ -137,6 +189,7 @@ export async function updateAssetAction(id: string, productSlug: string, formDat
   const health = formData.get('health') as 'healthy' | 'warning' | 'critical'
   const techDebtRaw = formData.get('techDebtScore') as string
   const repositoryUrl = (formData.get('repositoryUrl') as string) || undefined
+  const repoPath = (formData.get('repoPath') as string) || undefined
   const documentationUrl = (formData.get('documentationUrl') as string) || undefined
 
   await updateAsset(id, {
@@ -147,6 +200,7 @@ export async function updateAssetAction(id: string, productSlug: string, formDat
     health,
     techDebtScore: techDebtRaw ? parseInt(techDebtRaw, 10) : undefined,
     repositoryUrl,
+    repoPath,
     documentationUrl,
   })
 
@@ -187,6 +241,13 @@ export async function createCodePlanAction(formData: FormData) {
     authUser.id,
   )
 
+  await logActivity({
+    entityType: 'code_plan',
+    entityId: plan.id,
+    event: 'created',
+    actorId: authUser.id,
+    payload: { title: plan.title },
+  })
   redirect(`/plans/${plan.id}`)
 }
 
@@ -205,14 +266,32 @@ export async function updateCodePlanAction(id: string, formData: FormData) {
 }
 
 export async function activatePlanAction(id: string) {
-  await requireUser()
-  await updateCodePlan(id, { status: 'active' })
+  const authUser = await requireUser()
+  const plan = await updateCodePlan(id, { status: 'active' })
+  if (plan) {
+    await logActivity({
+      entityType: 'code_plan',
+      entityId: id,
+      event: 'activated',
+      actorId: authUser.id,
+      payload: { title: plan.title },
+    })
+  }
   revalidatePath(`/plans/${id}`)
 }
 
 export async function completePlanAction(id: string) {
-  await requireUser()
-  await updateCodePlan(id, { status: 'completed' })
+  const authUser = await requireUser()
+  const plan = await updateCodePlan(id, { status: 'completed' })
+  if (plan) {
+    await logActivity({
+      entityType: 'code_plan',
+      entityId: id,
+      event: 'completed',
+      actorId: authUser.id,
+      payload: { title: plan.title },
+    })
+  }
   revalidatePath(`/plans/${id}`)
 }
 
@@ -224,11 +303,38 @@ export async function deleteCodePlanAction(id: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Plan assets (per-asset branch/PR tracking)
+// ---------------------------------------------------------------------------
+
+export async function addPlanAssetAction(codePlanId: string, assetId: string) {
+  await requireUser()
+  await addPlanAsset(codePlanId, assetId)
+  revalidatePath(`/plans/${codePlanId}`)
+}
+
+export async function removePlanAssetAction(codePlanId: string, assetId: string) {
+  await requireUser()
+  await removePlanAsset(codePlanId, assetId)
+  revalidatePath(`/plans/${codePlanId}`)
+}
+
+export async function updatePlanAssetAction(codePlanId: string, assetId: string, formData: FormData) {
+  await requireUser()
+  await updatePlanAsset(codePlanId, assetId, {
+    branch: (formData.get('branch') as string) || null,
+    prUrl: (formData.get('prUrl') as string) || null,
+    prStatus: (formData.get('prStatus') as 'none' | 'draft' | 'open' | 'merged' | 'closed') || 'none',
+    notes: (formData.get('notes') as string) || null,
+  })
+  revalidatePath(`/plans/${codePlanId}`)
+}
+
+// ---------------------------------------------------------------------------
 // Tasks
 // ---------------------------------------------------------------------------
 
 export async function createTaskAction(codePlanId: string, formData: FormData) {
-  await requireUser()
+  const authUser = await requireUser()
 
   const title = formData.get('title') as string
   const description = (formData.get('description') as string) || ''
@@ -238,7 +344,7 @@ export async function createTaskAction(codePlanId: string, formData: FormData) {
   const assigneeId = (formData.get('assigneeId') as string) || undefined
   const assetId = (formData.get('assetId') as string) || undefined
 
-  await createTask({
+  const task = await createTask({
     codePlanId,
     title,
     description,
@@ -247,6 +353,13 @@ export async function createTaskAction(codePlanId: string, formData: FormData) {
     estimatedEffort: estimatedEffortRaw ? parseFloat(estimatedEffortRaw) : undefined,
     assigneeId: assigneeId || undefined,
     assetId: assetId || undefined,
+  })
+  await logActivity({
+    entityType: 'task',
+    entityId: task.id,
+    event: 'created',
+    actorId: authUser.id,
+    payload: { title: task.title },
   })
 
   revalidatePath(`/plans/${codePlanId}`)
@@ -281,8 +394,17 @@ export async function updateTaskAction(id: string, formData: FormData) {
 }
 
 export async function updateTaskStatusAction(id: string, status: 'not_started' | 'in_progress' | 'done') {
-  await requireUser()
-  await updateTaskStatus(id, status)
+  const authUser = await requireUser()
+  const task = await updateTaskStatus(id, status)
+  if (task && status === 'done') {
+    await logActivity({
+      entityType: 'task',
+      entityId: id,
+      event: 'completed',
+      actorId: authUser.id,
+      payload: { title: task.title },
+    })
+  }
   revalidatePath('/tasks')
   revalidatePath('/plans')
 }
@@ -450,4 +572,121 @@ export async function changePasswordAction(formData: FormData) {
   await db.update(users).set({ passwordHash: hash }).where(eq(users.id, authUser.id))
 
   return { success: true }
+}
+
+// ---------------------------------------------------------------------------
+// Work Items
+// ---------------------------------------------------------------------------
+
+export async function createWorkItemAction(formData: FormData) {
+  const authUser = await requireUser()
+
+  const item = await createWorkItem(
+    {
+      productId: formData.get('productId') as string,
+      assetId: (formData.get('assetId') as string) || undefined,
+      area: (formData.get('area') as string) || undefined,
+      type: (formData.get('type') as WorkItemType) || 'feature',
+      title: formData.get('title') as string,
+      description: (formData.get('description') as string) ?? '',
+      severity: (formData.get('severity') as WorkItemSeverity) || 'medium',
+      tags: parseTags((formData.get('tags') as string) ?? ''),
+    },
+    authUser.id,
+  )
+
+  await logActivity({
+    entityType: 'work_item',
+    entityId: item.id,
+    event: 'created',
+    actorId: authUser.id,
+    payload: { title: item.title, type: item.type },
+  })
+  revalidatePath('/work-items')
+  return { id: item.id }
+}
+
+export async function updateWorkItemAction(id: string, formData: FormData) {
+  const authUser = await requireUser()
+
+  const item = await updateWorkItem(id, {
+    title: formData.get('title') as string,
+    description: (formData.get('description') as string) ?? '',
+    type: (formData.get('type') as WorkItemType) || undefined,
+    status: (formData.get('status') as WorkItemStatus) || undefined,
+    severity: (formData.get('severity') as WorkItemSeverity) || undefined,
+    assetId: (formData.get('assetId') as string) || null,
+    area: (formData.get('area') as string) || null,
+    tags: parseTags((formData.get('tags') as string) ?? ''),
+  })
+  if (!item) return { error: 'Work item not found.' }
+
+  await logActivity({
+    entityType: 'work_item',
+    entityId: id,
+    event: 'updated',
+    actorId: authUser.id,
+    payload: { title: item.title },
+  })
+  revalidatePath('/work-items')
+  return { id }
+}
+
+export async function updateWorkItemStatusAction(id: string, status: WorkItemStatus) {
+  const authUser = await requireUser()
+  const item = await updateWorkItemStatus(id, status)
+  if (item) {
+    await logActivity({
+      entityType: 'work_item',
+      entityId: id,
+      event: 'status_changed',
+      actorId: authUser.id,
+      payload: { title: item.title, status },
+    })
+  }
+  revalidatePath('/work-items')
+}
+
+export async function deleteWorkItemAction(id: string) {
+  const authUser = await requireUser()
+  const item = await db.query.workItems.findFirst({ where: eq(workItems.id, id) })
+  const deleted = await deleteWorkItem(id)
+  if (deleted) {
+    await logActivity({
+      entityType: 'work_item',
+      entityId: id,
+      event: 'deleted',
+      actorId: authUser.id,
+      payload: { title: item?.title },
+    })
+  }
+  revalidatePath('/work-items')
+}
+
+export async function linkWorkItemToPlanAction(workItemId: string, codePlanId: string) {
+  const authUser = await requireUser()
+  await linkWorkItemToPlan(workItemId, codePlanId)
+  await logActivity({
+    entityType: 'work_item',
+    entityId: workItemId,
+    event: 'linked_to_plan',
+    actorId: authUser.id,
+    payload: { codePlanId },
+  })
+  revalidatePath('/work-items')
+  revalidatePath(`/plans/${codePlanId}`)
+}
+
+export async function unlinkWorkItemFromPlanAction(workItemId: string, codePlanId: string) {
+  const authUser = await requireUser()
+  await unlinkWorkItemFromPlan(workItemId, codePlanId)
+  await logActivity({
+    entityType: 'work_item',
+    entityId: workItemId,
+    event: 'unlinked_from_plan',
+    actorId: authUser.id,
+    payload: { codePlanId },
+  })
+  revalidatePath('/work-items')
+  revalidatePath(`/plans/${codePlanId}`)
 }

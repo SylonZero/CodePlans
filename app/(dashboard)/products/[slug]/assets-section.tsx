@@ -241,23 +241,31 @@ function AssetCard({ asset, onOpen }: { asset: Asset; onOpen: (asset: Asset) => 
             <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
           ))}
         </div>
-        {asset.techDebtScore !== undefined && (
-          <div className="flex items-center justify-between pt-2 border-t border-border">
-            <span className="text-xs text-muted-foreground">Tech Debt Score</span>
-            <div className="flex items-center gap-2">
-              <div className="h-1.5 w-24 rounded-full bg-muted overflow-hidden">
-                <div
-                  className={cn(
-                    'h-full rounded-full',
-                    asset.techDebtScore < 25 ? 'bg-accent' : asset.techDebtScore < 50 ? 'bg-warning' : 'bg-destructive'
-                  )}
-                  style={{ width: `${Math.min(asset.techDebtScore, 100)}%` }}
-                />
+        {(() => {
+          const score = asset.techDebtScore ?? asset.derivedTechDebtScore
+          if (score === undefined) return null
+          const derived = asset.techDebtScore === undefined
+          return (
+            <div className="flex items-center justify-between pt-2 border-t border-border">
+              <span className="text-xs text-muted-foreground">
+                Tech Debt Score
+                {derived && asset.openDebtCount ? ` · ${asset.openDebtCount} open item${asset.openDebtCount > 1 ? 's' : ''}` : ''}
+              </span>
+              <div className="flex items-center gap-2">
+                <div className="h-1.5 w-24 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className={cn(
+                      'h-full rounded-full',
+                      score < 25 ? 'bg-accent' : score < 50 ? 'bg-warning' : 'bg-destructive'
+                    )}
+                    style={{ width: `${Math.min(score, 100)}%` }}
+                  />
+                </div>
+                <span className="text-xs font-medium">{score}</span>
               </div>
-              <span className="text-xs font-medium">{asset.techDebtScore}</span>
             </div>
-          </div>
-        )}
+          )
+        })()}
       </CardContent>
     </Card>
   )
@@ -342,6 +350,7 @@ function AssetDetails({
                 className="flex items-center gap-1.5 text-sm hover:text-accent transition-colors w-fit"
               >
                 Repository
+                {asset.repoPath && <span className="font-mono text-xs text-muted-foreground">/{asset.repoPath}</span>}
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
             )}
@@ -517,6 +526,19 @@ function AssetForm({
           type="url"
           defaultValue={asset?.repositoryUrl ?? ''}
           placeholder="https://github.com/org/repo"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="ap-repo-path">
+          Repo Path
+          <span className="ml-1 text-xs text-muted-foreground">(monorepo folder, optional)</span>
+        </Label>
+        <Input
+          id="ap-repo-path"
+          name="repoPath"
+          defaultValue={asset?.repoPath ?? ''}
+          placeholder="e.g. apps/web or packages/ui"
         />
       </div>
 

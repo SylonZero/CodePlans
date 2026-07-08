@@ -5,21 +5,31 @@ import {
   codePlans,
   codePlanAssets,
   codePlanAssignees,
+  workItems,
+  workItemCodePlans,
   tasks,
   users,
   organizations,
   organizationMembers,
+  syncLog,
 } from './schema'
 import { eq, and, sql, desc, or, inArray, gte, isNotNull } from 'drizzle-orm'
 import type {
   Product,
   Asset,
   CodePlan,
+  CodePlanStatus,
   PlanAsset,
   Task,
+  WorkItem,
+  WorkItemType,
+  WorkItemStatus,
+  WorkItemSeverity,
+  ItemSource,
   Organization,
   TeamMember,
   DashboardStats,
+  ActivityItem,
 } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
@@ -196,6 +206,28 @@ export async function getProduct(slug: string, userId: string): Promise<(Product
     .from(codePlans)
     .where(and(eq(codePlans.productId, product.id), eq(codePlans.status, 'active')))
 
+  // Severity-weighted score from open tech-debt work items, capped at 100.
+  // Used as the asset's debt score unless a manual override is set.
+  const debtRows = await db
+    .select({ assetId: workItems.assetId, severity: workItems.severity })
+    .from(workItems)
+    .where(
+      and(
+        eq(workItems.productId, product.id),
+        eq(workItems.type, 'tech_debt'),
+        inArray(workItems.status, ['open', 'planned', 'in_progress']),
+      ),
+    )
+  const DEBT_WEIGHT: Record<string, number> = { low: 3, medium: 8, high: 15, critical: 25 }
+  const derivedByAsset = new Map<string, { score: number; count: number }>()
+  for (const r of debtRows) {
+    if (!r.assetId) continue
+    const cur = derivedByAsset.get(r.assetId) ?? { score: 0, count: 0 }
+    cur.score = Math.min(100, cur.score + (DEBT_WEIGHT[r.severity] ?? 8))
+    cur.count += 1
+    derivedByAsset.set(r.assetId, cur)
+  }
+
   return {
     id: product.id,
     name: product.name,
@@ -216,6 +248,8 @@ export async function getProduct(slug: string, userId: string): Promise<(Product
       tags: a.tags,
       health: a.health,
       techDebtScore: a.techDebtScore ?? undefined,
+      derivedTechDebtScore: derivedByAsset.get(a.id)?.score,
+      openDebtCount: derivedByAsset.get(a.id)?.count ?? 0,
       repositoryUrl: a.repositoryUrl ?? undefined,
       repoPath: a.repoPath ?? undefined,
       documentationUrl: a.documentationUrl ?? undefined,
@@ -489,6 +523,272 @@ export async function getTasks(userId: string, filters: TaskFilters = {}): Promi
     assetName: r.assetName,
     assigneeName: r.assigneeName,
   }))
+}
+
+// ---------------------------------------------------------------------------
+// Work Items
+// ---------------------------------------------------------------------------
+
+export type WorkItemFilters = {
+  productId?: string
+  assetId?: string
+  type?: WorkItemType
+  status?: WorkItemStatus
+  planId?: string
+}
+
+export type WorkItemWithContext = WorkItem & {
+  productName: string
+  productSlug: string
+  assetName: string | null
+  linkedPlans: { id: string; title: string; status: CodePlanStatus }[]
+}
+
+type WorkItemRow = {
+  id: string
+  productId: string
+  assetId: string | null
+  area: string | null
+  parentId: string | null
+  type: WorkItemType
+  title: string
+  description: string
+  status: WorkItemStatus
+  severity: WorkItemSeverity
+  tags: string[]
+  reporterId: string | null
+  source: string // ItemSource — plain text column in pg mode
+  externalKey: string | null
+  externalUrl: string | null
+  createdAt: Date
+  updatedAt: Date
+  productName: string
+  productSlug: string
+  assetName: string | null
+}
+
+function mapWorkItemRow(
+  r: WorkItemRow,
+  linkedPlans: { id: string; title: string; status: CodePlanStatus }[],
+): WorkItemWithContext {
+  return {
+    id: r.id,
+    productId: r.productId,
+    assetId: r.assetId ?? undefined,
+    area: r.area ?? undefined,
+    parentId: r.parentId ?? undefined,
+    type: r.type,
+    title: r.title,
+    description: r.description,
+    status: r.status,
+    severity: r.severity,
+    tags: r.tags,
+    reporterId: r.reporterId ?? undefined,
+    source: r.source as ItemSource,
+    externalKey: r.externalKey ?? undefined,
+    externalUrl: r.externalUrl ?? undefined,
+    createdAt: r.createdAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
+    productName: r.productName,
+    productSlug: r.productSlug,
+    assetName: r.assetName,
+    linkedPlans,
+  }
+}
+
+async function linkedPlansByItem(itemIds: string[]) {
+  const map = new Map<string, { id: string; title: string; status: CodePlanStatus }[]>()
+  if (itemIds.length === 0) return map
+  const rows = await db
+    .select({
+      workItemId: workItemCodePlans.workItemId,
+      id: codePlans.id,
+      title: codePlans.title,
+      status: codePlans.status,
+    })
+    .from(workItemCodePlans)
+    .innerJoin(codePlans, eq(workItemCodePlans.codePlanId, codePlans.id))
+    .where(inArray(workItemCodePlans.workItemId, itemIds))
+  for (const r of rows) {
+    map.set(r.workItemId, [...(map.get(r.workItemId) ?? []), { id: r.id, title: r.title, status: r.status }])
+  }
+  return map
+}
+
+export async function getWorkItems(userId: string, filters: WorkItemFilters = {}): Promise<WorkItemWithContext[]> {
+  const productFilter = await productAccessWhere(userId)
+  const accessibleProducts = await db.select({ id: products.id }).from(products).where(productFilter)
+  const ids = accessibleProducts.map((p) => p.id)
+  if (ids.length === 0) return []
+
+  const conditions = [inArray(workItems.productId, ids)]
+  if (filters.productId) conditions.push(eq(workItems.productId, filters.productId))
+  if (filters.assetId) conditions.push(eq(workItems.assetId, filters.assetId))
+  if (filters.type) conditions.push(eq(workItems.type, filters.type))
+  if (filters.status) conditions.push(eq(workItems.status, filters.status))
+  if (filters.planId) {
+    conditions.push(
+      inArray(
+        workItems.id,
+        db
+          .select({ id: workItemCodePlans.workItemId })
+          .from(workItemCodePlans)
+          .where(eq(workItemCodePlans.codePlanId, filters.planId)),
+      ),
+    )
+  }
+
+  const rows = await db
+    .select({
+      ...workItemColumns(),
+      productName: products.name,
+      productSlug: products.slug,
+      assetName: assets.name,
+    })
+    .from(workItems)
+    .innerJoin(products, eq(workItems.productId, products.id))
+    .leftJoin(assets, eq(workItems.assetId, assets.id))
+    .where(and(...conditions))
+    .orderBy(desc(workItems.updatedAt))
+
+  const plansMap = await linkedPlansByItem(rows.map((r) => r.id))
+  return rows.map((r) => mapWorkItemRow(r, plansMap.get(r.id) ?? []))
+}
+
+export async function getWorkItem(id: string, userId: string): Promise<WorkItemWithContext | null> {
+  const rows = await db
+    .select({
+      ...workItemColumns(),
+      productName: products.name,
+      productSlug: products.slug,
+      assetName: assets.name,
+    })
+    .from(workItems)
+    .innerJoin(products, eq(workItems.productId, products.id))
+    .leftJoin(assets, eq(workItems.assetId, assets.id))
+    .where(and(eq(workItems.id, id), await productAccessWhere(userId)))
+
+  const row = rows[0]
+  if (!row) return null
+  const plansMap = await linkedPlansByItem([row.id])
+  return mapWorkItemRow(row, plansMap.get(row.id) ?? [])
+}
+
+function workItemColumns() {
+  return {
+    id: workItems.id,
+    productId: workItems.productId,
+    assetId: workItems.assetId,
+    area: workItems.area,
+    parentId: workItems.parentId,
+    type: workItems.type,
+    title: workItems.title,
+    description: workItems.description,
+    status: workItems.status,
+    severity: workItems.severity,
+    tags: workItems.tags,
+    reporterId: workItems.reporterId,
+    source: workItems.source,
+    externalKey: workItems.externalKey,
+    externalUrl: workItems.externalUrl,
+    createdAt: workItems.createdAt,
+    updatedAt: workItems.updatedAt,
+  }
+}
+
+/** Flat list of assets across accessible products — for dropdowns. */
+export async function getAssetOptions(
+  userId: string,
+): Promise<{ id: string; name: string; productId: string }[]> {
+  const productFilter = await productAccessWhere(userId)
+  return db
+    .select({ id: assets.id, name: assets.name, productId: assets.productId })
+    .from(assets)
+    .innerJoin(products, eq(assets.productId, products.id))
+    .where(productFilter)
+    .orderBy(assets.name)
+}
+
+// ---------------------------------------------------------------------------
+// Activity feed
+// ---------------------------------------------------------------------------
+
+/** Maps a sync_log row onto the feed's presentation type + verb. */
+function activityPresentation(entityType: string, event: string, payload: Record<string, unknown>): { type: ActivityItem['type']; title: string } | null {
+  if (entityType === 'code_plan') {
+    if (event === 'created') return { type: 'plan_created', title: 'created a code plan' }
+    if (event === 'activated') return { type: 'plan_activated', title: 'activated a code plan' }
+    if (event === 'completed') return { type: 'plan_completed', title: 'completed a code plan' }
+    if (event === 'deleted') return { type: 'plan_updated', title: 'deleted a code plan' }
+    return { type: 'plan_updated', title: 'updated a code plan' }
+  }
+  if (entityType === 'task') {
+    if (event === 'created') return { type: 'task_created', title: 'added a task' }
+    if (event === 'completed') return { type: 'task_completed', title: 'completed a task' }
+    return null
+  }
+  if (entityType === 'asset') {
+    if (event === 'created') return { type: 'asset_added', title: 'added an asset' }
+    return null
+  }
+  if (entityType === 'product') {
+    if (event === 'created') return { type: 'asset_added', title: 'created a product' }
+    return null
+  }
+  if (entityType === 'work_item') {
+    if (event === 'created') return { type: 'item_created', title: 'created a work item' }
+    if (event === 'status_changed' && payload.status === 'resolved') {
+      return { type: 'item_resolved', title: 'resolved a work item' }
+    }
+    if (event === 'linked_to_plan') return { type: 'item_linked', title: 'linked a work item to a plan' }
+    if (event === 'unlinked_from_plan') return { type: 'item_linked', title: 'unlinked a work item from a plan' }
+    if (event === 'deleted') return { type: 'item_updated', title: 'deleted a work item' }
+    return { type: 'item_updated', title: 'updated a work item' }
+  }
+  return null
+}
+
+export async function getActivityFeed(userId: string, limit = 15): Promise<ActivityItem[]> {
+  const memberships = await db
+    .select({ organizationId: organizationMembers.organizationId })
+    .from(organizationMembers)
+    .where(and(eq(organizationMembers.userId, userId), isNotNull(organizationMembers.joinedAt)))
+  const orgIds = memberships.map((m) => m.organizationId)
+  if (orgIds.length === 0) return []
+
+  const rows = await db
+    .select({
+      id: syncLog.id,
+      entityType: syncLog.entityType,
+      event: syncLog.event,
+      payload: syncLog.payload,
+      actorId: syncLog.actorId,
+      actorName: users.name,
+      createdAt: syncLog.createdAt,
+    })
+    .from(syncLog)
+    .leftJoin(users, eq(syncLog.actorId, users.id))
+    .where(inArray(syncLog.organizationId, orgIds))
+    .orderBy(desc(syncLog.createdAt))
+    .limit(limit * 2) // headroom: some rows don't map to a feed entry
+
+  const items: ActivityItem[] = []
+  for (const r of rows) {
+    const payload = (r.payload ?? {}) as Record<string, unknown>
+    const presentation = activityPresentation(r.entityType, r.event, payload)
+    if (!presentation) continue
+    items.push({
+      id: r.id,
+      type: presentation.type,
+      title: presentation.title,
+      description: String(payload.title ?? payload.name ?? ''),
+      userId: r.actorId ?? '',
+      userName: r.actorName ?? 'Sync',
+      timestamp: r.createdAt.toISOString(),
+    })
+    if (items.length >= limit) break
+  }
+  return items
 }
 
 // ---------------------------------------------------------------------------

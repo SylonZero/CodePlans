@@ -6,6 +6,10 @@ export type AssetType = 'app' | 'service' | 'library' | 'datastore' | 'platform'
 export type CodePlanStatus = 'draft' | 'active' | 'completed' | 'cancelled'
 export type CodePlanType = 'refactor' | 'feature' | 'improvement' | 'bugfix'
 export type TaskStatus = 'not_started' | 'in_progress' | 'done'
+export type WorkItemType = 'feature' | 'bug' | 'enhancement' | 'ux' | 'tech_debt'
+export type WorkItemStatus = 'open' | 'planned' | 'in_progress' | 'resolved' | 'wont_do'
+export type WorkItemSeverity = 'low' | 'medium' | 'high' | 'critical'
+export type ItemSource = 'native' | 'github' | 'jira' | 'asana' | 'linear'
 
 export interface User {
   id: string
@@ -64,7 +68,12 @@ export interface Asset {
   description: string
   tags: string[]
   health: 'healthy' | 'warning' | 'critical'
+  /** Manually set score (override). When unset, derivedTechDebtScore applies. */
   techDebtScore?: number
+  /** Score derived from open tech-debt work items (severity-weighted, 0–100). */
+  derivedTechDebtScore?: number
+  /** Open tech-debt work items targeting this asset. */
+  openDebtCount?: number
   repositoryUrl?: string
   repoPath?: string
   documentationUrl?: string
@@ -122,6 +131,31 @@ export interface Task {
   updatedAt: string
 }
 
+/**
+ * The demand side of CodePlans: a feature, bug, enhancement, UX issue, or
+ * tech-debt item. Native by default; when source ≠ native it mirrors an item
+ * in an external tracker and its mirrored fields are read-only here.
+ */
+export interface WorkItem {
+  id: string
+  productId: string
+  assetId?: string
+  area?: string
+  parentId?: string
+  type: WorkItemType
+  title: string
+  description: string
+  status: WorkItemStatus
+  severity: WorkItemSeverity
+  tags: string[]
+  reporterId?: string
+  source: ItemSource
+  externalKey?: string
+  externalUrl?: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface DashboardStats {
   totalProducts: number
   totalAssets: number
@@ -135,7 +169,19 @@ export interface DashboardStats {
 
 export interface ActivityItem {
   id: string
-  type: 'plan_created' | 'plan_completed' | 'task_completed' | 'asset_added' | 'member_joined'
+  type:
+    | 'plan_created'
+    | 'plan_activated'
+    | 'plan_completed'
+    | 'plan_updated'
+    | 'task_created'
+    | 'task_completed'
+    | 'asset_added'
+    | 'member_joined'
+    | 'item_created'
+    | 'item_resolved'
+    | 'item_linked'
+    | 'item_updated'
   title: string
   description: string
   userId: string

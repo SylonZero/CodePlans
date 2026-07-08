@@ -4,7 +4,8 @@ import { authAdapter } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { users } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { getCodePlan, getTeamMembers } from '@/lib/db/queries'
+import { getCodePlan, getTeamMembers, getWorkItems, getAssetOptions } from '@/lib/db/queries'
+import { PlanAssetsSection } from './plan-assets-section'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -52,9 +53,14 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
   if (!plan) notFound()
 
   const profile = await db.query.users.findFirst({ where: eq(users.id, user.id) })
-  const teamMembers = profile?.organizationId
-    ? await getTeamMembers(profile.organizationId)
-    : []
+  const [teamMembers, linkedItems, assetOptions] = await Promise.all([
+    profile?.organizationId ? getTeamMembers(profile.organizationId) : Promise.resolve([]),
+    getWorkItems(user.id, { planId: id }),
+    getAssetOptions(user.id),
+  ])
+  const productAssetOptions = assetOptions
+    .filter((a) => a.productId === plan.productId)
+    .map((a) => ({ id: a.id, name: a.name }))
 
   const tasksByStatus = {
     not_started: plan.tasks.filter((t) => t.status === 'not_started'),
@@ -169,6 +175,42 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
         <div className="flex flex-wrap gap-2">
           {plan.tags.map((tag) => <Badge key={tag} variant="secondary">{tag}</Badge>)}
         </div>
+      )}
+
+      {/* Per-asset delivery: branch + PR per targeted asset */}
+      <PlanAssetsSection planId={plan.id} planAssets={plan.planAssets} assetOptions={productAssetOptions} />
+
+      {/* Linked work items — what this plan delivers or fixes */}
+      {linkedItems.length > 0 && (
+        <Card className="bg-card border-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Linked Work Items ({linkedItems.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="divide-y divide-border">
+              {linkedItems.map((item) => (
+                <li key={item.id} className="flex items-center justify-between gap-3 py-2.5">
+                  <Link
+                    href={`/work-items?item=${item.id}`}
+                    className="min-w-0 text-sm font-medium truncate hover:text-accent transition-colors"
+                  >
+                    {item.title}
+                  </Link>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge variant="secondary" className="text-xs capitalize">
+                      {item.type.replace('_', ' ')}
+                    </Badge>
+                    <Badge variant="outline" className="text-xs capitalize">
+                      {item.status.replace('_', ' ')}
+                    </Badge>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
       )}
 
       {/* Tasks */}

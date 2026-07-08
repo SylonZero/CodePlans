@@ -1,5 +1,5 @@
 import { authAdapter } from '@/lib/auth'
-import { getDashboardStats, getCodePlans, getProducts } from '@/lib/db/queries'
+import { getDashboardStats, getCodePlans, getProducts, getActivityFeed } from '@/lib/db/queries'
 import { getProductScope } from '@/lib/product-scope'
 import { db } from '@/lib/db'
 import { users } from '@/lib/db/schema'
@@ -22,11 +22,12 @@ export default async function DashboardPage() {
 
   const scope = await getProductScope()
 
-  const [stats, plans, profile, scopedProducts] = await Promise.all([
+  const [stats, plans, profile, scopedProducts, activities] = await Promise.all([
     getDashboardStats(user.id, scope ?? undefined),
     getCodePlans(user.id, { productId: scope ?? undefined }),
     db.query.users.findFirst({ where: eq(users.id, user.id) }),
     scope ? getProducts(user.id, scope) : Promise.resolve([]),
+    getActivityFeed(user.id),
   ])
 
   const fullName = profile?.name || user.email.split('@')[0] || ''
@@ -54,7 +55,7 @@ export default async function DashboardPage() {
           <PlansOverview plans={plans} />
         </div>
         <div>
-          <ActivityFeed />
+          <ActivityFeed activities={activities} />
         </div>
       </div>
     </div>
