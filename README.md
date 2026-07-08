@@ -319,7 +319,7 @@ Please keep PRs focused. Bug fixes, test coverage improvements, and documentatio
 
 ## Design Specs
 
-Specs live in git (`docs/specs/*.md` by convention), not in CodePlans. Link a spec's blob URL to any plan or work item via the **Spec URL** field: plan pages render the markdown read-only (private repos render through your GitHub/GitLab connection tokens; anything else is a link-out). See the [guide](https://sylonzero.github.io/CodePlans/guides/using-specs.md).
+Specs live in git (`docs/specs/*.md` by convention), not in CodePlans. Link a spec's blob URL to any plan or work item via the **Spec URL** field: plan pages render the markdown read-only (private repos render through your GitHub/GitLab connection tokens; anything else is a link-out). See the [specs guide](https://sylonzero.github.io/CodePlans/guides/using-specs.md), and the [monorepo modeling guide](https://sylonzero.github.io/CodePlans/guides/modeling-monorepos.md) for breaking large codebases into assets (Claude can do it for you via MCP).
 
 ---
 

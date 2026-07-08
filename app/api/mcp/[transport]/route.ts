@@ -142,8 +142,27 @@ const handler = createMcpHandler(
 
     // ── Product & asset management ─────────────────────────────────────────
     server.tool(
+      'get_modeling_guide',
+      'How to break a codebase (especially a monorepo) into CodePlans products, assets, and dependency edges. Read this before bulk-creating assets.',
+      {},
+      async () => json({
+        product: 'A planning boundary, not a repo boundary. One product can span repos; a monorepo can host several products. Shared platform libraries serving multiple products go in a dedicated Platform product — cross-product dependency edges and impact analysis work.',
+        assetTest: 'Model something as an asset only if: (a) code plans will target it, (b) tech debt will be registered against it, or (c) it must appear in blast-radius reports. Assets are coordination units, not folders.',
+        tiers: [
+          'Apps: always their own asset (repoPath: apps/<name> in monorepos).',
+          'Services (deployable units, incl. internal/MCP services): always their own asset.',
+          'Keystone libraries (high-fanout or high-churn: UI kit, data-access, auth, shared schema): own asset each — usually 5-8, not 30.',
+          'Long-tail libraries: cluster into 2-4 domain-group assets (e.g. "Shared Libs — Domain Utils", repoPath: packages/). Use the work item `area` field (e.g. packages/date-helpers) for lib-level precision inside a cluster.',
+        ],
+        promotion: 'Start coarse; split a library out of its cluster only when it repeatedly accumulates debt items or becomes a plan target. Promoting later is cheap (create_asset, re-point work items via update_work_item assetId, add edges); pruning over-modeled assets is not.',
+        dependencies: 'Map coordination risk, not the import graph — your build tool already knows every import. Add an edge only where a change genuinely forces cross-asset coordination. Impact analysis is only trusted when curated.',
+        monorepoCaveat: 'PRs are per-repo: a cross-library plan in one monorepo shares one PR across its plan-asset rows. Put the PR URL on the primary target and use notes on the others; this argues for FEWER assets, not more.',
+        workflow: 'Recommended flow: read the workspace graph (pnpm-workspace/nx/turbo), propose the tiered asset list and 10-25 dependency edges to the user for approval BEFORE creating anything, then create_product/create_asset/add_asset_dependency in one pass, and finish by reading get_product back to verify.',
+      }),
+    )
+    server.tool(
       'create_product',
-      'Create a product (planning boundary for assets and plans) in your workspace.',
+      'Create a product in your workspace. A product is a PLANNING boundary, not a repo boundary — one product may span several repos, and shared platform libraries serving multiple products belong in their own "Platform" product (cross-product dependency edges work).',
       { name: z.string(), description: z.string().default(''), tags: z.array(z.string()).default([]), slug: z.string().optional() },
       async ({ name, slug, ...rest }, extra) => {
         requireWrite(extra)
@@ -173,7 +192,7 @@ const handler = createMcpHandler(
 
     server.tool(
       'create_asset',
-      'Add an asset (app, service, library, datastore, or platform) to a product. Use repoPath for monorepo folders.',
+      'Add an asset to a product. Assets are COORDINATION units, not a folder inventory — model something only if plans will target it, debt will be registered against it, or it belongs in blast-radius reports. Apps and services: always. Libraries: only high-fanout/high-churn ones individually; cluster the long tail into domain-group assets (work items use their `area` field for lib-level precision inside a cluster). Use repoPath for monorepo folders. Call get_modeling_guide for the full heuristic.',
       {
         productId: z.string(),
         name: z.string(),
@@ -215,7 +234,7 @@ const handler = createMcpHandler(
 
     server.tool(
       'add_asset_dependency',
-      'Record that one asset depends on / integrates with / aggregates another — powers plan impact analysis.',
+      'Record that one asset depends on / integrates with / aggregates another — powers plan impact analysis. Map COORDINATION RISK, not the import graph: only edges where a change forces cross-asset coordination. Twenty curated edges beat two hundred stale ones.',
       {
         sourceAssetId: z.string(),
         targetAssetId: z.string(),
