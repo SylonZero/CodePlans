@@ -25,6 +25,16 @@ idempotent by (product, name) and `create_task` by (plan, title).
 | `docs/specs/`, `docs/draft-specs/` | Not records — `specUrl` targets for the plans that implement them |
 | `docs/adr/`, `docs/releases/` | Skipped |
 
+**Demand extraction — the item/plan tension:** work items capture *demand*,
+plans capture *delivery*; "technical" does not mean "not a work item". When a
+plan doc contains a demand statement distinct from the plan — a motivation
+("replaces X because Y") paragraph, a named capability outcome, or deferred
+goals — the skill creates a work item for it (titled as the outcome, never the
+plan title restated) and links the plan. Deferred/out-of-scope goals become
+open, **unlinked** items: that is your backlog forming. Plans that are pure
+mechanics with no independent demand statement get no item — mirror-image
+items are noise.
+
 Volume guard: the skill proposes the full delta with counts before writing,
 and offers a load-bearing subset first when the delta exceeds ~40 records.
 
