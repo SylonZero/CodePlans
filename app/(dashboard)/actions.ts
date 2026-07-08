@@ -232,6 +232,7 @@ export async function createCodePlanAction(formData: FormData) {
   const type = formData.get('type') as 'refactor' | 'feature' | 'improvement' | 'bugfix'
   const tags = parseTags(formData.get('tags') as string)
   const deadline = (formData.get('deadline') as string) || undefined
+  const specUrl = (formData.get('specUrl') as string) || undefined
 
   const plan = await createCodePlan(
     {
@@ -243,6 +244,7 @@ export async function createCodePlanAction(formData: FormData) {
       targetAssetIds: [],
       assigneeIds: [],
       deadline,
+      specUrl,
     },
     authUser.id,
   )
@@ -265,8 +267,9 @@ export async function updateCodePlanAction(id: string, formData: FormData) {
   const type = formData.get('type') as 'refactor' | 'feature' | 'improvement' | 'bugfix'
   const tags = parseTags(formData.get('tags') as string)
   const deadline = (formData.get('deadline') as string) || undefined
+  const specUrl = (formData.get('specUrl') as string) || undefined
 
-  await updateCodePlan(id, { title, description, type, tags, deadline })
+  await updateCodePlan(id, { title, description, type, tags, deadline, specUrl })
 
   revalidatePath(`/plans/${id}`)
 }
@@ -599,6 +602,7 @@ export async function createWorkItemAction(formData: FormData) {
       title: formData.get('title') as string,
       description: (formData.get('description') as string) ?? '',
       severity: (formData.get('severity') as WorkItemSeverity) || 'medium',
+      specUrl: (formData.get('specUrl') as string) || undefined,
       tags: parseTags((formData.get('tags') as string) ?? ''),
     },
     authUser.id,
@@ -626,6 +630,7 @@ export async function updateWorkItemAction(id: string, formData: FormData) {
     severity: (formData.get('severity') as WorkItemSeverity) || undefined,
     assetId: (formData.get('assetId') as string) || null,
     area: (formData.get('area') as string) || null,
+    specUrl: (formData.get('specUrl') as string) || undefined,
     tags: parseTags((formData.get('tags') as string) ?? ''),
   })
   if (!item) return { error: 'Work item not found.' }

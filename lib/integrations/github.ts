@@ -125,6 +125,16 @@ export const githubConnector: Connector = {
     if (!res.ok) throw new Error(`GitHub API ${res.status}: ${(await res.text()).slice(0, 200)}`)
   },
 
+  async fetchFile(auth, config, path, ref) {
+    if (!config.repo) return null
+    const params = ref ? `?ref=${encodeURIComponent(ref)}` : ''
+    const res = await fetch(`${API_BASE}/repos/${config.repo}/contents/${path}${params}`, {
+      headers: { ...ghHeaders(auth), Accept: 'application/vnd.github.raw+json' },
+    })
+    if (!res.ok) return null
+    return res.text()
+  },
+
   matchPrUrl(config, url) {
     if (!config.repo) return null
     const prefix = `https://github.com/${config.repo}/pull/`

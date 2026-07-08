@@ -264,6 +264,15 @@ function WorkItemDetails({
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1.5">Area</p>
             <span className="text-sm">{item.area ?? <span className="text-muted-foreground">—</span>}</span>
           </div>
+          {item.specUrl && (
+            <div className="col-span-2">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1.5">Design Spec</p>
+              <a href={item.specUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-sm hover:text-accent transition-colors w-fit">
+                {item.specUrl.split('/').pop()}
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            </div>
+          )}
         </div>
 
         {item.tags.length > 0 && (
@@ -515,6 +524,14 @@ function WorkItemForm({
           <span className="ml-1 text-xs text-muted-foreground">(module, path, or domain within the asset)</span>
         </Label>
         <Input id="wi-area" name="area" defaultValue={item?.area} placeholder="e.g. billing/invoices" />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="wi-spec">
+          Spec URL
+          <span className="ml-1 text-xs text-muted-foreground">(optional)</span>
+        </Label>
+        <Input id="wi-spec" name="specUrl" type="url" defaultValue={item?.specUrl} placeholder="https://github.com/org/repo/blob/main/docs/specs/item.md" />
       </div>
 
       <div className="space-y-2">

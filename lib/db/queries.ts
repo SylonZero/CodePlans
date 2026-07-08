@@ -409,6 +409,7 @@ export async function getCodePlan(id: string, userId: string): Promise<CodePlanD
     productSlug: product.slug,
     type: plan.type,
     status: plan.status,
+    specUrl: plan.specUrl ?? undefined,
     source: plan.source as ItemSource,
     connectionId: plan.connectionId ?? undefined,
     externalKey: plan.externalKey ?? undefined,
@@ -572,6 +573,7 @@ type WorkItemRow = {
   severity: WorkItemSeverity
   tags: string[]
   reporterId: string | null
+  specUrl: string | null
   source: string // ItemSource — plain text column in pg mode
   externalKey: string | null
   externalUrl: string | null
@@ -599,6 +601,7 @@ function mapWorkItemRow(
     severity: r.severity,
     tags: r.tags,
     reporterId: r.reporterId ?? undefined,
+    specUrl: r.specUrl ?? undefined,
     source: r.source as ItemSource,
     externalKey: r.externalKey ?? undefined,
     externalUrl: r.externalUrl ?? undefined,
@@ -703,6 +706,7 @@ function workItemColumns() {
     severity: workItems.severity,
     tags: workItems.tags,
     reporterId: workItems.reporterId,
+    specUrl: workItems.specUrl,
     source: workItems.source,
     externalKey: workItems.externalKey,
     externalUrl: workItems.externalUrl,
