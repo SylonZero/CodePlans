@@ -6,10 +6,16 @@ import {
   users,
   organizations,
   organizationMembers,
+  integrations,
   products,
   assets,
   codePlans,
+  codePlanAssets,
+  codePlanAssignees,
+  workItems,
+  workItemCodePlans,
   tasks,
+  syncLog,
 } from '@/lib/db/schema.sqlite'
 
 const MIGRATIONS_PATH = path.join(process.cwd(), 'lib/db/migrations/sqlite')
@@ -21,9 +27,15 @@ export async function runMigrations() {
 export async function clearTables() {
   const d = db as any
   // Delete children before parents to respect FK order
+  await d.delete(syncLog)
+  await d.delete(workItemCodePlans)
+  await d.delete(workItems)
+  await d.delete(codePlanAssets)
+  await d.delete(codePlanAssignees)
   await d.delete(tasks)
   await d.delete(codePlans)
   await d.delete(assets)
+  await d.delete(integrations)
   await d.delete(products)
   await d.delete(organizationMembers)
   await d.delete(organizations)
@@ -214,6 +226,15 @@ export async function seedFixtures() {
       assigneeIds: [],
       creatorId: F.alice,
     },
+  ])
+
+  // 7b. Plan↔asset and plan↔assignee join rows (source of truth; arrays kept in step 7
+  //     to mirror the one-release rollback window)
+  await d.insert(codePlanAssets).values([
+    { codePlanId: F.planActive, assetId: F.assetApi },
+  ])
+  await d.insert(codePlanAssignees).values([
+    { codePlanId: F.planActive, userId: F.bob },
   ])
 
   // 8. Tasks

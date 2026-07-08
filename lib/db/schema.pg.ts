@@ -7,6 +7,11 @@ import {
   timestamp,
   date,
   jsonb,
+  boolean,
+  index,
+  uniqueIndex,
+  primaryKey,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core'
 
 // ---------------------------------------------------------------------------
@@ -23,6 +28,11 @@ export const codePlanStatusEnum = pgEnum('code_plan_status', ['draft', 'active',
 export const codePlanTypeEnum = pgEnum('code_plan_type', ['refactor', 'feature', 'improvement', 'bugfix'])
 export const taskStatusEnum = pgEnum('task_status', ['not_started', 'in_progress', 'done'])
 export const taskPriorityEnum = pgEnum('task_priority', ['low', 'medium', 'high', 'critical'])
+export const workItemTypeEnum = pgEnum('work_item_type', ['feature', 'bug', 'enhancement', 'ux', 'tech_debt'])
+export const workItemStatusEnum = pgEnum('work_item_status', ['open', 'planned', 'in_progress', 'resolved', 'wont_do'])
+export const workItemSeverityEnum = pgEnum('work_item_severity', ['low', 'medium', 'high', 'critical'])
+export const prStatusEnum = pgEnum('pr_status', ['none', 'draft', 'open', 'merged', 'closed'])
+// source/provider columns are intentionally text (not enum) — new connectors must not need a migration.
 
 // ---------------------------------------------------------------------------
 // Tables
@@ -64,6 +74,22 @@ export const organizationMembers = pgTable('organization_members', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+export const integrations = pgTable('integrations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  provider: text('provider').notNull(), // 'github' | 'jira' | 'asana' | 'linear' | ...
+  name: text('name').notNull(),
+  // Reference to a credential (env var name / secret id) — never the secret itself.
+  authRef: text('auth_ref'),
+  // Scope (project/repo/JQL filter), status map, user-mapping overrides, target productId.
+  config: jsonb('config').notNull().default({}),
+  status: text('status').notNull().default('active'), // 'active' | 'paused' | 'error'
+  lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),
+  lastError: text('last_error'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 export const products = pgTable('products', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
@@ -86,6 +112,8 @@ export const assets = pgTable('assets', {
   status: assetStatusEnum('status').notNull().default('active'),
   techDebtScore: integer('tech_debt_score'),
   repositoryUrl: text('repository_url'),
+  // Path within the repository for monorepo assets (e.g. apps/web, packages/ui).
+  repoPath: text('repo_path'),
   documentationUrl: text('documentation_url'),
   metadata: jsonb('metadata').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -109,15 +137,88 @@ export const codePlans = pgTable('code_plans', {
   type: codePlanTypeEnum('type').notNull(),
   status: codePlanStatusEnum('status').notNull().default('draft'),
   tags: text('tags').array().notNull().default([]),
+  // Deprecated: superseded by code_plan_assets join table. Kept one release for rollback.
   targetAssetIds: uuid('target_asset_ids').array().notNull().default([]),
   startDate: date('start_date'),
   endDate: date('end_date'),
   deadline: date('deadline'),
   creatorId: uuid('creator_id').notNull().references(() => users.id),
+  // Deprecated: superseded by code_plan_assignees join table. Kept one release for rollback.
   assigneeIds: uuid('assignee_ids').array().notNull().default([]),
+  source: text('source').notNull().default('native'),
+  connectionId: uuid('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
+  externalId: text('external_id'),
+  externalKey: text('external_key'),
+  externalUrl: text('external_url'),
+  externalData: jsonb('external_data').notNull().default({}),
+  externalDeleted: boolean('external_deleted').notNull().default(false),
+  syncedAt: timestamp('synced_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
+}, (t) => [
+  uniqueIndex('code_plans_connection_external_idx').on(t.connectionId, t.externalId),
+])
+
+export const codePlanAssets = pgTable('code_plan_assets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  codePlanId: uuid('code_plan_id').notNull().references(() => codePlans.id, { onDelete: 'cascade' }),
+  assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
+  branch: text('branch'),
+  prUrl: text('pr_url'),
+  prStatus: prStatusEnum('pr_status').notNull().default('none'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('code_plan_assets_plan_asset_idx').on(t.codePlanId, t.assetId),
+])
+
+export const codePlanAssignees = pgTable('code_plan_assignees', {
+  codePlanId: uuid('code_plan_id').notNull().references(() => codePlans.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.codePlanId, t.userId] }),
+])
+
+export const workItems = pgTable('work_items', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  assetId: uuid('asset_id').references(() => assets.id, { onDelete: 'set null' }),
+  // Free-text locus within the asset (module, path, domain) — where the item lives.
+  area: text('area'),
+  parentId: uuid('parent_id').references((): AnyPgColumn => workItems.id, { onDelete: 'set null' }),
+  type: workItemTypeEnum('type').notNull(),
+  title: text('title').notNull(),
+  description: text('description').notNull().default(''),
+  status: workItemStatusEnum('status').notNull().default('open'),
+  severity: workItemSeverityEnum('severity').notNull().default('medium'),
+  tags: text('tags').array().notNull().default([]),
+  reporterId: uuid('reporter_id').references(() => users.id, { onDelete: 'set null' }),
+  source: text('source').notNull().default('native'),
+  connectionId: uuid('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
+  externalId: text('external_id'),
+  externalKey: text('external_key'),
+  externalUrl: text('external_url'),
+  externalData: jsonb('external_data').notNull().default({}),
+  externalDeleted: boolean('external_deleted').notNull().default(false),
+  syncedAt: timestamp('synced_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('work_items_connection_external_idx').on(t.connectionId, t.externalId),
+  index('work_items_product_idx').on(t.productId),
+  index('work_items_asset_idx').on(t.assetId),
+])
+
+export const workItemCodePlans = pgTable('work_item_code_plans', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workItemId: uuid('work_item_id').notNull().references(() => workItems.id, { onDelete: 'cascade' }),
+  codePlanId: uuid('code_plan_id').notNull().references(() => codePlans.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('work_item_code_plans_item_plan_idx').on(t.workItemId, t.codePlanId),
+])
 
 export const tasks = pgTable('tasks', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -131,9 +232,34 @@ export const tasks = pgTable('tasks', {
   assigneeId: uuid('assignee_id').references(() => users.id, { onDelete: 'set null' }),
   estimatedEffort: integer('estimated_effort'), // hours
   actualEffort: integer('actual_effort'),       // hours
+  source: text('source').notNull().default('native'),
+  connectionId: uuid('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
+  externalId: text('external_id'),
+  externalKey: text('external_key'),
+  externalUrl: text('external_url'),
+  externalData: jsonb('external_data').notNull().default({}),
+  externalDeleted: boolean('external_deleted').notNull().default(false),
+  syncedAt: timestamp('synced_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
+}, (t) => [
+  uniqueIndex('tasks_connection_external_idx').on(t.connectionId, t.externalId),
+])
+
+export const syncLog = pgTable('sync_log', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  connectionId: uuid('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
+  entityType: text('entity_type').notNull(), // 'work_item' | 'task' | 'code_plan' | 'asset' | 'product'
+  entityId: uuid('entity_id').notNull(),
+  event: text('event').notNull(),
+  // Null when a connection (not a user) is the actor.
+  actorId: uuid('actor_id').references(() => users.id, { onDelete: 'set null' }),
+  payload: jsonb('payload').notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('sync_log_org_created_idx').on(t.organizationId, t.createdAt),
+])
 
 export const emailVerificationTokens = pgTable('email_verification_tokens', {
   id: uuid('id').primaryKey().defaultRandom(),

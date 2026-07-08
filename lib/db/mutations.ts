@@ -1,5 +1,5 @@
 import { db } from './index'
-import { products, assets, codePlans, tasks } from './schema'
+import { products, assets, codePlans, codePlanAssets, codePlanAssignees, tasks } from './schema'
 import { eq, and } from 'drizzle-orm'
 
 // ---------------------------------------------------------------------------
@@ -103,6 +103,37 @@ type CreateCodePlanData = {
   assigneeIds: string[]
 }
 
+// Join tables are the source of truth for plan↔asset and plan↔assignee links.
+// The deprecated array columns are still written for one release (rollback safety).
+
+async function syncPlanAssets(planId: string, assetIds: string[]) {
+  const existing = await db
+    .select({ assetId: codePlanAssets.assetId })
+    .from(codePlanAssets)
+    .where(eq(codePlanAssets.codePlanId, planId))
+  const keep = new Set(assetIds)
+  const current = new Set(existing.map((r) => r.assetId))
+
+  for (const r of existing) {
+    if (!keep.has(r.assetId)) {
+      await db
+        .delete(codePlanAssets)
+        .where(and(eq(codePlanAssets.codePlanId, planId), eq(codePlanAssets.assetId, r.assetId)))
+    }
+  }
+  const toAdd = assetIds.filter((id) => !current.has(id))
+  if (toAdd.length > 0) {
+    await db.insert(codePlanAssets).values(toAdd.map((assetId) => ({ codePlanId: planId, assetId })))
+  }
+}
+
+async function syncPlanAssignees(planId: string, userIds: string[]) {
+  await db.delete(codePlanAssignees).where(eq(codePlanAssignees.codePlanId, planId))
+  if (userIds.length > 0) {
+    await db.insert(codePlanAssignees).values(userIds.map((userId) => ({ codePlanId: planId, userId })))
+  }
+}
+
 export async function createCodePlan(data: CreateCodePlanData, userId: string) {
   const [plan] = await db
     .insert(codePlans)
@@ -112,6 +143,8 @@ export async function createCodePlan(data: CreateCodePlanData, userId: string) {
       status: 'draft',
     })
     .returning()
+  await syncPlanAssets(plan.id, data.targetAssetIds)
+  await syncPlanAssignees(plan.id, data.assigneeIds)
   return plan
 }
 
@@ -127,7 +160,10 @@ export async function updateCodePlan(id: string, data: UpdateCodePlanData) {
     .set({ ...data, updatedAt: new Date() })
     .where(eq(codePlans.id, id))
     .returning()
-  return plan ?? null
+  if (!plan) return null
+  if (data.targetAssetIds !== undefined) await syncPlanAssets(id, data.targetAssetIds)
+  if (data.assigneeIds !== undefined) await syncPlanAssignees(id, data.assigneeIds)
+  return plan
 }
 
 export async function deleteCodePlan(id: string, userId: string) {

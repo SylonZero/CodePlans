@@ -1,10 +1,21 @@
 import { db } from './index'
-import { products, assets, codePlans, tasks, users, organizations, organizationMembers } from './schema'
+import {
+  products,
+  assets,
+  codePlans,
+  codePlanAssets,
+  codePlanAssignees,
+  tasks,
+  users,
+  organizations,
+  organizationMembers,
+} from './schema'
 import { eq, and, sql, desc, or, inArray, gte } from 'drizzle-orm'
 import type {
   Product,
   Asset,
   CodePlan,
+  PlanAsset,
   Task,
   Organization,
   TeamMember,
@@ -12,16 +23,27 @@ import type {
 } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
+// Access control
+// ---------------------------------------------------------------------------
+
+/**
+ * Drizzle condition selecting the products a user may see.
+ * Single source of truth for product visibility — every query goes through this.
+ */
+export async function productAccessWhere(userId: string) {
+  const user = await db.query.users.findFirst({ where: eq(users.id, userId) })
+  const orgId = user?.organizationId ?? null
+  return orgId
+    ? or(eq(products.creatorId, userId), eq(products.organizationId, orgId))
+    : eq(products.creatorId, userId)
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 
 export async function getDashboardStats(userId: string, productId?: string): Promise<DashboardStats> {
-  const user = await db.query.users.findFirst({ where: eq(users.id, userId) })
-  const orgId = user?.organizationId ?? null
-
-  const productFilter = orgId
-    ? or(eq(products.creatorId, userId), eq(products.organizationId, orgId))
-    : eq(products.creatorId, userId)
+  const productFilter = await productAccessWhere(userId)
 
   const [productIds] = await Promise.all([
     db.select({ id: products.id }).from(products).where(productFilter),
@@ -119,13 +141,7 @@ export async function getDashboardStats(userId: string, productId?: string): Pro
 // ---------------------------------------------------------------------------
 
 export async function getProducts(userId: string, productId?: string): Promise<Product[]> {
-  const user = await db.query.users.findFirst({ where: eq(users.id, userId) })
-  const orgId = user?.organizationId ?? null
-
-  const accessFilter = orgId
-    ? or(eq(products.creatorId, userId), eq(products.organizationId, orgId))
-    : eq(products.creatorId, userId)
-
+  const accessFilter = await productAccessWhere(userId)
   const productFilter = productId ? and(accessFilter, eq(products.id, productId)) : accessFilter
 
   const rows = await db
@@ -160,15 +176,7 @@ export async function getProducts(userId: string, productId?: string): Promise<P
 }
 
 export async function getProduct(slug: string, userId: string): Promise<(Product & { assets: Asset[] }) | null> {
-  const user = await db.query.users.findFirst({ where: eq(users.id, userId) })
-  const orgId = user?.organizationId ?? null
-
-  const productFilter = orgId
-    ? and(
-        eq(products.slug, slug),
-        or(eq(products.creatorId, userId), eq(products.organizationId, orgId))
-      )
-    : and(eq(products.slug, slug), eq(products.creatorId, userId))
+  const productFilter = and(eq(products.slug, slug), await productAccessWhere(userId))
 
   const product = await db.query.products.findFirst({ where: productFilter })
   if (!product) return null
@@ -204,6 +212,7 @@ export async function getProduct(slug: string, userId: string): Promise<(Product
       health: a.health,
       techDebtScore: a.techDebtScore ?? undefined,
       repositoryUrl: a.repositoryUrl ?? undefined,
+      repoPath: a.repoPath ?? undefined,
       documentationUrl: a.documentationUrl ?? undefined,
       dependencies: [], // asset_dependencies resolved separately when needed
       createdAt: a.createdAt.toISOString(),
@@ -222,13 +231,7 @@ type PlanFilters = {
 }
 
 export async function getCodePlans(userId: string, filters: PlanFilters = {}): Promise<CodePlan[]> {
-  const user = await db.query.users.findFirst({ where: eq(users.id, userId) })
-  const orgId = user?.organizationId ?? null
-
-  const productFilter = orgId
-    ? or(eq(products.creatorId, userId), eq(products.organizationId, orgId))
-    : eq(products.creatorId, userId)
-
+  const productFilter = await productAccessWhere(userId)
   const accessibleProducts = await db.select({ id: products.id }).from(products).where(productFilter)
   const ids = accessibleProducts.map((p) => p.id)
   if (ids.length === 0) return []
@@ -249,12 +252,10 @@ export async function getCodePlans(userId: string, filters: PlanFilters = {}): P
       type: codePlans.type,
       status: codePlans.status,
       tags: codePlans.tags,
-      targetAssetIds: codePlans.targetAssetIds,
       startDate: codePlans.startDate,
       endDate: codePlans.endDate,
       deadline: codePlans.deadline,
       creatorId: codePlans.creatorId,
-      assigneeIds: codePlans.assigneeIds,
       createdAt: codePlans.createdAt,
       updatedAt: codePlans.updatedAt,
       productName: products.name,
@@ -271,8 +272,33 @@ export async function getCodePlans(userId: string, filters: PlanFilters = {}): P
     .where(and(...conditions))
     .orderBy(desc(codePlans.updatedAt))
 
+  const planIds = rows.map((r) => r.id)
+  const [assetLinks, assigneeLinks] = planIds.length
+    ? await Promise.all([
+        db
+          .select({ codePlanId: codePlanAssets.codePlanId, assetId: codePlanAssets.assetId })
+          .from(codePlanAssets)
+          .where(inArray(codePlanAssets.codePlanId, planIds)),
+        db
+          .select({ codePlanId: codePlanAssignees.codePlanId, userId: codePlanAssignees.userId })
+          .from(codePlanAssignees)
+          .where(inArray(codePlanAssignees.codePlanId, planIds)),
+      ])
+    : [[], []]
+
+  const assetsByPlan = new Map<string, string[]>()
+  for (const l of assetLinks) {
+    assetsByPlan.set(l.codePlanId, [...(assetsByPlan.get(l.codePlanId) ?? []), l.assetId])
+  }
+  const assigneesByPlan = new Map<string, string[]>()
+  for (const l of assigneeLinks) {
+    assigneesByPlan.set(l.codePlanId, [...(assigneesByPlan.get(l.codePlanId) ?? []), l.userId])
+  }
+
   return rows.map((r) => ({
     ...r,
+    targetAssetIds: assetsByPlan.get(r.id) ?? [],
+    assigneeIds: assigneesByPlan.get(r.id) ?? [],
     startDate: r.startDate ?? undefined,
     endDate: r.endDate ?? undefined,
     deadline: r.deadline ?? undefined,
@@ -290,30 +316,45 @@ export type CodePlanDetail = CodePlan & {
   tasks: Task[]
   assignees: { id: string; name: string }[]
   targetAssets: { id: string; name: string }[]
+  planAssets: PlanAsset[]
 }
 
-export async function getCodePlan(id: string): Promise<CodePlanDetail | null> {
+export async function getCodePlan(id: string, userId: string): Promise<CodePlanDetail | null> {
   const plan = await db.query.codePlans.findFirst({ where: eq(codePlans.id, id) })
   if (!plan) return null
 
-  const product = await db.query.products.findFirst({ where: eq(products.id, plan.productId) })
+  // Org-scope guard: the plan's product must be visible to this user.
+  const product = await db.query.products.findFirst({
+    where: and(eq(products.id, plan.productId), await productAccessWhere(userId)),
+  })
+  if (!product) return null
 
-  const [planTasks, resolvedAssets, resolvedAssignees] = await Promise.all([
+  const [planTasks, planAssetRows, resolvedAssignees] = await Promise.all([
     db.query.tasks.findMany({
       where: eq(tasks.codePlanId, id),
       orderBy: desc(tasks.createdAt),
     }),
-    plan.targetAssetIds.length > 0
-      ? db.select({ id: assets.id, name: assets.name })
-          .from(assets)
-          .where(inArray(assets.id, plan.targetAssetIds))
-      : Promise.resolve([]),
-    plan.assigneeIds.length > 0
-      ? db.select({ id: users.id, name: users.name })
-          .from(users)
-          .where(inArray(users.id, plan.assigneeIds))
-      : Promise.resolve([]),
+    db
+      .select({
+        id: codePlanAssets.id,
+        assetId: codePlanAssets.assetId,
+        assetName: assets.name,
+        branch: codePlanAssets.branch,
+        prUrl: codePlanAssets.prUrl,
+        prStatus: codePlanAssets.prStatus,
+        notes: codePlanAssets.notes,
+      })
+      .from(codePlanAssets)
+      .innerJoin(assets, eq(codePlanAssets.assetId, assets.id))
+      .where(eq(codePlanAssets.codePlanId, id)),
+    db
+      .select({ id: users.id, name: users.name })
+      .from(codePlanAssignees)
+      .innerJoin(users, eq(codePlanAssignees.userId, users.id))
+      .where(eq(codePlanAssignees.codePlanId, id)),
   ])
+
+  const resolvedAssets = planAssetRows.map((r) => ({ id: r.assetId, name: r.assetName }))
 
   const taskCount = planTasks.length
   const completedTaskCount = planTasks.filter((t) => t.status === 'done').length
@@ -323,17 +364,17 @@ export async function getCodePlan(id: string): Promise<CodePlanDetail | null> {
     title: plan.title,
     description: plan.description,
     productId: plan.productId,
-    productName: product?.name ?? '',
-    productSlug: product?.slug ?? '',
+    productName: product.name,
+    productSlug: product.slug,
     type: plan.type,
     status: plan.status,
     tags: plan.tags,
-    targetAssetIds: plan.targetAssetIds,
+    targetAssetIds: resolvedAssets.map((a) => a.id),
     startDate: plan.startDate ?? undefined,
     endDate: plan.endDate ?? undefined,
     deadline: plan.deadline ?? undefined,
     creatorId: plan.creatorId,
-    assigneeIds: plan.assigneeIds,
+    assigneeIds: resolvedAssignees.map((u) => u.id),
     taskCount,
     completedTaskCount,
     progress: taskCount > 0 ? Math.round((completedTaskCount / taskCount) * 100) : 0,
@@ -356,6 +397,15 @@ export async function getCodePlan(id: string): Promise<CodePlanDetail | null> {
     })),
     assignees: resolvedAssignees,
     targetAssets: resolvedAssets,
+    planAssets: planAssetRows.map((r) => ({
+      id: r.id,
+      assetId: r.assetId,
+      assetName: r.assetName,
+      branch: r.branch ?? undefined,
+      prUrl: r.prUrl ?? undefined,
+      prStatus: r.prStatus,
+      notes: r.notes ?? undefined,
+    })),
   }
 }
 
@@ -377,13 +427,7 @@ export type TaskWithContext = Task & {
 }
 
 export async function getTasks(userId: string, filters: TaskFilters = {}): Promise<TaskWithContext[]> {
-  const user = await db.query.users.findFirst({ where: eq(users.id, userId) })
-  const orgId = user?.organizationId ?? null
-
-  const productFilter = orgId
-    ? or(eq(products.creatorId, userId), eq(products.organizationId, orgId))
-    : eq(products.creatorId, userId)
-
+  const productFilter = await productAccessWhere(userId)
   const accessibleProducts = await db.select({ id: products.id }).from(products).where(productFilter)
   const ids = accessibleProducts.map((p) => p.id)
   if (ids.length === 0) return []

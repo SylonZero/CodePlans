@@ -66,9 +66,23 @@ export interface Asset {
   health: 'healthy' | 'warning' | 'critical'
   techDebtScore?: number
   repositoryUrl?: string
+  repoPath?: string
   documentationUrl?: string
   dependencies: string[]
   createdAt: string
+}
+
+export type PrStatus = 'none' | 'draft' | 'open' | 'merged' | 'closed'
+
+/** A code plan's per-asset row: the slice of the plan delivered in one repo/PR. */
+export interface PlanAsset {
+  id: string
+  assetId: string
+  assetName: string
+  branch?: string
+  prUrl?: string
+  prStatus: PrStatus
+  notes?: string
 }
 
 export interface CodePlan {

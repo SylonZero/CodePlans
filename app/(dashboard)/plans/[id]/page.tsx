@@ -48,7 +48,7 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
   const user = await authAdapter.getUser()
   if (!user) return null
 
-  const plan = await getCodePlan(id)
+  const plan = await getCodePlan(id, user.id)
   if (!plan) notFound()
 
   const profile = await db.query.users.findFirst({ where: eq(users.id, user.id) })
