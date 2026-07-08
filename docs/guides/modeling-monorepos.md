@@ -74,8 +74,9 @@ Using the codeplans MCP server:
 3. Propose the model to me BEFORE creating anything: target product, the
    tiered asset list (name, type, repoPath), and 10-25 coordination-risk
    dependency edges. Wait for my approval and apply any corrections.
-4. On approval: create the product if needed, then create_asset for each,
-   then add_asset_dependency for each edge.
+4. On approval: create the product if needed (call list_products first to
+   check), then create_asset for each asset, then add_asset_dependency for
+   each approved edge.
 5. Verify by calling get_product and show me the resulting asset list and
    dependency count.
 ```
