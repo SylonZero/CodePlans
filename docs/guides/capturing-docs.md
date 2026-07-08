@@ -22,7 +22,9 @@ idempotent by (product, name) and `create_task` by (plan, title).
 | `.../completed/*.md` | Skipped by default (ask for historical backfill) |
 | `docs/remediation-backlog/*.md` | `tech_debt` work items (Status: Parked → open), `area` from module path |
 | `code-notes.md` idea lists | Open, unlinked `enhancement` items |
-| `docs/specs/`, `docs/draft-specs/` | Not records — `specUrl` targets for the plans that implement them |
+| `docs/draft-specs/*.md` | Open `feature` work items (pure demand; unlinked until a plan picks them up; no tasks) |
+| Partially implemented specs | One item per unshipped section, planned/in_progress, linked to its plan |
+| Fully implemented `docs/specs/` | Not records — `specUrl` targets on the plans/items that delivered them |
 | `docs/adr/`, `docs/releases/` | Skipped |
 
 **Demand extraction — the item/plan tension:** work items capture *demand*,
