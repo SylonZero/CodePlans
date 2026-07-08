@@ -72,6 +72,11 @@ type CreateAssetData = {
 }
 
 export async function createAsset(data: CreateAssetData) {
+  // Idempotent by (product, name) so agent re-runs can't duplicate assets.
+  const existing = await db.query.assets.findFirst({
+    where: and(eq(assets.productId, data.productId), eq(assets.name, data.name)),
+  })
+  if (existing) return existing
   const [asset] = await db.insert(assets).values(data).returning()
   return asset
 }
