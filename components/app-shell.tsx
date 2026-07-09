@@ -240,35 +240,6 @@ export function AppShell({ children, user, orgName, products, selectedProductId,
           </div>
         </nav>
 
-        {/* Organization / User */}
-        <div className="border-t border-sidebar-border p-3">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="w-full justify-start gap-2 px-2 hover:bg-sidebar-accent">
-                <div className="flex h-7 w-7 items-center justify-center rounded-md bg-muted">
-                  <Building2 className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <div className="flex flex-col items-start text-left">
-                  <span className="text-sm font-medium">{orgName ?? user.name}</span>
-                  {billingEnabled && (
-                    <span className="text-xs text-muted-foreground capitalize">
-                      {user.billingTier} Plan
-                    </span>
-                  )}
-                </div>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-56">
-              <DropdownMenuLabel>Organization</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild><Link href="/team">Manage Team</Link></DropdownMenuItem>
-              {billingEnabled && (
-                <DropdownMenuItem asChild><Link href="/billing">Billing & Plans</Link></DropdownMenuItem>
-              )}
-              <DropdownMenuItem asChild><Link href="/settings">Settings</Link></DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
       </aside>
 
       {/* Main Content */}

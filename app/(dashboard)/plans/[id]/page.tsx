@@ -103,6 +103,12 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
                 <span>Due {formatDate(plan.deadline)}</span>
               </div>
             )}
+            {plan.ownerName && (
+              <div className="flex items-center gap-1">
+                <Users className="h-4 w-4" />
+                <span>Owner: {plan.ownerName}</span>
+              </div>
+            )}
           </div>
         </div>
         <div className="flex gap-2 flex-wrap items-center">
@@ -113,7 +119,7 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
             externalUrl={plan.externalUrl}
             connections={orgIntegrations.map((c) => ({ id: c.id, name: c.name, provider: c.provider }))}
           />
-          <PlanEditSheet plan={plan} />
+          <PlanEditSheet plan={plan} members={teamMembers.map((m) => ({ id: m.userId, name: m.user.name }))} />
           <PlanStatusButtons plan={plan} />
         </div>
       </div>
@@ -273,7 +279,7 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
           <AddTaskDialog plan={plan} teamMembers={teamMembers} />
         </div>
 
-        <PlanTasksSection tasks={plan.tasks} />
+        <PlanTasksSection tasks={plan.tasks} planId={plan.id} />
       </div>
     </div>
   )

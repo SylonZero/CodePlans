@@ -99,6 +99,8 @@ export function statusLabel(value: string) {
   return STATUSES.find((s) => s.value === value)?.label ?? value
 }
 
+export type MemberOption = { id: string; name: string }
+
 type WorkItemPanelProps = {
   open: boolean
   mode: 'create' | 'view'
@@ -106,6 +108,7 @@ type WorkItemPanelProps = {
   plans: PlanOption[]
   products: ProductOption[]
   assets: AssetOption[]
+  members?: MemberOption[]
   scopedProductId?: string | null
   onClose: () => void
 }
@@ -117,6 +120,7 @@ export function WorkItemPanel({
   plans,
   products,
   assets,
+  members = [],
   scopedProductId,
   onClose,
 }: WorkItemPanelProps) {
@@ -137,7 +141,7 @@ export function WorkItemPanel({
             />
           </>
         ) : item ? (
-          <WorkItemEditor key={item.id} item={item} plans={plans} assets={assets} onDeleted={onClose} />
+          <WorkItemEditor key={item.id} item={item} plans={plans} assets={assets} members={members} onDeleted={onClose} />
         ) : null}
       </SheetContent>
     </Sheet>
@@ -148,11 +152,13 @@ function WorkItemEditor({
   item,
   plans,
   assets,
+  members,
   onDeleted,
 }: {
   item: WorkItemWithContext
   plans: PlanOption[]
   assets: AssetOption[]
+  members: MemberOption[]
   onDeleted: () => void
 }) {
   const [isPending, startTransition] = useTransition()
@@ -161,6 +167,7 @@ function WorkItemEditor({
   const [status, setStatus] = useState<string>(item.status)
   const [severity, setSeverity] = useState<string>(item.severity)
   const [assetId, setAssetId] = useState<string>(item.assetId ?? 'none')
+  const [ownerId, setOwnerId] = useState<string>(item.ownerId ?? 'none')
   const [linkPlanId, setLinkPlanId] = useState('')
   const lastSaved = useRef<string>('')
 
@@ -178,6 +185,8 @@ function WorkItemEditor({
     fd.set('severity', overrides.severity ?? severity)
     const a = overrides.assetId ?? assetId
     fd.set('assetId', a === 'none' ? '' : a)
+    const o = overrides.ownerId ?? ownerId
+    fd.set('ownerId', o === 'none' ? '' : o)
     const snapshot = JSON.stringify([...fd.entries()])
     if (snapshot === lastSaved.current) return
     lastSaved.current = snapshot
@@ -251,6 +260,16 @@ function WorkItemEditor({
               <SelectContent>
                 <SelectItem value="none">None</SelectItem>
                 {productAssets.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Owner</Label>
+            <Select value={ownerId} onValueChange={(v) => { setOwnerId(v); commit({ ownerId: v }) }}>
+              <SelectTrigger><SelectValue placeholder="Unowned" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Unowned</SelectItem>
+                {members.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

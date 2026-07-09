@@ -9,7 +9,7 @@
 
 **Coordinate and track changes across your software architecture.**
 
-CodePlans is an open-source engineering planning tool that helps teams manage coordinated code changes across complex systems. It organises work in a clear hierarchy — Products → Assets → Code Plans → Tasks — giving teams a shared view of what's changing, where, and why.
+CodePlans is an open-source engineering planning tool that helps teams manage coordinated code changes across complex systems. It maps demand (work items: features, bugs, tech debt) onto delivery (code plans and tasks) across your architecture (products and assets), giving teams a shared view of what's changing, where, and why.
 
 → **Beta signup:** [codeplans.ai](https://codeplans.ai) · **Docs:** [sylonzero.github.io/CodePlans](https://sylonzero.github.io/CodePlans)
 
@@ -23,7 +23,8 @@ CodePlans sits between your issue tracker and your architecture diagram:
 
 - **Products** group your system's components under a planning boundary
 - **Assets** represent individual components (apps, services, libraries, datastores, platforms) with health and tech debt tracking
-- **Code Plans** coordinate related changes across assets with assignees, deadlines, and progress tracking
+- **Work Items** are the demand side — features, bugs, UX issues, and tech debt items — linked many-to-many to the plans that address them (natively, or mirrored from GitHub/GitLab)
+- **Code Plans** coordinate related changes across assets with owners, assignees, deadlines, per-asset branch/PR tracking, and progress
 - **Tasks** are the individual units of work tied to a plan and optionally scoped to a specific asset
 
 ---

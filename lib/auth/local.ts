@@ -66,7 +66,7 @@ export const {
 // ---------------------------------------------------------------------------
 
 function isAuthRoute(pathname: string) {
-  return pathname.startsWith('/login') || pathname.startsWith('/signup')
+  return pathname.startsWith('/login') || pathname.startsWith('/signup') || pathname.startsWith('/accept-invite')
 }
 
 export const localAdapter: AuthAdapter = {

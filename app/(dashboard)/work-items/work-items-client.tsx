@@ -33,12 +33,14 @@ export function WorkItemsClient({
   plans,
   products,
   assets,
+  members = [],
   scopedProductId,
 }: {
   items: WorkItemWithContext[]
   plans: PlanOption[]
   products: ProductOption[]
   assets: AssetOption[]
+  members?: { id: string; name: string }[]
   scopedProductId: string | null
 }) {
   const searchParams = useSearchParams()
@@ -98,6 +100,7 @@ export function WorkItemsClient({
         plans={plans}
         products={products}
         assets={assets}
+        members={members}
         scopedProductId={scopedProductId}
         onClose={closePanel}
       />

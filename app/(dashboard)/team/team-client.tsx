@@ -92,7 +92,7 @@ function InviteDialog({ organization }: { organization: Organization }) {
   const [open, setOpen] = useState(false)
   const [role, setRole] = useState<UserRole>('editor')
   const [isPending, startTransition] = useTransition()
-  const [result, setResult] = useState<{ tempPassword?: string; error?: string } | null>(null)
+  const [result, setResult] = useState<{ tempPassword?: string; emailSent?: boolean; error?: string } | null>(null)
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -128,7 +128,12 @@ function InviteDialog({ organization }: { organization: Organization }) {
             Create an account and add them to {organization.name}.
           </DialogDescription>
         </DialogHeader>
-        {result?.tempPassword ? (
+        {result?.emailSent ? (
+          <div className="space-y-3 py-2 text-sm">
+            <p className="font-medium">Invitation sent ✉️</p>
+            <p className="text-muted-foreground">They&apos;ll receive an email with a link to set their password and join the workspace (valid 7 days).</p>
+          </div>
+        ) : result?.tempPassword ? (
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">
               Account created. Share these credentials with the new member — they should change their password after first login.
