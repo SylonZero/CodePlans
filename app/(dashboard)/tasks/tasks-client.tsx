@@ -146,7 +146,7 @@ export function TasksClient({
   members: MemberOption[]
 }) {
   const searchParams = useSearchParams()
-  const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all')
+  const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all' | 'open'>('open')
   const [planFilter, setPlanFilter] = useState<string>('all')
   const [view, setView] = useState<'list' | 'board'>('list')
   const [page, setPage] = useState(0)
@@ -169,7 +169,9 @@ export function TasksClient({
   }, [openTaskId])
 
   const filteredTasks = tasks.filter((task) => {
-    if (statusFilter !== 'all' && task.status !== statusFilter) return false
+    if (statusFilter === 'open') {
+      if (task.status === 'done') return false
+    } else if (statusFilter !== 'all' && task.status !== statusFilter) return false
     if (planFilter !== 'all' && task.codePlanId !== planFilter) return false
     return true
   })
@@ -243,8 +245,9 @@ export function TasksClient({
 
       {/* Filters */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center mb-6">
-        <Tabs value={statusFilter} onValueChange={(v) => { setStatusFilter(v as TaskStatus | 'all'); setPage(0) }} className="w-full sm:w-auto">
+        <Tabs value={statusFilter} onValueChange={(v) => { setStatusFilter(v as TaskStatus | 'all' | 'open'); setPage(0) }} className="w-full sm:w-auto">
           <TabsList className="bg-muted">
+            <TabsTrigger value="open">Open</TabsTrigger>
             <TabsTrigger value="all">All</TabsTrigger>
             <TabsTrigger value="not_started">Not Started</TabsTrigger>
             <TabsTrigger value="in_progress">In Progress</TabsTrigger>
