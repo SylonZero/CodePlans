@@ -167,11 +167,14 @@ export function TasksClient({
   tasks,
   plans,
   members,
+  currentUserId,
 }: {
   tasks: TaskRow[]
   plans: PlanOption[]
   members: MemberOption[]
+  currentUserId?: string
 }) {
+  const [mineOnly, setMineOnly] = useState(false)
   const searchParams = useSearchParams()
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all' | 'open'>('open')
   const [planFilter, setPlanFilter] = useState<string>('all')
@@ -196,6 +199,7 @@ export function TasksClient({
   }, [openTaskId])
 
   const filteredTasks = tasks.filter((task) => {
+    if (mineOnly && task.assigneeId !== currentUserId) return false
     if (statusFilter === 'open') {
       if (task.status === 'done') return false
     } else if (statusFilter !== 'all' && task.status !== statusFilter) return false
@@ -281,6 +285,13 @@ export function TasksClient({
             <TabsTrigger value="done">Done</TabsTrigger>
           </TabsList>
         </Tabs>
+        <Button
+          variant={mineOnly ? 'secondary' : 'outline'}
+          size="sm"
+          onClick={() => { setMineOnly((v) => !v); setPage(0) }}
+        >
+          Assigned to me
+        </Button>
         <div className="flex items-center gap-2 sm:ml-auto">
           <Filter className="h-4 w-4 text-muted-foreground" />
           <Select value={planFilter} onValueChange={(v) => { setPlanFilter(v); setPage(0) }}>

@@ -25,7 +25,7 @@ export default async function TasksPage() {
 
   return (
     <div className="space-y-8">
-      <TasksClient tasks={tasks} plans={planList} members={memberList} />
+      <TasksClient tasks={tasks} plans={planList} members={memberList} currentUserId={user.id} />
     </div>
   )
 }

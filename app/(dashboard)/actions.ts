@@ -7,6 +7,7 @@ import { db } from '@/lib/db'
 import { users, organizationMembers, organizations, emailVerificationTokens, workItems, syncLog } from '@/lib/db/schema'
 import { eq, and, gt } from 'drizzle-orm'
 import {
+  updateIntegration,
   createProduct,
   updateProduct,
   deleteProduct,
@@ -791,6 +792,30 @@ export async function createIntegrationAction(formData: FormData) {
 
   revalidatePath('/integrations')
   return {}
+}
+
+export async function updateIntegrationAction(id: string, formData: FormData) {
+  const authUser = await requireUser()
+  const profile = await getUserProfile(authUser.id)
+  if (!profile?.organizationId) return { error: 'No workspace found.' }
+
+  const name = formData.get('name') as string
+  const repo = (formData.get('repo') as string) || undefined
+  const baseUrl = (formData.get('baseUrl') as string) || undefined
+  const authRef = (formData.get('authRef') as string) || undefined
+  const token = (formData.get('token') as string)?.trim() || undefined
+  const productId = (formData.get('productId') as string) || undefined
+  if (!productId) return { error: 'Select a target product for mirrored items.' }
+
+  await updateIntegration(id, {
+    name,
+    // token undefined keeps the stored credential; authRef only set when provided
+    token,
+    ...(authRef !== undefined ? { authRef } : {}),
+    config: { repo, baseUrl, productId },
+  })
+  revalidatePath('/integrations')
+  return { ok: true as const }
 }
 
 export async function deleteIntegrationAction(id: string) {
