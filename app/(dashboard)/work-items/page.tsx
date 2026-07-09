@@ -1,5 +1,8 @@
 import { authAdapter } from '@/lib/auth'
-import { getWorkItems, getCodePlans, getProducts, getAssetOptions } from '@/lib/db/queries'
+import { getWorkItems, getCodePlans, getProducts, getAssetOptions, getTeamMembers } from '@/lib/db/queries'
+import { db } from '@/lib/db'
+import { users } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
 import { getProductScope } from '@/lib/product-scope'
 import { WorkItemsClient } from './work-items-client'
 
@@ -16,6 +19,10 @@ export default async function WorkItemsPage() {
     getAssetOptions(user.id),
   ])
 
+  const profile = await db.query.users.findFirst({ where: eq(users.id, user.id) })
+  const teamMembers = profile?.organizationId ? await getTeamMembers(profile.organizationId) : []
+  const memberList = teamMembers.map((m) => ({ id: m.userId, name: m.user.name }))
+
   const planList = plans
     .filter((p) => p.status === 'draft' || p.status === 'active')
     .map((p) => ({ id: p.id, title: p.title }))
@@ -28,6 +35,7 @@ export default async function WorkItemsPage() {
         plans={planList}
         products={productList}
         assets={assetOptions}
+        members={memberList}
         scopedProductId={scope}
       />
     </div>

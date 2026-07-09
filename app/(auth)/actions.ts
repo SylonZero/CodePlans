@@ -36,3 +36,27 @@ export async function signUp(formData: FormData) {
 export async function signOut() {
   await authAdapter.signOut()
 }
+
+export async function acceptInvite(token: string, formData: FormData) {
+  const bcrypt = (await import('bcryptjs')).default
+  const { db } = await import('@/lib/db')
+  const { emailVerificationTokens, users } = await import('@/lib/db/schema')
+  const { eq, and, gt } = await import('drizzle-orm')
+
+  const row = await db.query.emailVerificationTokens.findFirst({
+    where: and(eq(emailVerificationTokens.token, token), gt(emailVerificationTokens.expiresAt, new Date())),
+  })
+  if (!row) return { error: 'This invite link is invalid or has expired.' }
+
+  const password = formData.get('password') as string
+  if (!password || password.length < 8) return { error: 'Password must be at least 8 characters.' }
+
+  const passwordHash = await bcrypt.hash(password, 10)
+  await db.update(users).set({ passwordHash }).where(eq(users.id, row.userId))
+  await db.delete(emailVerificationTokens).where(eq(emailVerificationTokens.id, row.id))
+
+  const user = await db.query.users.findFirst({ where: eq(users.id, row.userId) })
+  const result = await authAdapter.signIn(user!.email, password)
+  if (result?.error) redirect('/login')
+  redirect('/')
+}

@@ -356,6 +356,7 @@ export async function getCodePlans(userId: string, filters: PlanFilters = {}): P
 export type CodePlanDetail = CodePlan & {
   productName: string
   productSlug: string
+  ownerName: string | null
   tasks: Task[]
   assignees: { id: string; name: string }[]
   targetAssets: { id: string; name: string }[]
@@ -411,6 +412,10 @@ export async function getCodePlan(id: string, userId: string): Promise<CodePlanD
     productSlug: product.slug,
     type: plan.type,
     status: plan.status,
+    ownerId: plan.ownerId ?? undefined,
+    ownerName: plan.ownerId
+      ? ((await db.query.users.findFirst({ where: eq(users.id, plan.ownerId) }))?.name ?? null)
+      : null,
     specUrl: plan.specUrl ?? undefined,
     source: plan.source as ItemSource,
     connectionId: plan.connectionId ?? undefined,
@@ -559,6 +564,7 @@ export type WorkItemWithContext = WorkItem & {
   productName: string
   productSlug: string
   assetName: string | null
+  ownerName: string | null
   linkedPlans: { id: string; title: string; status: CodePlanStatus }[]
 }
 
@@ -575,6 +581,8 @@ type WorkItemRow = {
   severity: WorkItemSeverity
   tags: string[]
   reporterId: string | null
+  ownerId: string | null
+  ownerName: string | null
   specUrl: string | null
   source: string // ItemSource — plain text column in pg mode
   externalKey: string | null
@@ -603,6 +611,8 @@ function mapWorkItemRow(
     severity: r.severity,
     tags: r.tags,
     reporterId: r.reporterId ?? undefined,
+    ownerId: r.ownerId ?? undefined,
+    ownerName: r.ownerName,
     specUrl: r.specUrl ?? undefined,
     source: r.source as ItemSource,
     externalKey: r.externalKey ?? undefined,
@@ -664,10 +674,12 @@ export async function getWorkItems(userId: string, filters: WorkItemFilters = {}
       productName: products.name,
       productSlug: products.slug,
       assetName: assets.name,
+      ownerName: users.name,
     })
     .from(workItems)
     .innerJoin(products, eq(workItems.productId, products.id))
     .leftJoin(assets, eq(workItems.assetId, assets.id))
+    .leftJoin(users, eq(workItems.ownerId, users.id))
     .where(and(...conditions))
     .orderBy(desc(workItems.updatedAt))
 
@@ -682,10 +694,12 @@ export async function getWorkItem(id: string, userId: string): Promise<WorkItemW
       productName: products.name,
       productSlug: products.slug,
       assetName: assets.name,
+      ownerName: users.name,
     })
     .from(workItems)
     .innerJoin(products, eq(workItems.productId, products.id))
     .leftJoin(assets, eq(workItems.assetId, assets.id))
+    .leftJoin(users, eq(workItems.ownerId, users.id))
     .where(and(eq(workItems.id, id), await productAccessWhere(userId)))
 
   const row = rows[0]
@@ -708,6 +722,7 @@ function workItemColumns() {
     severity: workItems.severity,
     tags: workItems.tags,
     reporterId: workItems.reporterId,
+    ownerId: workItems.ownerId,
     specUrl: workItems.specUrl,
     source: workItems.source,
     externalKey: workItems.externalKey,

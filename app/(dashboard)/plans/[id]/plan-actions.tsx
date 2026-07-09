@@ -79,7 +79,8 @@ export function PlanStatusButtons({ plan }: { plan: CodePlanDetail }) {
   )
 }
 
-export function PlanEditSheet({ plan }: { plan: CodePlanDetail }) {
+export function PlanEditSheet({ plan, members = [] }: { plan: CodePlanDetail; members?: { id: string; name: string }[] }) {
+  const [ownerId, setOwnerId] = useState<string>(plan.ownerId ?? 'none')
   const [open, setOpen] = useState(false)
   const [type, setType] = useState(plan.type)
   const [isPending, startTransition] = useTransition()
@@ -146,6 +147,19 @@ export function PlanEditSheet({ plan }: { plan: CodePlanDetail }) {
               />
             </div>
           </div>
+          <input type="hidden" name="ownerId" value={ownerId === 'none' ? '' : ownerId} />
+          {members.length > 0 && (
+            <div className="space-y-2">
+              <Label>Owner</Label>
+              <Select value={ownerId} onValueChange={setOwnerId}>
+                <SelectTrigger><SelectValue placeholder="Unowned" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Unowned</SelectItem>
+                  {members.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="edit-spec">
               Spec URL

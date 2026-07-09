@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState, useTransition } from 'react'
+import { useCallback, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -14,7 +14,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Clock, Filter, CheckCircle2, Circle, Play, LayoutGrid, List, Plus } from 'lucide-react'
 import type { TaskStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { updateTaskStatusAction, updateTaskPriorityAction, updateTaskAssigneeAction } from '../actions'
+import { updateTaskStatusAction, updateTaskPriorityAction, updateTaskAssigneeAction, createTaskAction } from '../actions'
+import { Input } from '@/components/ui/input'
 import { TaskPanel, type TaskRow, type PlanOption, type MemberOption } from './task-panel'
 
 const PAGE_SIZE = 25
@@ -99,6 +100,89 @@ function RowAssigneeSelect({ task, members }: { task: TaskRow; members: MemberOp
         {members.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
       </SelectContent>
     </Select>
+  )
+}
+
+function QuickAddTask({ plans }: { plans: PlanOption[] }) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [planId, setPlanId] = useState(plans[0]?.id ?? '')
+  const [isPending, startTransition] = useTransition()
+  if (plans.length === 0) return null
+
+  function submit() {
+    const title = inputRef.current?.value.trim()
+    if (!title || !planId) return
+    const fd = new FormData()
+    fd.set('title', title)
+    if (inputRef.current) inputRef.current.value = ''
+    startTransition(() => createTaskAction(planId, fd))
+  }
+
+  return (
+    <div className="flex items-center gap-2 border-b border-border px-4 py-2">
+      <Input
+        ref={inputRef}
+        placeholder="Quick add: task title, then Enter"
+        disabled={isPending}
+        className="border-none shadow-none focus-visible:ring-0 px-0 flex-1"
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit() } }}
+      />
+      <Select value={planId} onValueChange={setPlanId}>
+        <SelectTrigger className="h-8 w-[200px] text-xs"><SelectValue placeholder="Plan" /></SelectTrigger>
+        <SelectContent>{plans.map((p) => <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>)}</SelectContent>
+      </Select>
+    </div>
+  )
+}
+
+function BulkBar({
+  selected,
+  members,
+  onClear,
+}: {
+  selected: string[]
+  members: MemberOption[]
+  onClear: () => void
+}) {
+  const [isPending, startTransition] = useTransition()
+
+  function apply(fn: (id: string) => Promise<void>) {
+    startTransition(async () => {
+      for (const id of selected) await fn(id)
+      onClear()
+    })
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/40 px-4 py-2 text-sm">
+      <span className="font-medium">{selected.length} selected</span>
+      <Select onValueChange={(v) => apply((id) => updateTaskStatusAction(id, v as TaskStatus))}>
+        <SelectTrigger disabled={isPending} className="h-7 w-[130px] text-xs"><SelectValue placeholder="Set status" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="not_started">Not Started</SelectItem>
+          <SelectItem value="in_progress">In Progress</SelectItem>
+          <SelectItem value="done">Done</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select onValueChange={(v) => apply((id) => updateTaskPriorityAction(id, v as 'low' | 'medium' | 'high' | 'critical'))}>
+        <SelectTrigger disabled={isPending} className="h-7 w-[130px] text-xs"><SelectValue placeholder="Set priority" /></SelectTrigger>
+        <SelectContent>
+          {(['low', 'medium', 'high', 'critical'] as const).map((prio) => (
+            <SelectItem key={prio} value={prio} className="capitalize">{prio}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {members.length > 0 && (
+        <Select onValueChange={(v) => apply((id) => updateTaskAssigneeAction(id, v === 'none' ? null : v))}>
+          <SelectTrigger disabled={isPending} className="h-7 w-[140px] text-xs"><SelectValue placeholder="Assign to" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Unassigned</SelectItem>
+            {members.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      )}
+      <Button variant="ghost" size="sm" className="ml-auto h-7" onClick={onClear}>Clear</Button>
+    </div>
   )
 }
 
@@ -209,6 +293,7 @@ export function TasksClient({
   const [view, setView] = useState<'list' | 'board'>('list')
   const [page, setPage] = useState(0)
   const [createOpen, setCreateOpen] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
 
   const openTaskId = searchParams.get('task')
   const openTask = useMemo(
@@ -339,9 +424,18 @@ export function TasksClient({
       {/* List View */}
       {view === 'list' && (
         <Card className="bg-card border-border">
+          <QuickAddTask plans={plans} />
+          {selected.size > 0 && (
+            <BulkBar
+              selected={[...selected]}
+              members={members}
+              onClear={() => setSelected(new Set())}
+            />
+          )}
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
+                <TableHead className="w-8"></TableHead>
                 <TableHead className="w-12"></TableHead>
                 <TableHead>Task</TableHead>
                 <TableHead>Code Plan</TableHead>
@@ -361,6 +455,22 @@ export function TasksClient({
                     className="cursor-pointer"
                     onClick={() => openPanel(task)}
                   >
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        aria-label="Select task"
+                        className="h-4 w-4 accent-primary"
+                        checked={selected.has(task.id)}
+                        onChange={(e) => {
+                          setSelected((prev) => {
+                            const next = new Set(prev)
+                            if (e.target.checked) next.add(task.id)
+                            else next.delete(task.id)
+                            return next
+                          })
+                        }}
+                      />
+                    </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <StatusCycleButton task={task} />
                     </TableCell>

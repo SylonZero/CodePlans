@@ -79,3 +79,53 @@ export async function sendEmailVerificationEmail(
 </html>`,
   })
 }
+
+/** Invite email with a set-password link. Returns false when email isn't configured. */
+export async function sendInviteEmail(
+  to: string,
+  inviterName: string,
+  orgName: string,
+  token: string,
+): Promise<boolean> {
+  const acceptUrl = `${getBaseUrl()}/accept-invite?token=${token}`
+  const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'CodePlans <noreply@codeplans.ai>'
+
+  const resend = getResendClient()
+  if (!resend) {
+    console.log('\n[email] RESEND_API_KEY not set — skipping invite send')
+    console.log(`[email] Invite URL: ${acceptUrl}\n`)
+    return false
+  }
+
+  await resend.emails.send({
+    from: fromEmail,
+    to,
+    subject: `${inviterName} invited you to ${orgName} on CodePlans`,
+    html: `
+<!DOCTYPE html>
+<html><body style="margin:0;padding:0;background-color:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#0a0a0a;padding:48px 16px;">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0" style="background-color:#111111;border:1px solid #222222;border-radius:8px;overflow:hidden;">
+        <tr><td style="padding:32px 40px 24px;border-bottom:1px solid #222222;">
+          <p style="margin:0;font-size:18px;font-weight:600;color:#ffffff;letter-spacing:-0.3px;">CodePlans</p>
+        </td></tr>
+        <tr><td style="padding:32px 40px;">
+          <h1 style="margin:0 0 8px;font-size:22px;font-weight:600;color:#ffffff;letter-spacing:-0.4px;">You're invited to ${orgName}</h1>
+          <p style="margin:0 0 24px;font-size:15px;color:#888888;line-height:1.5;">
+            ${inviterName} invited you to join their CodePlans workspace. Set a password to activate your account.
+          </p>
+          <a href="${acceptUrl}" style="display:inline-block;padding:12px 24px;background-color:#ffffff;color:#000000;text-decoration:none;border-radius:6px;font-size:14px;font-weight:600;letter-spacing:-0.2px;">
+            Set Password &amp; Join
+          </a>
+          <p style="margin:24px 0 0;font-size:13px;color:#666666;line-height:1.5;">
+            This link expires in 7 days. If you weren't expecting this invitation, you can ignore this email.
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`,
+  })
+  return true
+}

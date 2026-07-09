@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { authAdapter } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { users, organizationMembers, emailVerificationTokens, workItems, syncLog } from '@/lib/db/schema'
+import { users, organizationMembers, organizations, emailVerificationTokens, workItems, syncLog } from '@/lib/db/schema'
 import { eq, and, gt } from 'drizzle-orm'
 import {
   createProduct,
@@ -268,8 +268,10 @@ export async function updateCodePlanAction(id: string, formData: FormData) {
   const tags = parseTags(formData.get('tags') as string)
   const deadline = (formData.get('deadline') as string) || undefined
   const specUrl = (formData.get('specUrl') as string) || undefined
+  const ownerRaw = formData.get('ownerId') as string | null
+  const ownerId = ownerRaw === null ? undefined : ownerRaw || null
 
-  await updateCodePlan(id, { title, description, type, tags, deadline, specUrl })
+  await updateCodePlan(id, { title, description, type, tags, deadline, specUrl, ownerId })
 
   revalidatePath(`/plans/${id}`)
 }
@@ -457,6 +459,27 @@ export async function inviteMemberAction(formData: FormData) {
   })
 
   revalidatePath('/team')
+
+  // Email-first: send a set-password invite link; fall back to showing the
+  // temp password when email isn't configured.
+  try {
+    const { randomBytes } = await import('crypto')
+    const token = randomBytes(32).toString('hex')
+    await db.insert(emailVerificationTokens).values({
+      userId: newUserId,
+      newEmail: email,
+      token,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    })
+    const { sendInviteEmail } = await import('@/lib/email')
+    const org = profile.organizationId
+      ? await db.query.organizations.findFirst({ where: eq(organizations.id, profile.organizationId) })
+      : null
+    const sent = await sendInviteEmail(email, profile.name, org?.name ?? 'your team', token)
+    if (sent) return { emailSent: true as const }
+  } catch (err) {
+    console.error('[invite] email failed, falling back to temp password:', err)
+  }
   return { tempPassword }
 }
 
@@ -603,6 +626,7 @@ export async function createWorkItemAction(formData: FormData) {
       description: (formData.get('description') as string) ?? '',
       severity: (formData.get('severity') as WorkItemSeverity) || 'medium',
       specUrl: (formData.get('specUrl') as string) || undefined,
+      ownerId: (formData.get('ownerId') as string) || undefined,
       tags: parseTags((formData.get('tags') as string) ?? ''),
     },
     authUser.id,
@@ -631,6 +655,7 @@ export async function updateWorkItemAction(id: string, formData: FormData) {
     assetId: (formData.get('assetId') as string) || null,
     area: (formData.get('area') as string) || null,
     specUrl: (formData.get('specUrl') as string) || undefined,
+    ownerId: ((formData.get('ownerId') as string | null) ?? undefined) === undefined ? undefined : (formData.get('ownerId') as string) || null,
     tags: parseTags((formData.get('tags') as string) ?? ''),
   })
   if (!item) return { error: 'Work item not found.' }

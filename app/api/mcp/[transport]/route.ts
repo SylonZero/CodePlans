@@ -275,11 +275,16 @@ const handler = createMcpHandler(
         tags: z.array(z.string()).optional(),
         deadline: z.string().optional(),
         specUrl: z.string().optional(),
+        ownerEmail: z.string().nullable().optional(),
       },
-      async ({ id, ...data }, extra) => {
+      async ({ id, ownerEmail, ...data }, extra) => {
         requireWrite(extra)
         if (!(await getCodePlan(id, uid(extra)))) return json({ error: 'Plan not found or not accessible' })
-        return json(await updateCodePlan(id, data))
+        const ownerId =
+          ownerEmail === undefined ? undefined
+          : ownerEmail === null ? null
+          : await resolveAssigneeEmail(uid(extra), ownerEmail)
+        return json(await updateCodePlan(id, { ...data, ...(ownerId !== undefined ? { ownerId } : {}) }))
       },
     )
 
@@ -342,11 +347,16 @@ const handler = createMcpHandler(
         assetId: z.string().nullable().optional(),
         area: z.string().nullable().optional(),
         specUrl: z.string().optional(),
+        ownerEmail: z.string().nullable().optional(),
         tags: z.array(z.string()).optional(),
       },
-      async ({ id, ...data }, extra) => {
+      async ({ id, ownerEmail, ...data }, extra) => {
         requireWrite(extra)
-        return json((await updateWorkItem(id, data)) ?? { error: 'Work item not found' })
+        const ownerId =
+          ownerEmail === undefined ? undefined
+          : ownerEmail === null ? null
+          : await resolveAssigneeEmail(uid(extra), ownerEmail)
+        return json((await updateWorkItem(id, { ...data, ...(ownerId !== undefined ? { ownerId } : {}) })) ?? { error: 'Work item not found' })
       },
     )
 
@@ -373,11 +383,13 @@ const handler = createMcpHandler(
         assetId: z.string().optional(),
         area: z.string().optional(),
         specUrl: z.string().optional(),
+        ownerEmail: z.string().optional(),
         tags: z.array(z.string()).default([]),
       },
-      async (args, extra) => {
+      async ({ ownerEmail, ...args }, extra) => {
         requireWrite(extra)
-        return json(await createWorkItem(args, uid(extra)))
+        const ownerId = ownerEmail ? await resolveAssigneeEmail(uid(extra), ownerEmail) : undefined
+        return json(await createWorkItem({ ...args, ownerId }, uid(extra)))
       },
     )
 
@@ -414,11 +426,13 @@ const handler = createMcpHandler(
         targetAssetIds: z.array(z.string()).default([]),
         deadline: z.string().optional(),
         specUrl: z.string().optional(),
+        ownerEmail: z.string().optional(),
         workItemIds: z.array(z.string()).default([]),
       },
-      async ({ workItemIds, ...data }, extra) => {
+      async ({ workItemIds, ownerEmail, ...data }, extra) => {
         requireWrite(extra)
-        const plan = await createCodePlan({ ...data, assigneeIds: [] }, uid(extra))
+        const ownerId = ownerEmail ? await resolveAssigneeEmail(uid(extra), ownerEmail) : undefined
+        const plan = await createCodePlan({ ...data, ownerId, assigneeIds: [] }, uid(extra))
         for (const workItemId of workItemIds) await linkWorkItemToPlan(workItemId, plan.id)
         return json(plan)
       },

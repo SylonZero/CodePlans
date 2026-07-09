@@ -101,6 +101,7 @@ export interface CodePlan {
   productId: string
   type: CodePlanType
   status: CodePlanStatus
+  ownerId?: string
   specUrl?: string
   source?: ItemSource
   connectionId?: string
@@ -155,6 +156,7 @@ export interface WorkItem {
   description: string
   status: WorkItemStatus
   severity: WorkItemSeverity
+  ownerId?: string
   specUrl?: string
   tags: string[]
   reporterId?: string

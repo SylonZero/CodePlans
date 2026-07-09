@@ -143,6 +143,8 @@ export const codePlans = pgTable('code_plans', {
   endDate: date('end_date'),
   deadline: date('deadline'),
   creatorId: uuid('creator_id').notNull().references(() => users.id),
+  // Steers the plan; distinct from creator and assignees.
+  ownerId: uuid('owner_id').references(() => users.id, { onDelete: 'set null' }),
   // Link to the design spec (markdown in the repo, or any doc URL).
   specUrl: text('spec_url'),
   source: text('source').notNull().default('native'),
@@ -195,6 +197,8 @@ export const workItems = pgTable('work_items', {
   severity: workItemSeverityEnum('severity').notNull().default('medium'),
   tags: text('tags').array().notNull().default([]),
   reporterId: uuid('reporter_id').references(() => users.id, { onDelete: 'set null' }),
+  // Steers the item to resolution; distinct from reporter.
+  ownerId: uuid('owner_id').references(() => users.id, { onDelete: 'set null' }),
   specUrl: text('spec_url'),
   source: text('source').notNull().default('native'),
   connectionId: uuid('connection_id').references(() => integrations.id, { onDelete: 'set null' }),

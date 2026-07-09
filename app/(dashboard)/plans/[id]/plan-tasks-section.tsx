@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { createTaskAction } from '../../actions'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Circle, Play, CheckCircle2, Clock, List, LayoutGrid, ExternalLink } from 'lucide-react'
@@ -34,7 +36,33 @@ const priorityStyles = {
 }
 
 /** Plan tasks: list view by default (paginated), kanban behind a toggle. */
-export function PlanTasksSection({ tasks }: { tasks: Task[] }) {
+function QuickAddRow({ planId }: { planId: string }) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [isPending, startTransition] = useTransition()
+
+  function submit() {
+    const title = inputRef.current?.value.trim()
+    if (!title) return
+    const fd = new FormData()
+    fd.set('title', title)
+    if (inputRef.current) inputRef.current.value = ''
+    startTransition(() => createTaskAction(planId, fd))
+  }
+
+  return (
+    <div className="border-b border-border px-4 py-2">
+      <Input
+        ref={inputRef}
+        placeholder="Quick add: type a task title and press Enter"
+        disabled={isPending}
+        className="border-none shadow-none focus-visible:ring-0 px-0"
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit() } }}
+      />
+    </div>
+  )
+}
+
+export function PlanTasksSection({ tasks, planId }: { tasks: Task[]; planId: string }) {
   const [view, setView] = useState<'list' | 'board'>('list')
   const [page, setPage] = useState(0)
 
@@ -62,6 +90,7 @@ export function PlanTasksSection({ tasks }: { tasks: Task[] }) {
 
       {view === 'list' ? (
         <Card className="bg-card border-border">
+          <QuickAddRow planId={planId} />
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">

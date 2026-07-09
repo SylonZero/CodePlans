@@ -50,6 +50,13 @@
       "when": 1783561067529,
       "tag": "0006_cuddly_barracuda",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1783562347429,
+      "tag": "0007_glorious_ozymandias",
+      "breakpoints": true
     }
   ]
 }

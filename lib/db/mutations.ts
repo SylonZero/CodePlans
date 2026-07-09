@@ -119,6 +119,7 @@ type CreateCodePlanData = {
   endDate?: string
   deadline?: string
   specUrl?: string
+  ownerId?: string | null
   assigneeIds: string[]
 }
 
@@ -338,6 +339,7 @@ type CreateWorkItemData = {
   description: string
   severity: WorkItemSeverity
   specUrl?: string
+  ownerId?: string | null
   tags: string[]
 }
 
@@ -365,7 +367,7 @@ export async function updateWorkItem(id: string, data: UpdateWorkItemData) {
   // Only the native annotation fields may be edited locally.
   const patch: UpdateWorkItemData =
     existing.source !== 'native'
-      ? { assetId: data.assetId, area: data.area, severity: data.severity, specUrl: data.specUrl }
+      ? { assetId: data.assetId, area: data.area, severity: data.severity, specUrl: data.specUrl, ownerId: data.ownerId }
       : data
 
   const [item] = await db
