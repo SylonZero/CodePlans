@@ -109,12 +109,12 @@ export function PlanEditSheet({ plan, members = [] }: { plan: CodePlanDetail; me
           Edit
         </Button>
       </SheetTrigger>
-      <SheetContent className="w-full sm:max-w-lg">
+      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
         <SheetHeader>
           <SheetTitle>Edit Plan</SheetTitle>
           <SheetDescription>Update the plan details.</SheetDescription>
         </SheetHeader>
-        <form onSubmit={handleSubmit} className="space-y-5 py-6">
+        <form onSubmit={handleSubmit} className="space-y-4 px-4 pb-4">
           <div className="space-y-2">
             <Label htmlFor="edit-title">Title <span className="text-destructive">*</span></Label>
             <Input id="edit-title" name="title" defaultValue={plan.title} required />
@@ -181,12 +181,12 @@ export function PlanEditSheet({ plan, members = [] }: { plan: CodePlanDetail; me
             <Input id="edit-tags" name="tags" defaultValue={plan.tags.join(', ')} />
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
-          <SheetFooter className="pt-2">
+          <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button type="submit" disabled={isPending}>
               {isPending ? 'Saving…' : 'Save Changes'}
             </Button>
-          </SheetFooter>
+          </div>
         </form>
       </SheetContent>
     </Sheet>
