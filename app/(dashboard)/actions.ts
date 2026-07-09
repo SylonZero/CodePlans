@@ -403,6 +403,7 @@ export async function updateTaskAction(id: string, formData: FormData) {
     estimatedEffort: estimatedEffortRaw ? parseFloat(estimatedEffortRaw) : undefined,
     actualEffort: actualEffortRaw ? parseFloat(actualEffortRaw) : undefined,
     assigneeId: assigneeId === '' ? null : assigneeId,
+    percentComplete: formData.get('percentComplete') ? parseInt(formData.get('percentComplete') as string, 10) : undefined,
     startDate: (formData.get('startDate') as string) || undefined,
     endDate: (formData.get('endDate') as string) || undefined,
   })
@@ -910,6 +911,14 @@ export async function revokeApiKeyAction(id: string) {
 export async function updateTaskPriorityAction(id: string, priority: 'low' | 'medium' | 'high' | 'critical') {
   await requireUser()
   await updateTask(id, { priority })
+  revalidatePath('/tasks')
+  revalidatePath('/plans')
+}
+
+export async function moveTaskToPlanAction(id: string, codePlanId: string) {
+  await requireUser()
+  const { moveTaskToPlan } = await import('@/lib/db/mutations')
+  await moveTaskToPlan(id, codePlanId)
   revalidatePath('/tasks')
   revalidatePath('/plans')
 }

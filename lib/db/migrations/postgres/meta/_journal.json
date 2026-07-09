@@ -64,6 +64,13 @@
       "when": 1783460000000,
       "tag": "0008_task_dates",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1783480000000,
+      "tag": "0009_task_percent",
+      "breakpoints": true
     }
   ]
 }

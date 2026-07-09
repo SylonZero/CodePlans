@@ -476,6 +476,7 @@ const handler = createMcpHandler(
         endDate: z.string().optional(),
         estimatedEffort: z.number().optional(),
         actualEffort: z.number().optional(),
+        percentComplete: z.number().int().min(0).max(100).optional(),
         tags: z.array(z.string()).optional(),
       },
       async ({ id, assigneeEmail, ...data }, extra) => {

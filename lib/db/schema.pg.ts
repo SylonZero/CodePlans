@@ -235,6 +235,8 @@ export const tasks = pgTable('tasks', {
   priority: taskPriorityEnum('priority').notNull().default('medium'),
   tags: text('tags').array().notNull().default([]),
   assigneeId: uuid('assignee_id').references(() => users.id, { onDelete: 'set null' }),
+  // 0–100, meaningful while in_progress.
+  percentComplete: integer('percent_complete'),
   // Scheduling window — consumed by future PM-tool syncs.
   startDate: date('start_date'),
   endDate: date('end_date'),
