@@ -321,7 +321,7 @@ Client component (`WorkItemsClient`) with:
 Client component (`IntegrationsClient`) with:
 - Connection cards: provider icon, name, repo, mirrored count, last sync, status badge, surfaced `lastError`
 - "Sync now" → `syncIntegrationAction` (runs the pull-only sync engine; shows created/updated/unchanged)
-- "New Connection" dialog: provider select (GitHub Issues / GitLab Issues), name, repo/project path, instance URL (GitLab self-hosted, optional), target product, and the credential — paste a token (stored encrypted) or name a server env var → `createIntegrationAction`. Cards show credential status (token stored / env ✓ / env missing ⚠)
+- "New Connection" dialog: provider select (GitHub / GitLab / Jira / Asana / Linear), name, provider scope (repo, project path, Jira project key + site URL, Asana project GID, Linear team key), target product, and the credential — paste a token (stored encrypted) or name a server env var → `createIntegrationAction`. Cards show credential status (token stored / env ✓ / env missing ⚠) and an edit dialog (rename, re-scope, re-target, replace token — blank keeps current)
 - Delete with confirm (mirrored items are kept, stop syncing)
 
 #### `/api/mcp/[transport]` — MCP server (no UI)

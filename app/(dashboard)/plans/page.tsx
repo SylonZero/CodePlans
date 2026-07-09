@@ -37,7 +37,7 @@ export default async function PlansPage({ searchParams }: Props) {
         <PlanCreatePanel products={productList} defaultProductId={productId} />
       </div>
 
-      <PlansClient plans={enrichedPlans} products={productList} />
+      <PlansClient plans={enrichedPlans} products={productList} currentUserId={user.id} />
     </div>
   )
 }

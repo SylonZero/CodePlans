@@ -14,6 +14,7 @@ import { cn, formatDate } from '@/lib/utils'
 import { PlanCreatePanel } from './plan-create-panel'
 
 type Plan = {
+  ownerId?: string
   id: string
   title: string
   description: string
@@ -52,11 +53,13 @@ const typeStyles: Record<CodePlanType, string> = {
   bugfix: 'bg-chart-5/20 text-chart-5',
 }
 
-export function PlansClient({ plans, products }: { plans: Plan[]; products: Product[] }) {
+export function PlansClient({ plans, products, currentUserId }: { plans: Plan[]; products: Product[]; currentUserId?: string }) {
+  const [mineOnly, setMineOnly] = useState(false)
   const [statusFilter, setStatusFilter] = useState<CodePlanStatus | 'all' | 'open'>('open')
   const [productFilter, setProductFilter] = useState<string>('all')
 
   const filteredPlans = plans.filter((plan) => {
+    if (mineOnly && plan.ownerId !== currentUserId && !plan.assigneeIds.includes(currentUserId ?? '')) return false
     if (statusFilter === 'open') {
       if (plan.status === 'completed' || plan.status === 'cancelled') return false
     } else if (statusFilter !== 'all' && plan.status !== statusFilter) return false
@@ -128,6 +131,13 @@ export function PlansClient({ plans, products }: { plans: Plan[]; products: Prod
             <TabsTrigger value="completed">Completed</TabsTrigger>
           </TabsList>
         </Tabs>
+        <Button
+          variant={mineOnly ? 'secondary' : 'outline'}
+          size="sm"
+          onClick={() => setMineOnly((v) => !v)}
+        >
+          My plans
+        </Button>
         <div className="flex items-center gap-2 sm:ml-auto">
           <Filter className="h-4 w-4 text-muted-foreground" />
           <Select value={productFilter} onValueChange={setProductFilter}>

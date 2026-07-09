@@ -537,6 +537,25 @@ export async function createIntegration(data: CreateIntegrationData) {
   return row
 }
 
+type UpdateIntegrationData = {
+  name?: string
+  authRef?: string | null
+  /** New token to encrypt and store; undefined = keep existing credential. */
+  token?: string
+  config?: Record<string, unknown>
+}
+
+export async function updateIntegration(id: string, data: UpdateIntegrationData) {
+  const { token, ...columns } = data
+  const patch: Record<string, unknown> = { ...columns }
+  if (token) {
+    const { encryptToken } = await import('@/lib/integrations/secrets')
+    patch.tokenEncrypted = encryptToken(token)
+  }
+  const [row] = await db.update(integrations).set(patch).where(eq(integrations.id, id)).returning()
+  return row ?? null
+}
+
 export async function deleteIntegration(id: string) {
   const [deleted] = await db
     .delete(integrations)
