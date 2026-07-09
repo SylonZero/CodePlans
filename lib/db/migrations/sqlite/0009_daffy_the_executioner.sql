@@ -1,0 +1,1 @@
+ALTER TABLE `tasks` ADD `percent_complete` integer;

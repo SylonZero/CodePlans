@@ -226,6 +226,7 @@ export async function createTask(data: CreateTaskData) {
 type UpdateTaskData = Partial<Omit<CreateTaskData, 'codePlanId' | 'assigneeId'> & {
   status: 'not_started' | 'in_progress' | 'done'
   actualEffort: number
+  percentComplete: number
   assigneeId: string | null
 }>
 
@@ -263,6 +264,16 @@ export async function updateTaskStatus(id: string, status: 'not_started' | 'in_p
   const [task] = await db
     .update(tasks)
     .set({ status, updatedAt: new Date() })
+    .where(eq(tasks.id, id))
+    .returning()
+  return task ?? null
+}
+
+/** Re-home a task on another plan (e.g. deferred to a later iteration). */
+export async function moveTaskToPlan(id: string, codePlanId: string) {
+  const [task] = await db
+    .update(tasks)
+    .set({ codePlanId, updatedAt: new Date() })
     .where(eq(tasks.id, id))
     .returning()
   return task ?? null

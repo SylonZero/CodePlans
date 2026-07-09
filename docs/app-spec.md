@@ -118,6 +118,7 @@ CodePlans is a **code change coordination tool** for engineering teams. It organ
 | priority | `low\|medium\|high\|critical` | default `medium` |
 | tags | JSON `string[]` | |
 | assigneeId | text? | FK → users (set null on delete) |
+| percentComplete | integer? | 0–100, meaningful while in_progress (slider in the task panel) |
 | startDate / endDate | date? | scheduling window (for future PM-tool syncs) |
 | estimatedEffort | integer? | hours |
 | actualEffort | integer? | hours |
@@ -284,7 +285,7 @@ Client component (`PlansClient`) with:
 - **Target Assets & PRs** (`plan-assets-section.tsx`): per-asset rows with branch, PR link, PR status badge; inline edit form; add/remove target assets → plan-asset actions
 - **Impact Analysis**: assets depending on the plan's targets (via `asset_dependencies`), with dependency path and health badges
 - **Linked Work Items**: items linked via `work_item_code_plans` with type/status badges
-- Tasks section (`plan-tasks-section.tsx`): **list view by default** (paginated, 25/page) with a board toggle; board = 3-column kanban by status
+- Tasks section (`plan-tasks-section.tsx`): **list view by default** (paginated, 25/page) with a board toggle; quick-add row (title + Enter); selection checkboxes with a bulk bar (status/priority/assignee/**move to another plan**); wrapped titles with in-progress % shown; board = 3-column kanban by status
   - Done column capped at 5 shown (board view)
   - "Add Task" button → task create form → `createTaskAction`
   - Task cards: title (strikethrough if done), priority badge, effort hours
@@ -297,7 +298,7 @@ Client component (`TasksClient`) with:
 - Tab filter by status, plan dropdown filter (active plans only)
 - View toggle: List view / Board view
 
-**List view:** Table with columns: status checkbox (wired → `updateTaskStatusAction`), task title+tags, code plan link, asset name, priority badge, assignee avatar, effort, status. Paginated (25/page; resets on filter change).
+**List view:** Table with wrapped task titles (+tags), code plan link, asset name, in-row priority + assignee dropdowns, effort, status. Paginated (25/page; resets on filter change). Review surface only — quick-add, selection, and bulk actions live on the plan-detail task list.
 
 **Board view:** 3 kanban columns (up to 8 per column); task cards with priority badge, plan title, assignee avatar, effort.
 

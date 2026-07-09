@@ -4,7 +4,9 @@ import { useRef, useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { createTaskAction } from '../../actions'
+import { createTaskAction, updateTaskStatusAction, updateTaskPriorityAction, updateTaskAssigneeAction, moveTaskToPlanAction } from '../../actions'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Circle, Play, CheckCircle2, Clock, List, LayoutGrid, ExternalLink } from 'lucide-react'
@@ -62,7 +64,82 @@ function QuickAddRow({ planId }: { planId: string }) {
   )
 }
 
-export function PlanTasksSection({ tasks, planId }: { tasks: Task[]; planId: string }) {
+type MemberOption = { id: string; name: string }
+type PlanOption = { id: string; title: string }
+
+function PlanBulkBar({
+  selected,
+  members,
+  otherPlans,
+  onClear,
+}: {
+  selected: string[]
+  members: MemberOption[]
+  otherPlans: PlanOption[]
+  onClear: () => void
+}) {
+  const [isPending, startTransition] = useTransition()
+
+  function apply(fn: (id: string) => Promise<void>) {
+    startTransition(async () => {
+      for (const id of selected) await fn(id)
+      onClear()
+    })
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/40 px-4 py-2 text-sm">
+      <span className="font-medium">{selected.length} selected</span>
+      <Select onValueChange={(v) => apply((id) => updateTaskStatusAction(id, v as TaskStatus))}>
+        <SelectTrigger disabled={isPending} className="h-7 w-[130px] text-xs"><SelectValue placeholder="Set status" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="not_started">Not Started</SelectItem>
+          <SelectItem value="in_progress">In Progress</SelectItem>
+          <SelectItem value="done">Completed</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select onValueChange={(v) => apply((id) => updateTaskPriorityAction(id, v as 'low' | 'medium' | 'high' | 'critical'))}>
+        <SelectTrigger disabled={isPending} className="h-7 w-[130px] text-xs"><SelectValue placeholder="Set priority" /></SelectTrigger>
+        <SelectContent>
+          {(['low', 'medium', 'high', 'critical'] as const).map((prio) => (
+            <SelectItem key={prio} value={prio} className="capitalize">{prio}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {members.length > 0 && (
+        <Select onValueChange={(v) => apply((id) => updateTaskAssigneeAction(id, v === 'none' ? null : v))}>
+          <SelectTrigger disabled={isPending} className="h-7 w-[140px] text-xs"><SelectValue placeholder="Assign to" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Unassigned</SelectItem>
+            {members.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      )}
+      {otherPlans.length > 0 && (
+        <Select onValueChange={(v) => apply((id) => moveTaskToPlanAction(id, v))}>
+          <SelectTrigger disabled={isPending} className="h-7 w-[170px] text-xs"><SelectValue placeholder="Move to plan…" /></SelectTrigger>
+          <SelectContent>
+            {otherPlans.map((p) => <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      )}
+      <Button variant="ghost" size="sm" className="ml-auto h-7" onClick={onClear}>Clear</Button>
+    </div>
+  )
+}
+
+export function PlanTasksSection({
+  tasks,
+  planId,
+  members = [],
+  otherPlans = [],
+}: {
+  tasks: Task[]
+  planId: string
+  members?: MemberOption[]
+  otherPlans?: PlanOption[]
+}) {
+  const [selected, setSelected] = useState<Set<string>>(new Set())
   const [view, setView] = useState<'list' | 'board'>('list')
   const [page, setPage] = useState(0)
 
@@ -91,9 +168,30 @@ export function PlanTasksSection({ tasks, planId }: { tasks: Task[]; planId: str
       {view === 'list' ? (
         <Card className="bg-card border-border">
           <QuickAddRow planId={planId} />
+          {selected.size > 0 && (
+            <PlanBulkBar
+              selected={[...selected]}
+              members={members}
+              otherPlans={otherPlans}
+              onClear={() => setSelected(new Set())}
+            />
+          )}
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
+                <TableHead className="w-10">
+                  <Checkbox
+                    aria-label="Select all on page"
+                    checked={pageTasks.length > 0 && pageTasks.every((t) => selected.has(t.id))}
+                    onCheckedChange={(checked) => {
+                      setSelected((prev) => {
+                        const next = new Set(prev)
+                        for (const t of pageTasks) checked ? next.add(t.id) : next.delete(t.id)
+                        return next
+                      })
+                    }}
+                  />
+                </TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Task</TableHead>
                 <TableHead>Priority</TableHead>
@@ -104,17 +202,33 @@ export function PlanTasksSection({ tasks, planId }: { tasks: Task[]; planId: str
               {pageTasks.map((task) => {
                 const StatusIcon = statusIcons[task.status]
                 return (
-                  <TableRow key={task.id}>
+                  <TableRow key={task.id} data-state={selected.has(task.id) ? 'selected' : undefined}>
+                    <TableCell>
+                      <Checkbox
+                        aria-label="Select task"
+                        checked={selected.has(task.id)}
+                        onCheckedChange={(checked) => {
+                          setSelected((prev) => {
+                            const next = new Set(prev)
+                            checked ? next.add(task.id) : next.delete(task.id)
+                            return next
+                          })
+                        }}
+                      />
+                    </TableCell>
                     <TableCell>
                       <div className={cn('flex items-center gap-1.5 whitespace-nowrap', statusStyles[task.status])}>
                         <StatusIcon className="h-4 w-4" />
                         <span className="text-sm">{statusLabels[task.status]}</span>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <span className={cn('font-medium text-sm', task.status === 'done' && 'line-through text-muted-foreground')}>
+                    <TableCell className="max-w-md">
+                      <span className={cn('font-medium text-sm whitespace-normal break-words', task.status === 'done' && 'line-through text-muted-foreground')}>
                         {task.title}
                       </span>
+                      {task.status === 'in_progress' && task.percentComplete != null && task.percentComplete > 0 && (
+                        <span className="ml-1.5 text-xs text-muted-foreground">{task.percentComplete}%</span>
+                      )}
                       {task.externalKey && (
                         <span className="ml-1.5 inline-flex items-center gap-0.5 text-xs text-muted-foreground">
                           {task.externalKey}

@@ -229,6 +229,8 @@ export const tasks = sqliteTable('tasks', {
   priority: text('priority').$type<TaskPriority>().notNull().default('medium'),
   tags: text('tags', { mode: 'json' }).$type<string[]>().notNull().default([]),
   assigneeId: text('assignee_id').references(() => users.id, { onDelete: 'set null' }),
+  // 0–100, meaningful while in_progress.
+  percentComplete: integer('percent_complete'),
   // Scheduling window (ISO dates) — consumed by future PM-tool syncs.
   startDate: text('start_date'),
   endDate: text('end_date'),

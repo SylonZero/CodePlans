@@ -133,6 +133,7 @@ export interface Task {
   externalUrl?: string
   tags: string[]
   assigneeId?: string
+  percentComplete?: number
   startDate?: string
   endDate?: string
   estimatedEffort?: number // hours

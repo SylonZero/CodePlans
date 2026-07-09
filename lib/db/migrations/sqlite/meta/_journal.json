@@ -64,6 +64,13 @@
       "when": 1783563633595,
       "tag": "0008_sour_skullbuster",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1783565221947,
+      "tag": "0009_daffy_the_executioner",
+      "breakpoints": true
     }
   ]
 }

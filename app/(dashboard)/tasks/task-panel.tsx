@@ -29,6 +29,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Trash2, ArrowUpRight, ExternalLink } from 'lucide-react'
+import { Slider } from '@/components/ui/slider'
 import { toast } from 'sonner'
 import type { TaskStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -45,6 +46,7 @@ export type TaskRow = {
   estimatedEffort?: number
   actualEffort?: number
   assigneeId?: string
+  percentComplete?: number
   startDate?: string
   endDate?: string
   source?: string
@@ -119,6 +121,7 @@ function TaskEditor({ task, members, onDeleted }: { task: TaskRow; members: Memb
   const [status, setStatus] = useState<string>(task.status)
   const [priority, setPriority] = useState<string>(task.priority)
   const [assigneeId, setAssigneeId] = useState<string>(task.assigneeId ?? 'none')
+  const [percent, setPercent] = useState<number>(task.percentComplete ?? 0)
   const lastSaved = useRef<string>('')
 
   // Baseline the dirty-check on mount: focusing/blurring without edits must not save.
@@ -138,6 +141,7 @@ function TaskEditor({ task, members, onDeleted }: { task: TaskRow; members: Memb
     fd.set('priority', overrides.priority ?? priority)
     const a = overrides.assigneeId ?? assigneeId
     fd.set('assigneeId', a === 'none' ? '' : a)
+    fd.set('percentComplete', overrides.percentComplete ?? String(percent))
     const isSelectChange = Object.keys(overrides).length > 0
     const snapshot = JSON.stringify([...new FormData(form).entries()])
     if (!isSelectChange && snapshot === lastSaved.current) return
@@ -201,6 +205,19 @@ function TaskEditor({ task, members, onDeleted }: { task: TaskRow; members: Memb
       {/* Auto-save: selects commit on change, inputs commit on blur */}
       <form ref={formRef} onBlur={() => commit()} onSubmit={(e) => e.preventDefault()} className="space-y-4 px-4">
         <Input name="title" defaultValue={task.title} disabled={isMirrored} className="font-medium" aria-label="Title" />
+        {status === 'in_progress' && (
+          <div className="space-y-1.5">
+            <Label className="text-xs">Progress: {percent}%</Label>
+            <Slider
+              value={[percent]}
+              min={0}
+              max={100}
+              step={5}
+              onValueChange={([v]) => setPercent(v)}
+              onValueCommit={([v]) => commit({ percentComplete: String(v) })}
+            />
+          </div>
+        )}
         <Textarea name="description" defaultValue={task.description} disabled={isMirrored} rows={3} placeholder="Description" aria-label="Description" />
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">

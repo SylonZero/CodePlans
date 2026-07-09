@@ -4,7 +4,7 @@ import { authAdapter } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { users } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { getCodePlan, getTeamMembers, getWorkItems, getAssetOptions, getImpactedAssets, getIntegrations } from '@/lib/db/queries'
+import { getCodePlan, getCodePlans, getTeamMembers, getWorkItems, getAssetOptions, getImpactedAssets, getIntegrations } from '@/lib/db/queries'
 import { PlanAssetsSection } from './plan-assets-section'
 import { SpecCard } from '@/components/spec-card'
 import { fetchSpecMarkdown } from '@/lib/specs'
@@ -57,13 +57,17 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
   if (!plan) notFound()
 
   const profile = await db.query.users.findFirst({ where: eq(users.id, user.id) })
-  const [teamMembers, linkedItems, assetOptions, impactedAssets, orgIntegrations] = await Promise.all([
+  const [teamMembers, linkedItems, assetOptions, impactedAssets, orgIntegrations, allPlans] = await Promise.all([
     profile?.organizationId ? getTeamMembers(profile.organizationId) : Promise.resolve([]),
     getWorkItems(user.id, { planId: id }),
     getAssetOptions(user.id),
     getImpactedAssets(id),
     profile?.organizationId ? getIntegrations(profile.organizationId) : Promise.resolve([]),
+    getCodePlans(user.id),
   ])
+  const otherPlans = allPlans
+    .filter((p) => p.id !== id && p.status !== 'completed' && p.status !== 'cancelled')
+    .map((p) => ({ id: p.id, title: p.title }))
   const productAssetOptions = assetOptions
     .filter((a) => a.productId === plan.productId)
     .map((a) => ({ id: a.id, name: a.name }))
@@ -279,7 +283,12 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
           <AddTaskDialog plan={plan} teamMembers={teamMembers} />
         </div>
 
-        <PlanTasksSection tasks={plan.tasks} planId={plan.id} />
+        <PlanTasksSection
+        tasks={plan.tasks}
+        planId={plan.id}
+        members={teamMembers.map((m) => ({ id: m.userId, name: m.user.name }))}
+        otherPlans={otherPlans}
+      />
       </div>
     </div>
   )
