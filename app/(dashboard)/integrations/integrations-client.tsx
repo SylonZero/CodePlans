@@ -150,7 +150,9 @@ export function IntegrationsClient({
                       <p className="font-medium">{conn.name}</p>
                       <p className="text-xs text-muted-foreground truncate">
                         {String(conn.config.repo ?? '')} · {conn.mirroredCount} mirrored item{conn.mirroredCount === 1 ? '' : 's'}
-                        {conn.lastSyncAt && ` · last sync ${formatDateShort(new Date(conn.lastSyncAt))}`}
+                        {conn.lastSyncAt
+                          ? ` · last sync ${formatDateShort(new Date(conn.lastSyncAt))}`
+                          : ' · never synced — serving as docs credential for this repo'}
                       </p>
                     </div>
                   </div>
@@ -253,7 +255,7 @@ function NewConnectionDialog({
         <DialogHeader>
           <DialogTitle>Connect an issue tracker</DialogTitle>
           <DialogDescription>
-            Issues from one repository/project are mirrored as work items under a product. Pull-only: nothing is written back.
+            Issues from one repository/project are mirrored as work items under a product. Pull-only: nothing is written back — and nothing syncs until you press &ldquo;Sync now&rdquo;. Connections also serve as the credential for rendering linked spec markdown from this repo.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">

@@ -36,7 +36,10 @@ Plan detail pages render the linked markdown in a read-only **Design Spec** card
 - Anything else — Notion, Confluence, Google Docs — works as a plain link-out.
   The field takes any URL.
 
-Work items show the spec as a link in their panel.
+Work item panels render the linked markdown too (collapsible, read-only,
+fetched through the same rules). A connection created **only** for spec
+rendering is fine — nothing syncs until you press &ldquo;Sync now&rdquo;, and its card
+shows &ldquo;serving as docs credential&rdquo; until it first syncs.
 
 ## Setting the spec from an agent (MCP)
 

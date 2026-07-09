@@ -27,7 +27,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { Pencil, Trash2, ArrowUpRight, Link2, Unlink, ExternalLink } from 'lucide-react'
+import { Pencil, Trash2, ArrowUpRight, Link2, Unlink, ExternalLink, FileText } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
 import type { WorkItemStatus } from '@/lib/types'
 import type { WorkItemWithContext } from '@/lib/db/queries'
 import { cn } from '@/lib/utils'
@@ -264,16 +265,9 @@ function WorkItemDetails({
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1.5">Area</p>
             <span className="text-sm">{item.area ?? <span className="text-muted-foreground">—</span>}</span>
           </div>
-          {item.specUrl && (
-            <div className="col-span-2">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1.5">Design Spec</p>
-              <a href={item.specUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-sm hover:text-accent transition-colors w-fit">
-                {item.specUrl.split('/').pop()}
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            </div>
-          )}
         </div>
+
+        {item.specUrl && <SpecSection specUrl={item.specUrl} />}
 
         {item.tags.length > 0 && (
           <div>
@@ -375,6 +369,51 @@ function WorkItemDetails({
         )}
       </SheetFooter>
     </>
+  )
+}
+
+function SpecSection({ specUrl }: { specUrl: string }) {
+  const [markdown, setMarkdown] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    setLoaded(false)
+    setMarkdown(null)
+    fetch(`/api/spec?url=${encodeURIComponent(specUrl)}`)
+      .then((r) => r.json())
+      .then((d) => { if (alive) { setMarkdown(d.markdown ?? null); setLoaded(true) } })
+      .catch(() => { if (alive) setLoaded(true) })
+    return () => { alive = false }
+  }, [specUrl])
+
+  return (
+    <div>
+      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
+        <FileText className="h-3.5 w-3.5" />
+        Design Spec
+        <a
+          href={specUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="ml-auto flex items-center gap-1 font-normal normal-case tracking-normal hover:text-accent transition-colors"
+        >
+          Open source file
+          <ExternalLink className="h-3 w-3" />
+        </a>
+      </p>
+      {markdown ? (
+        <div className="prose prose-sm prose-invert max-w-none max-h-64 overflow-y-auto rounded-md border border-border p-3 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_pre]:bg-muted [&_pre]:p-2 [&_pre]:rounded [&_code]:text-xs [&_table]:text-xs">
+          <ReactMarkdown>{markdown}</ReactMarkdown>
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          {loaded
+            ? 'Not renderable here — open the source file. (Private repos render when a connection covers them.)'
+            : 'Loading spec…'}
+        </p>
+      )}
+    </div>
   )
 }
 
