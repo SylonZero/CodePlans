@@ -286,6 +286,7 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
         <PlanTasksSection
         tasks={plan.tasks}
         planId={plan.id}
+        planTitle={plan.title}
         members={teamMembers.map((m) => ({ id: m.userId, name: m.user.name }))}
         otherPlans={otherPlans}
       />

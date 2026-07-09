@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { createTaskAction, updateTaskStatusAction, updateTaskPriorityAction, updateTaskAssigneeAction, moveTaskToPlanAction } from '../../actions'
 import { Checkbox } from '@/components/ui/checkbox'
+import { TaskPanel, type TaskRow } from '../../tasks/task-panel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -131,15 +132,29 @@ function PlanBulkBar({
 export function PlanTasksSection({
   tasks,
   planId,
+  planTitle = '',
   members = [],
   otherPlans = [],
 }: {
   tasks: Task[]
   planId: string
+  planTitle?: string
   members?: MemberOption[]
   otherPlans?: PlanOption[]
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null)
+
+  const openTask: TaskRow | null = (() => {
+    const t = tasks.find((x) => x.id === openTaskId)
+    if (!t) return null
+    return {
+      ...t,
+      planTitle,
+      assetName: null,
+      assigneeName: members.find((m) => m.id === t.assigneeId)?.name ?? null,
+    }
+  })()
   const [view, setView] = useState<'list' | 'board'>('list')
   const [page, setPage] = useState(0)
 
@@ -154,6 +169,14 @@ export function PlanTasksSection({
 
   return (
     <div className="space-y-4">
+      <TaskPanel
+        open={!!openTask}
+        mode="view"
+        task={openTask}
+        plans={[]}
+        members={members}
+        onClose={() => setOpenTaskId(null)}
+      />
       <div className="flex justify-end">
         <div className="flex border border-border rounded-md">
           <Button variant={view === 'list' ? 'secondary' : 'ghost'} size="icon" className="h-8 w-8 rounded-r-none" title="List view" onClick={() => setView('list')}>
@@ -182,6 +205,7 @@ export function PlanTasksSection({
                 <TableHead className="w-10">
                   <Checkbox
                     aria-label="Select all on page"
+                    className="border-muted-foreground/60 bg-background data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                     checked={pageTasks.length > 0 && pageTasks.every((t) => selected.has(t.id))}
                     onCheckedChange={(checked) => {
                       setSelected((prev) => {
@@ -202,10 +226,16 @@ export function PlanTasksSection({
               {pageTasks.map((task) => {
                 const StatusIcon = statusIcons[task.status]
                 return (
-                  <TableRow key={task.id} data-state={selected.has(task.id) ? 'selected' : undefined}>
-                    <TableCell>
+                  <TableRow
+                    key={task.id}
+                    data-state={selected.has(task.id) ? 'selected' : undefined}
+                    className="cursor-pointer"
+                    onClick={() => setOpenTaskId(task.id)}
+                  >
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox
                         aria-label="Select task"
+                        className="border-muted-foreground/60 bg-background data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                         checked={selected.has(task.id)}
                         onCheckedChange={(checked) => {
                           setSelected((prev) => {

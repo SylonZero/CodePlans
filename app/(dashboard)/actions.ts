@@ -409,6 +409,7 @@ export async function updateTaskAction(id: string, formData: FormData) {
   })
 
   revalidatePath('/tasks')
+  revalidatePath('/plans/[id]', 'page')
   revalidatePath('/plans')
 }
 
@@ -425,6 +426,7 @@ export async function updateTaskStatusAction(id: string, status: 'not_started' |
     })
   }
   revalidatePath('/tasks')
+  revalidatePath('/plans/[id]', 'page')
   revalidatePath('/plans')
 }
 
@@ -912,6 +914,7 @@ export async function updateTaskPriorityAction(id: string, priority: 'low' | 'me
   await requireUser()
   await updateTask(id, { priority })
   revalidatePath('/tasks')
+  revalidatePath('/plans/[id]', 'page')
   revalidatePath('/plans')
 }
 
@@ -920,6 +923,7 @@ export async function moveTaskToPlanAction(id: string, codePlanId: string) {
   const { moveTaskToPlan } = await import('@/lib/db/mutations')
   await moveTaskToPlan(id, codePlanId)
   revalidatePath('/tasks')
+  revalidatePath('/plans/[id]', 'page')
   revalidatePath('/plans')
 }
 
@@ -927,4 +931,5 @@ export async function updateTaskAssigneeAction(id: string, assigneeId: string | 
   await requireUser()
   await updateTask(id, { assigneeId })
   revalidatePath('/tasks')
+  revalidatePath('/plans/[id]', 'page')
 }
