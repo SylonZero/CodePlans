@@ -6,7 +6,6 @@
 [![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-SQLite_%7C_Postgres-C5F74F?logo=drizzle&logoColor=black)](https://orm.drizzle.team)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![Tests](https://img.shields.io/badge/Tests-161_passing-brightgreen?logo=vitest&logoColor=white)](tests/)
-[![Status](https://img.shields.io/badge/Status-Coming%20Soon-blue)](https://codeplans.ai)
 
 **Coordinate and track changes across your software architecture.**
 
