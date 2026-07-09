@@ -322,16 +322,31 @@ Specs live in git (`docs/specs/*.md` by convention), not in CodePlans. Link a sp
 
 ---
 
-## Connect Claude (MCP)
+## Connect Claude Code or Cursor (MCP)
 
-CodePlans ships an MCP server at `/api/mcp/mcp` (Streamable HTTP). Create an API key in **Settings → API Keys**, then:
+CodePlans ships an MCP server at `/api/mcp/mcp` (Streamable HTTP). Create an API key in **Settings → API Keys** — the settings page shows these snippets with your host and freshly minted key pre-filled.
+
+**Claude Code** (user scope — available in every project):
 
 ```bash
-claude mcp add --transport http codeplans http://localhost:3000/api/mcp/mcp \
+claude mcp add --scope user --transport http codeplans http://localhost:3000/api/mcp/mcp \
   --header "Authorization: Bearer cpk_your_key"
 ```
 
-Claude can then read plans/work items/tech debt and (with a write-scope key) model products, assets, and dependencies, manage plans end-to-end (create, target assets, activate/complete), file work items, manage tasks, and record branch/PR status on plan assets. Keys act as your user, so org access rules and mirrored-field protections apply unchanged. See [`docs/specs/mcp-server-spec.md`](docs/specs/mcp-server-spec.md).
+**Cursor** — add to `~/.cursor/mcp.json` (or `.cursor/mcp.json` per project), then enable under Settings → MCP:
+
+```json
+{
+  "mcpServers": {
+    "codeplans": {
+      "url": "http://localhost:3000/api/mcp/mcp",
+      "headers": { "Authorization": "Bearer cpk_your_key" }
+    }
+  }
+}
+```
+
+Your agent can then read plans/work items/tech debt and (with a write-scope key) model products, assets, and dependencies, manage plans end-to-end (create, target assets, activate/complete), file work items, manage tasks, and record branch/PR status on plan assets. Keys act as your user, so org access rules and mirrored-field protections apply unchanged. See [`docs/specs/mcp-server-spec.md`](docs/specs/mcp-server-spec.md).
 
 ---
 
