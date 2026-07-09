@@ -507,11 +507,18 @@ type CreateIntegrationData = {
   provider: string
   name: string
   authRef?: string
+  token?: string
   config: Record<string, unknown>
 }
 
 export async function createIntegration(data: CreateIntegrationData) {
-  const [row] = await db.insert(integrations).values(data).returning()
+  const { token, ...columns } = data
+  let tokenEncrypted: string | undefined
+  if (token) {
+    const { encryptToken } = await import('@/lib/integrations/secrets')
+    tokenEncrypted = encryptToken(token)
+  }
+  const [row] = await db.insert(integrations).values({ ...columns, tokenEncrypted }).returning()
   return row
 }
 

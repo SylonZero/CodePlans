@@ -81,6 +81,8 @@ export const integrations = pgTable('integrations', {
   name: text('name').notNull(),
   // Reference to a credential (env var name / secret id) — never the secret itself.
   authRef: text('auth_ref'),
+  // AES-256-GCM (key derived from AUTH_SECRET); preferred over authRef when set.
+  tokenEncrypted: text('token_encrypted'),
   // Scope (project/repo/JQL filter), status map, user-mapping overrides, target productId.
   config: jsonb('config').notNull().default({}),
   status: text('status').notNull().default('active'), // 'active' | 'paused' | 'error'

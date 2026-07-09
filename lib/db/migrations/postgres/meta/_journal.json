@@ -43,6 +43,13 @@
       "when": 1783380000000,
       "tag": "0005_spec_urls",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783420000000,
+      "tag": "0006_integration_tokens",
+      "breakpoints": true
     }
   ]
 }

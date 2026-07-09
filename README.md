@@ -5,7 +5,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-SQLite_%7C_Postgres-C5F74F?logo=drizzle&logoColor=black)](https://orm.drizzle.team)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![Tests](https://img.shields.io/badge/Tests-153_passing-brightgreen?logo=vitest&logoColor=white)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-161_passing-brightgreen?logo=vitest&logoColor=white)](tests/)
 [![Status](https://img.shields.io/badge/Status-Coming%20Soon-blue)](https://codeplans.ai)
 
 **Coordinate and track changes across your software architecture.**
@@ -51,7 +51,7 @@ CodePlans sits between your issue tracker and your architecture diagram:
 | Analytics wired to real data (velocity, effort accuracy, debt by product) | ✅ Available |
 | Activity feed | ✅ Available |
 | GitHub & GitLab Issues integrations (pull-only mirror into work items) | ✅ Available |
-| MCP server — 26 tools incl. product/asset/dependency management & email-based task assignment | ✅ Available |
+| MCP server — 28 tools incl. product/asset/dependency management & email-based task assignment | ✅ Available |
 | Jira / Asana / Linear connectors | 🔜 Planned |
 | Milestone-linked plans with mirrored tasks (mixed mode) | ✅ Available |
 | PR auto-linking (plan-asset PR status refreshed on sync) | ✅ Available |
@@ -71,7 +71,7 @@ CodePlans sits between your issue tracker and your architecture diagram:
 | Database | SQLite (local / libsql) or PostgreSQL (cloud) |
 | Auth | Local (bcrypt + session cookie) or Supabase |
 | Charts | Recharts |
-| Testing | Vitest (153 tests) |
+| Testing | Vitest (161 tests) |
 
 ---
 
@@ -187,7 +187,7 @@ Then run `pnpm db:migrate` and `pnpm dev`.
 | `DATABASE_URL` | `:memory:` | SQLite: `file:data/codeplans.db` or `:memory:`. Postgres: full connection string |
 | `DB_SSL` | `true` | Set `false` for local or non-SSL Postgres |
 | `AUTH_SECRET` | — | Secret for local auth session signing (min 32 chars) |
-| *(your token var)* | — | GitHub integration connections reference a server env var by name (e.g. `GITHUB_SYNC_TOKEN`) holding a repo-read token (GitHub) or `read_api` token (GitLab); tokens are never stored in the database |
+| *(integration tokens)* | — | Paste tokens directly on connections (stored AES-256-GCM-encrypted with a key derived from `AUTH_SECRET`), or reference a server env var by name for secrets-in-deployment postures |
 | `AUTH_URL` | — | **Required in production.** Full URL of the server (e.g. `https://codeplans.yourteam.com`). Auth.js uses this to construct callback URLs and validate login redirects. Not needed for `localhost` dev. |
 | `BILLING_ENABLED` | `true` | Set `false` to hide billing UI (always off in `team` mode) |
 | `ALLOWED_DEV_ORIGINS` | — | Comma-separated hosts allowed to access Next.js dev resources (needed when running on a remote server) |

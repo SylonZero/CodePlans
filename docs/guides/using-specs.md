@@ -30,7 +30,7 @@ Plan detail pages render the linked markdown in a read-only **Design Spec** card
 
 - **Public GitHub** files render automatically.
 - **Private repos** render when an [integration connection](../index.html#integrations)
-  covers the repo — the connection's token fetches the file (GitHub and GitLab,
+  covers the repo — the connection's token (pasted on the connection, or via its env var) fetches the file (GitHub and GitLab,
   including self-hosted GitLab). Nothing is stored; the file is fetched fresh
   from the default branch (or the ref in the URL) on each view.
 - Anything else — Notion, Confluence, Google Docs — works as a plain link-out.

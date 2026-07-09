@@ -43,6 +43,13 @@
       "when": 1783539309355,
       "tag": "0005_fixed_mimic",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1783561067529,
+      "tag": "0006_cuddly_barracuda",
+      "breakpoints": true
     }
   ]
 }
