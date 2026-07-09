@@ -53,11 +53,13 @@ const typeStyles: Record<CodePlanType, string> = {
 }
 
 export function PlansClient({ plans, products }: { plans: Plan[]; products: Product[] }) {
-  const [statusFilter, setStatusFilter] = useState<CodePlanStatus | 'all'>('all')
+  const [statusFilter, setStatusFilter] = useState<CodePlanStatus | 'all' | 'open'>('open')
   const [productFilter, setProductFilter] = useState<string>('all')
 
   const filteredPlans = plans.filter((plan) => {
-    if (statusFilter !== 'all' && plan.status !== statusFilter) return false
+    if (statusFilter === 'open') {
+      if (plan.status === 'completed' || plan.status === 'cancelled') return false
+    } else if (statusFilter !== 'all' && plan.status !== statusFilter) return false
     if (productFilter !== 'all' && plan.productId !== productFilter) return false
     return true
   })
@@ -117,8 +119,9 @@ export function PlansClient({ plans, products }: { plans: Plan[]; products: Prod
 
       {/* Filters */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center mb-6">
-        <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as CodePlanStatus | 'all')} className="w-full sm:w-auto">
+        <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as CodePlanStatus | 'all' | 'open')} className="w-full sm:w-auto">
           <TabsList className="bg-muted">
+            <TabsTrigger value="open">Open</TabsTrigger>
             <TabsTrigger value="all">All</TabsTrigger>
             <TabsTrigger value="active">Active</TabsTrigger>
             <TabsTrigger value="draft">Draft</TabsTrigger>

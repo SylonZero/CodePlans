@@ -26,6 +26,8 @@ import {
   type AssetOption,
 } from './work-item-panel'
 
+const PAGE_SIZE = 25
+
 export function WorkItemsClient({
   items,
   plans,
@@ -43,6 +45,7 @@ export function WorkItemsClient({
   const [statusFilter, setStatusFilter] = useState<WorkItemStatus | 'all'>('all')
   const [typeFilter, setTypeFilter] = useState<WorkItemType | 'all'>('all')
   const [view, setView] = useState<'list' | 'debt'>('list')
+  const [page, setPage] = useState(0)
   const [createOpen, setCreateOpen] = useState(false)
 
   const openItemId = searchParams.get('item')
@@ -65,6 +68,7 @@ export function WorkItemsClient({
     if (typeFilter !== 'all' && item.type !== typeFilter) return false
     return true
   })
+  const pageItems = filteredItems.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   const openStatuses: WorkItemStatus[] = ['open', 'planned', 'in_progress']
   const stats = {
@@ -140,7 +144,7 @@ export function WorkItemsClient({
 
       {/* Filters */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center mb-6">
-        <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as WorkItemStatus | 'all')} className="w-full sm:w-auto">
+        <Tabs value={statusFilter} onValueChange={(v) => { setStatusFilter(v as WorkItemStatus | 'all'); setPage(0) }} className="w-full sm:w-auto">
           <TabsList className="bg-muted">
             <TabsTrigger value="all">All</TabsTrigger>
             <TabsTrigger value="open">Open</TabsTrigger>
@@ -151,7 +155,7 @@ export function WorkItemsClient({
         </Tabs>
         <div className="flex items-center gap-2 sm:ml-auto">
           <Filter className="h-4 w-4 text-muted-foreground" />
-          <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as WorkItemType | 'all')}>
+          <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v as WorkItemType | 'all'); setPage(0) }}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="All Types" />
             </SelectTrigger>
@@ -189,7 +193,7 @@ export function WorkItemsClient({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredItems.map((item) => (
+            {pageItems.map((item) => (
               <TableRow key={item.id} className="cursor-pointer" onClick={() => openPanel(item)}>
                 <TableCell>
                   <div>
@@ -255,6 +259,15 @@ export function WorkItemsClient({
             </p>
           </div>
         )}
+          {filteredItems.length > PAGE_SIZE && (
+            <div className="flex items-center justify-between border-t border-border px-4 py-3 text-sm text-muted-foreground">
+              <span>{page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filteredItems.length)} of {filteredItems.length}</span>
+              <div className="flex gap-1">
+                <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</Button>
+                <Button variant="outline" size="sm" disabled={(page + 1) * PAGE_SIZE >= filteredItems.length} onClick={() => setPage((p) => p + 1)}>Next</Button>
+              </div>
+            </div>
+          )}
       </Card>
       )}
     </>

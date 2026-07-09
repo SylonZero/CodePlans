@@ -280,8 +280,8 @@ Client component (`PlansClient`) with:
 - **Target Assets & PRs** (`plan-assets-section.tsx`): per-asset rows with branch, PR link, PR status badge; inline edit form; add/remove target assets → plan-asset actions
 - **Impact Analysis**: assets depending on the plan's targets (via `asset_dependencies`), with dependency path and health badges
 - **Linked Work Items**: items linked via `work_item_code_plans` with type/status badges
-- Tasks section: 3-column kanban by status (Not Started / In Progress / Done)
-  - Done column capped at 5 shown
+- Tasks section (`plan-tasks-section.tsx`): **list view by default** (paginated, 25/page) with a board toggle; board = 3-column kanban by status
+  - Done column capped at 5 shown (board view)
   - "Add Task" button → task create form → `createTaskAction`
   - Task cards: title (strikethrough if done), priority badge, effort hours
 
@@ -293,7 +293,7 @@ Client component (`TasksClient`) with:
 - Tab filter by status, plan dropdown filter (active plans only)
 - View toggle: List view / Board view
 
-**List view:** Table with columns: status checkbox (wired → `updateTaskStatusAction`), task title+tags, code plan link, asset name, priority badge, assignee avatar, effort, status.
+**List view:** Table with columns: status checkbox (wired → `updateTaskStatusAction`), task title+tags, code plan link, asset name, priority badge, assignee avatar, effort, status. Paginated (25/page; resets on filter change).
 
 **Board view:** 3 kanban columns (up to 8 per column); task cards with priority badge, plan title, assignee avatar, effort.
 
@@ -307,7 +307,7 @@ Client component (`TasksClient`) with:
 Client component (`WorkItemsClient`) with:
 - Stats: Open Items / In Progress / Resolved / Open Tech Debt
 - Status tabs (All/Open/Planned/In Progress/Resolved), type filter dropdown, view toggle: **List** / **Debt Register**
-- List: table with title (+ mirrored-source icon), type/severity badges, asset + area, linked plan links, status badge
+- List: table with title (+ mirrored-source icon), type/severity badges, asset + area, linked plan links, status badge — paginated (25/page; resets on filter change)
 - Debt Register: open `tech_debt` items grouped by asset with critical/high rollups
 - Deep-linkable panel (`?item=<id>`): view/edit/create → work item actions; link/unlink to plans; mirrored items show provenance badge + external link and are view-only (Edit hidden; mutations also reject mirrored-field writes)
 

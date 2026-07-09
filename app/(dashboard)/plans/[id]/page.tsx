@@ -9,6 +9,7 @@ import { PlanAssetsSection } from './plan-assets-section'
 import { SpecCard } from '@/components/spec-card'
 import { fetchSpecMarkdown } from '@/lib/specs'
 import { PlanSyncDialog } from './plan-sync-dialog'
+import { PlanTasksSection } from './plan-tasks-section'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -66,12 +67,6 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
   const productAssetOptions = assetOptions
     .filter((a) => a.productId === plan.productId)
     .map((a) => ({ id: a.id, name: a.name }))
-
-  const tasksByStatus = {
-    not_started: plan.tasks.filter((t) => t.status === 'not_started'),
-    in_progress: plan.tasks.filter((t) => t.status === 'in_progress'),
-    done: plan.tasks.filter((t) => t.status === 'done'),
-  }
 
   return (
     <div className="space-y-6">
@@ -278,70 +273,7 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
           <AddTaskDialog plan={plan} teamMembers={teamMembers} />
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
-          {(['not_started', 'in_progress', 'done'] as TaskStatus[]).map((status) => {
-            const statusTasks = tasksByStatus[status]
-            const labels = { not_started: 'Not Started', in_progress: 'In Progress', done: 'Done' }
-            const icons = { not_started: Circle, in_progress: Play, done: CheckCircle2 }
-            const iconStyles = { not_started: 'text-muted-foreground', in_progress: 'text-chart-1', done: 'text-accent' }
-            const badgeStyles = { not_started: '', in_progress: 'bg-chart-1/20 text-chart-1', done: 'bg-accent/20 text-accent' }
-            const StatusIcon = icons[status]
-
-            return (
-              <div key={status}>
-                <div className="flex items-center gap-2 mb-4">
-                  <StatusIcon className={cn('h-4 w-4', iconStyles[status])} />
-                  <h3 className="font-medium">{labels[status]}</h3>
-                  <Badge variant="secondary" className={cn('text-xs', badgeStyles[status])}>
-                    {statusTasks.length}
-                  </Badge>
-                </div>
-                <div className="space-y-3">
-                  {statusTasks.slice(0, status === 'done' ? 5 : undefined).map((task) => (
-                    <Card
-                      key={task.id}
-                      className={cn(
-                        'bg-card border-border',
-                        status === 'in_progress' && 'border-l-2 border-l-chart-1',
-                        status === 'done' && 'opacity-75'
-                      )}
-                    >
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <span className={cn('font-medium text-sm', status === 'done' && 'line-through text-muted-foreground')}>
-                            {task.title}
-                            {task.externalKey && (
-                              <span className="ml-1.5 text-xs text-muted-foreground font-normal">{task.externalKey}</span>
-                            )}
-                          </span>
-                          {status !== 'done' && (
-                            <Badge variant="secondary" className={cn('text-xs shrink-0', priorityStyles[task.priority])}>
-                              {task.priority}
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div />
-                          {(task.estimatedEffort || task.actualEffort) && (
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Clock className="h-3 w-3" />
-                              {task.actualEffort ?? task.estimatedEffort}h
-                            </div>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                  {status === 'done' && statusTasks.length > 5 && (
-                    <p className="text-sm text-muted-foreground text-center py-2">
-                      +{statusTasks.length - 5} more completed
-                    </p>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
+        <PlanTasksSection tasks={plan.tasks} />
       </div>
     </div>
   )

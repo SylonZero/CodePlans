@@ -17,6 +17,8 @@ import { cn } from '@/lib/utils'
 import { updateTaskStatusAction } from '../actions'
 import { TaskPanel, type TaskRow, type PlanOption, type MemberOption } from './task-panel'
 
+const PAGE_SIZE = 25
+
 const statusLabels: Record<TaskStatus, string> = {
   not_started: 'Not Started',
   in_progress: 'In Progress',
@@ -144,9 +146,10 @@ export function TasksClient({
   members: MemberOption[]
 }) {
   const searchParams = useSearchParams()
-  const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all')
+  const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all' | 'open'>('open')
   const [planFilter, setPlanFilter] = useState<string>('all')
   const [view, setView] = useState<'list' | 'board'>('list')
+  const [page, setPage] = useState(0)
   const [createOpen, setCreateOpen] = useState(false)
 
   const openTaskId = searchParams.get('task')
@@ -166,10 +169,13 @@ export function TasksClient({
   }, [openTaskId])
 
   const filteredTasks = tasks.filter((task) => {
-    if (statusFilter !== 'all' && task.status !== statusFilter) return false
+    if (statusFilter === 'open') {
+      if (task.status === 'done') return false
+    } else if (statusFilter !== 'all' && task.status !== statusFilter) return false
     if (planFilter !== 'all' && task.codePlanId !== planFilter) return false
     return true
   })
+  const pageTasks = filteredTasks.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   const stats = {
     total: tasks.length,
@@ -239,8 +245,9 @@ export function TasksClient({
 
       {/* Filters */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center mb-6">
-        <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as TaskStatus | 'all')} className="w-full sm:w-auto">
+        <Tabs value={statusFilter} onValueChange={(v) => { setStatusFilter(v as TaskStatus | 'all' | 'open'); setPage(0) }} className="w-full sm:w-auto">
           <TabsList className="bg-muted">
+            <TabsTrigger value="open">Open</TabsTrigger>
             <TabsTrigger value="all">All</TabsTrigger>
             <TabsTrigger value="not_started">Not Started</TabsTrigger>
             <TabsTrigger value="in_progress">In Progress</TabsTrigger>
@@ -249,7 +256,7 @@ export function TasksClient({
         </Tabs>
         <div className="flex items-center gap-2 sm:ml-auto">
           <Filter className="h-4 w-4 text-muted-foreground" />
-          <Select value={planFilter} onValueChange={setPlanFilter}>
+          <Select value={planFilter} onValueChange={(v) => { setPlanFilter(v); setPage(0) }}>
             <SelectTrigger className="w-[200px]">
               <SelectValue placeholder="All Plans" />
             </SelectTrigger>
@@ -288,7 +295,7 @@ export function TasksClient({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredTasks.map((task) => {
+              {pageTasks.map((task) => {
                 const StatusIcon = statusIcons[task.status]
                 return (
                   <TableRow
@@ -367,6 +374,15 @@ export function TasksClient({
             <div className="py-12 text-center text-muted-foreground">
               <p>No tasks found</p>
               <p className="text-sm">Try adjusting your filters</p>
+            </div>
+          )}
+          {filteredTasks.length > PAGE_SIZE && (
+            <div className="flex items-center justify-between border-t border-border px-4 py-3 text-sm text-muted-foreground">
+              <span>{page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filteredTasks.length)} of {filteredTasks.length}</span>
+              <div className="flex gap-1">
+                <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</Button>
+                <Button variant="outline" size="sm" disabled={(page + 1) * PAGE_SIZE >= filteredTasks.length} onClick={() => setPage((p) => p + 1)}>Next</Button>
+              </div>
             </div>
           )}
         </Card>
