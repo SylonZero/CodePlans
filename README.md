@@ -5,7 +5,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-SQLite_%7C_Postgres-C5F74F?logo=drizzle&logoColor=black)](https://orm.drizzle.team)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![Tests](https://img.shields.io/badge/Tests-153_passing-brightgreen?logo=vitest&logoColor=white)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-161_passing-brightgreen?logo=vitest&logoColor=white)](tests/)
 [![Status](https://img.shields.io/badge/Status-Coming%20Soon-blue)](https://codeplans.ai)
 
 **Coordinate and track changes across your software architecture.**
@@ -51,7 +51,7 @@ CodePlans sits between your issue tracker and your architecture diagram:
 | Analytics wired to real data (velocity, effort accuracy, debt by product) | ✅ Available |
 | Activity feed | ✅ Available |
 | GitHub & GitLab Issues integrations (pull-only mirror into work items) | ✅ Available |
-| MCP server — 26 tools incl. product/asset/dependency management & email-based task assignment | ✅ Available |
+| MCP server — 28 tools incl. product/asset/dependency management & email-based task assignment | ✅ Available |
 | Jira / Asana / Linear connectors | 🔜 Planned |
 | Milestone-linked plans with mirrored tasks (mixed mode) | ✅ Available |
 | PR auto-linking (plan-asset PR status refreshed on sync) | ✅ Available |
@@ -71,7 +71,7 @@ CodePlans sits between your issue tracker and your architecture diagram:
 | Database | SQLite (local / libsql) or PostgreSQL (cloud) |
 | Auth | Local (bcrypt + session cookie) or Supabase |
 | Charts | Recharts |
-| Testing | Vitest (153 tests) |
+| Testing | Vitest (161 tests) |
 
 ---
 
