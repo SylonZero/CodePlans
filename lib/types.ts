@@ -133,6 +133,8 @@ export interface Task {
   externalUrl?: string
   tags: string[]
   assigneeId?: string
+  startDate?: string
+  endDate?: string
   estimatedEffort?: number // hours
   actualEffort?: number
   priority: 'low' | 'medium' | 'high' | 'critical'

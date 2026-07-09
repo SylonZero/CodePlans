@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -261,6 +261,13 @@ function AssetEditor({
   const [type, setType] = useState<string>(asset.type)
   const [health, setHealth] = useState<string>(asset.health)
   const lastSaved = useRef<string>('')
+
+  // Baseline the dirty-check on mount: focusing/blurring without edits must not save.
+  useEffect(() => {
+    const form = formRef.current
+    if (form) lastSaved.current = JSON.stringify([...new FormData(form).entries()])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const Icon = assetTypeIcons[asset.type]
 
   function commit(overrides: Record<string, string> = {}) {
@@ -269,8 +276,9 @@ function AssetEditor({
     const fd = new FormData(form)
     fd.set('type', overrides.type ?? type)
     fd.set('health', overrides.health ?? health)
-    const snapshot = JSON.stringify([...fd.entries()])
-    if (snapshot === lastSaved.current) return
+    const isSelectChange = Object.keys(overrides).length > 0
+    const snapshot = JSON.stringify([...new FormData(form).entries()])
+    if (!isSelectChange && snapshot === lastSaved.current) return
     lastSaved.current = snapshot
     startTransition(async () => {
       await updateAssetAction(asset.id, productSlug, fd)

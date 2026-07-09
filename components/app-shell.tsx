@@ -17,6 +17,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import {
   LayoutDashboard,
+  UserCircle2,
   Package,
   FileCode2,
   CheckSquare,
@@ -50,6 +51,7 @@ type AppShellProps = {
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'My Work', href: '/my-work', icon: UserCircle2 },
   { name: 'Products', href: '/products', icon: Package },
   { name: 'Work Items', href: '/work-items', icon: ClipboardList },
   { name: 'Code Plans', href: '/plans', icon: FileCode2 },

@@ -367,6 +367,8 @@ export async function createTaskAction(codePlanId: string, formData: FormData) {
     estimatedEffort: estimatedEffortRaw ? parseFloat(estimatedEffortRaw) : undefined,
     assigneeId: assigneeId || undefined,
     assetId: assetId || undefined,
+    startDate: (formData.get('startDate') as string) || undefined,
+    endDate: (formData.get('endDate') as string) || undefined,
   })
   await logActivity({
     entityType: 'task',
@@ -401,6 +403,8 @@ export async function updateTaskAction(id: string, formData: FormData) {
     estimatedEffort: estimatedEffortRaw ? parseFloat(estimatedEffortRaw) : undefined,
     actualEffort: actualEffortRaw ? parseFloat(actualEffortRaw) : undefined,
     assigneeId: assigneeId === '' ? null : assigneeId,
+    startDate: (formData.get('startDate') as string) || undefined,
+    endDate: (formData.get('endDate') as string) || undefined,
   })
 
   revalidatePath('/tasks')

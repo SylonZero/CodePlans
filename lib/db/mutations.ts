@@ -208,6 +208,8 @@ type CreateTaskData = {
   priority: 'low' | 'medium' | 'high' | 'critical'
   tags: string[]
   assigneeId?: string
+  startDate?: string
+  endDate?: string
   estimatedEffort?: number
 }
 

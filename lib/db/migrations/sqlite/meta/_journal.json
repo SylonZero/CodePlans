@@ -57,6 +57,13 @@
       "when": 1783562347429,
       "tag": "0007_glorious_ozymandias",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1783563633595,
+      "tag": "0008_sour_skullbuster",
+      "breakpoints": true
     }
   ]
 }
