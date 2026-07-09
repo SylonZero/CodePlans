@@ -229,6 +229,9 @@ export const tasks = sqliteTable('tasks', {
   priority: text('priority').$type<TaskPriority>().notNull().default('medium'),
   tags: text('tags', { mode: 'json' }).$type<string[]>().notNull().default([]),
   assigneeId: text('assignee_id').references(() => users.id, { onDelete: 'set null' }),
+  // Scheduling window (ISO dates) — consumed by future PM-tool syncs.
+  startDate: text('start_date'),
+  endDate: text('end_date'),
   estimatedEffort: integer('estimated_effort'),
   actualEffort: integer('actual_effort'),
   source: text('source').$type<ItemSource>().notNull().default('native'),

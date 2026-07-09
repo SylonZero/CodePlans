@@ -171,6 +171,13 @@ function WorkItemEditor({
   const [linkPlanId, setLinkPlanId] = useState('')
   const lastSaved = useRef<string>('')
 
+  // Baseline the dirty-check on mount: focusing/blurring without edits must not save.
+  useEffect(() => {
+    const form = formRef.current
+    if (form) lastSaved.current = JSON.stringify([...new FormData(form).entries()])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const isMirrored = item.source !== 'native'
   const productAssets = assets.filter((a) => a.productId === item.productId)
   const linkedIds = new Set(item.linkedPlans.map((p) => p.id))
@@ -187,8 +194,9 @@ function WorkItemEditor({
     fd.set('assetId', a === 'none' ? '' : a)
     const o = overrides.ownerId ?? ownerId
     fd.set('ownerId', o === 'none' ? '' : o)
-    const snapshot = JSON.stringify([...fd.entries()])
-    if (snapshot === lastSaved.current) return
+    const isSelectChange = Object.keys(overrides).length > 0
+    const snapshot = JSON.stringify([...new FormData(form).entries()])
+    if (!isSelectChange && snapshot === lastSaved.current) return
     lastSaved.current = snapshot
     startTransition(async () => {
       await updateWorkItemAction(item.id, fd)

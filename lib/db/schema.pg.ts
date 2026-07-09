@@ -235,6 +235,9 @@ export const tasks = pgTable('tasks', {
   priority: taskPriorityEnum('priority').notNull().default('medium'),
   tags: text('tags').array().notNull().default([]),
   assigneeId: uuid('assignee_id').references(() => users.id, { onDelete: 'set null' }),
+  // Scheduling window — consumed by future PM-tool syncs.
+  startDate: date('start_date'),
+  endDate: date('end_date'),
   estimatedEffort: integer('estimated_effort'), // hours
   actualEffort: integer('actual_effort'),       // hours
   source: text('source').notNull().default('native'),

@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -45,6 +45,8 @@ export type TaskRow = {
   estimatedEffort?: number
   actualEffort?: number
   assigneeId?: string
+  startDate?: string
+  endDate?: string
   source?: string
   externalKey?: string
   externalUrl?: string
@@ -119,6 +121,13 @@ function TaskEditor({ task, members, onDeleted }: { task: TaskRow; members: Memb
   const [assigneeId, setAssigneeId] = useState<string>(task.assigneeId ?? 'none')
   const lastSaved = useRef<string>('')
 
+  // Baseline the dirty-check on mount: focusing/blurring without edits must not save.
+  useEffect(() => {
+    const form = formRef.current
+    if (form) lastSaved.current = JSON.stringify([...new FormData(form).entries()])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const isMirrored = !!task.source && task.source !== 'native'
 
   function commit(overrides: Record<string, string> = {}) {
@@ -129,8 +138,9 @@ function TaskEditor({ task, members, onDeleted }: { task: TaskRow; members: Memb
     fd.set('priority', overrides.priority ?? priority)
     const a = overrides.assigneeId ?? assigneeId
     fd.set('assigneeId', a === 'none' ? '' : a)
-    const snapshot = JSON.stringify([...fd.entries()])
-    if (snapshot === lastSaved.current) return
+    const isSelectChange = Object.keys(overrides).length > 0
+    const snapshot = JSON.stringify([...new FormData(form).entries()])
+    if (!isSelectChange && snapshot === lastSaved.current) return
     lastSaved.current = snapshot
     startTransition(async () => {
       await updateTaskAction(task.id, fd)
@@ -193,6 +203,14 @@ function TaskEditor({ task, members, onDeleted }: { task: TaskRow; members: Memb
         <Input name="title" defaultValue={task.title} disabled={isMirrored} className="font-medium" aria-label="Title" />
         <Textarea name="description" defaultValue={task.description} disabled={isMirrored} rows={3} placeholder="Description" aria-label="Description" />
         <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="te-start" className="text-xs">Start date</Label>
+            <Input id="te-start" name="startDate" type="date" defaultValue={task.startDate?.slice(0, 10) ?? ''} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="te-end" className="text-xs">End date</Label>
+            <Input id="te-end" name="endDate" type="date" defaultValue={task.endDate?.slice(0, 10) ?? ''} />
+          </div>
           <div className="space-y-1.5">
             <Label htmlFor="te-est" className="text-xs">Estimated (h)</Label>
             <Input id="te-est" name="estimatedEffort" type="number" min="0.5" step="0.5" defaultValue={task.estimatedEffort ?? ''} />

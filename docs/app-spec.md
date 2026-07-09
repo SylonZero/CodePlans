@@ -118,6 +118,7 @@ CodePlans is a **code change coordination tool** for engineering teams. It organ
 | priority | `low\|medium\|high\|critical` | default `medium` |
 | tags | JSON `string[]` | |
 | assigneeId | text? | FK → users (set null on delete) |
+| startDate / endDate | date? | scheduling window (for future PM-tool syncs) |
 | estimatedEffort | integer? | hours |
 | actualEffort | integer? | hours |
 | createdAt / updatedAt | timestamp | |
@@ -214,7 +215,7 @@ Both redirect to `/` on success.
 #### Dashboard Layout (`/(dashboard)`)
 All routes share `AppShell`: 64px top header + 256px sidebar. Sidebar contains:
 - Product switcher dropdown — **wired**: "All Products" + per-product options; selection persisted in a cookie (`lib/product-scope-cookie.ts`) and scopes Dashboard, Products, Code Plans, Tasks, and Analytics
-- Primary nav: Dashboard, Products, Work Items, Code Plans, Tasks, Analytics
+- Primary nav: Dashboard, My Work, Products, Work Items, Code Plans, Tasks, Analytics
 - Secondary nav: Team, Integrations, Billing (hidden if `BILLING_ENABLED=false`), Settings
 - Org/user footer: org name + billing tier, links to Team/Billing/Settings
 
@@ -232,6 +233,9 @@ All routes share `AppShell`: 64px top header + 256px sidebar. Sidebar contains:
 | `ActivityFeed` | `getActivityFeed` | Wired — renders sync_log events (native mutations + sync runs) |
 
 ---
+
+#### `/my-work` — My Work
+Personal execution view (the Tasks page remains the comprehensive review surface): open tasks assigned to me sorted by end date (overdue in red), plans I own with progress bars, and open work items I own — all respecting the product scope switcher.
 
 #### `/products` — Products List
 - Grid of product cards with name, description (truncated), tags (max 3 shown), asset count, active plan count
