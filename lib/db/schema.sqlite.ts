@@ -75,6 +75,8 @@ export const integrations = sqliteTable('integrations', {
   name: text('name').notNull(),
   // Reference to a credential (env var name / secret id) — never the secret itself.
   authRef: text('auth_ref'),
+  // AES-256-GCM (key derived from AUTH_SECRET); preferred over authRef when set.
+  tokenEncrypted: text('token_encrypted'),
   // Scope (project/repo/JQL filter), status map, user-mapping overrides, target productId.
   config: text('config', { mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
   status: text('status').$type<IntegrationStatus>().notNull().default('active'),

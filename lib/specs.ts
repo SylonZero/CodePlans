@@ -33,7 +33,8 @@ export async function fetchSpecMarkdown(specUrl: string, organizationId: string 
         if (config.repo !== repo) continue
         if (gl && !(config.baseUrl ?? 'https://gitlab.com').startsWith(gl[1])) continue
         const connector = getConnector(integration.provider)
-        const token = integration.authRef ? process.env[integration.authRef] : undefined
+        const { resolveConnectionToken } = await import('./integrations/secrets')
+        const token = resolveConnectionToken(integration)
         if (!connector?.fetchFile || !token) continue
         const content = await connector.fetchFile({ token }, config, gh ? gh[3] : gl![4], gh ? gh[2] : gl![3])
         if (content) return content.slice(0, MAX_SPEC_BYTES)

@@ -58,10 +58,11 @@ export async function runSync(integration: IntegrationRow, connector: Connector)
     return emptyResult('Connection has no target product configured')
   }
 
-  const token = integration.authRef ? process.env[integration.authRef] : undefined
+  const { resolveConnectionToken } = await import('./secrets')
+  const token = resolveConnectionToken(integration)
   if (!token) {
     return emptyResult(
-      `Auth token not found — set the ${integration.authRef ?? '(unset)'} environment variable`,
+      'Auth token not found — paste a token on the connection or set its env var',
     )
   }
 

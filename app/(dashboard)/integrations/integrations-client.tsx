@@ -153,6 +153,18 @@ export function IntegrationsClient({
                         {conn.lastSyncAt
                           ? ` · last sync ${formatDateShort(new Date(conn.lastSyncAt))}`
                           : ' · never synced — serving as docs credential for this repo'}
+                        {conn.credential === 'stored' && ' · token stored'}
+                        {conn.credential === 'env_set' && ` · env ${conn.authRef} ✓`}
+                      </p>
+                      {conn.credential === 'env_missing' && (
+                        <p className="text-xs text-destructive">
+                          ⚠ env var {conn.authRef} is not set on the server — sync and spec rendering will fail
+                        </p>
+                      )}
+                      {conn.credential === 'none' && (
+                        <p className="text-xs text-destructive">⚠ no credential configured</p>
+                      )}
+                      <p className="hidden">
                       </p>
                     </div>
                   </div>
@@ -303,13 +315,18 @@ function NewConnectionDialog({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="ic-authref">
-              Token env var <span className="text-destructive">*</span>
-            </Label>
-            <Input id="ic-authref" name="authRef" placeholder="e.g. GITHUB_SYNC_TOKEN" required />
+            <Label htmlFor="ic-token">Access token <span className="text-destructive">*</span></Label>
+            <Input id="ic-token" name="token" type="password" placeholder={`Paste a ${meta.tokenHint}`} autoComplete="off" />
             <p className="text-xs text-muted-foreground">
-              Name of an environment variable on the server holding a {meta.tokenHint}. The token itself is never stored in the database.
+              Stored encrypted (AES-256-GCM, key derived from AUTH_SECRET). Used for issue sync <em>and</em> rendering linked specs from this repo.
             </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ic-authref">
+              …or a server env-var name
+              <span className="ml-1 text-xs text-muted-foreground">(alternative to pasting)</span>
+            </Label>
+            <Input id="ic-authref" name="authRef" placeholder="e.g. GITHUB_SYNC_TOKEN" />
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>

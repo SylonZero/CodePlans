@@ -1203,6 +1203,7 @@ export type IntegrationSummary = {
   authRef: string | null
   config: Record<string, unknown>
   status: string
+  credential: 'stored' | 'env_set' | 'env_missing' | 'none'
   lastSyncAt: string | null
   lastError: string | null
   mirroredCount: number
@@ -1215,6 +1216,7 @@ export async function getIntegrations(orgId: string): Promise<IntegrationSummary
       provider: integrations.provider,
       name: integrations.name,
       authRef: integrations.authRef,
+      tokenEncrypted: integrations.tokenEncrypted,
       config: integrations.config,
       status: integrations.status,
       lastSyncAt: integrations.lastSyncAt,
@@ -1227,9 +1229,16 @@ export async function getIntegrations(orgId: string): Promise<IntegrationSummary
     .where(eq(integrations.organizationId, orgId))
     .orderBy(integrations.name)
 
-  return rows.map((r) => ({
+  return rows.map(({ tokenEncrypted, ...r }) => ({
     ...r,
     config: (r.config ?? {}) as Record<string, unknown>,
+    credential: tokenEncrypted
+      ? ('stored' as const)
+      : r.authRef
+        ? process.env[r.authRef]
+          ? ('env_set' as const)
+          : ('env_missing' as const)
+        : ('none' as const),
     lastSyncAt: r.lastSyncAt?.toISOString() ?? null,
   }))
 }

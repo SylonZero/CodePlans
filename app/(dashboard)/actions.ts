@@ -742,15 +742,18 @@ export async function createIntegrationAction(formData: FormData) {
   const repo = (formData.get('repo') as string) || undefined
   const baseUrl = (formData.get('baseUrl') as string) || undefined
   const authRef = (formData.get('authRef') as string) || undefined
+  const token = (formData.get('token') as string)?.trim() || undefined
   const productId = (formData.get('productId') as string) || undefined
 
   if (!productId) return { error: 'Select a target product for mirrored items.' }
+  if (!token && !authRef) return { error: 'Provide a token, or an env-var name that holds one.' }
 
   await createIntegration({
     organizationId: profile.organizationId,
     provider,
     name,
     authRef,
+    token,
     config: { repo, baseUrl, productId },
   })
 
@@ -789,8 +792,9 @@ export async function listPlanScopesAction(connectionId: string) {
   const connector = getConnector(integration.provider)
   if (!connector?.listScopes) return { error: 'This provider does not support scopes.' }
 
-  const token = integration.authRef ? process.env[integration.authRef] : undefined
-  if (!token) return { error: `Auth token not found — set ${integration.authRef ?? '(unset)'}.` }
+  const { resolveConnectionToken } = await import('@/lib/integrations/secrets')
+  const token = resolveConnectionToken(integration)
+  if (!token) return { error: 'Auth token not found — paste a token on the connection or set its env var.' }
 
   try {
     const config = (integration.config ?? {}) as import('@/lib/integrations/types').IntegrationConfig

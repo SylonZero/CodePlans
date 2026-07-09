@@ -187,7 +187,7 @@ Then run `pnpm db:migrate` and `pnpm dev`.
 | `DATABASE_URL` | `:memory:` | SQLite: `file:data/codeplans.db` or `:memory:`. Postgres: full connection string |
 | `DB_SSL` | `true` | Set `false` for local or non-SSL Postgres |
 | `AUTH_SECRET` | — | Secret for local auth session signing (min 32 chars) |
-| *(your token var)* | — | GitHub integration connections reference a server env var by name (e.g. `GITHUB_SYNC_TOKEN`) holding a repo-read token (GitHub) or `read_api` token (GitLab); tokens are never stored in the database |
+| *(integration tokens)* | — | Paste tokens directly on connections (stored AES-256-GCM-encrypted with a key derived from `AUTH_SECRET`), or reference a server env var by name for secrets-in-deployment postures |
 | `AUTH_URL` | — | **Required in production.** Full URL of the server (e.g. `https://codeplans.yourteam.com`). Auth.js uses this to construct callback URLs and validate login redirects. Not needed for `localhost` dev. |
 | `BILLING_ENABLED` | `true` | Set `false` to hide billing UI (always off in `team` mode) |
 | `ALLOWED_DEV_ORIGINS` | — | Comma-separated hosts allowed to access Next.js dev resources (needed when running on a remote server) |

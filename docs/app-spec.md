@@ -130,7 +130,7 @@ CodePlans is a **code change coordination tool** for engineering teams. It organ
 | `work_item_code_plans` | Many-to-many work item ↔ plan links (unique pair) |
 | `code_plan_assets` | Source of truth for plan targets; per-asset `branch`, `prUrl`, `prStatus` (none/draft/open/merged/closed), `notes` (unique plan+asset) |
 | `code_plan_assignees` | Source of truth for plan assignees (composite PK) |
-| `integrations` | Org-scoped connections: `provider`, `authRef` (env-var name — token never stored), `config` (repo, target productId, status/type maps), `status`, `lastSyncAt`, `lastError` |
+| `integrations` | Org-scoped connections: `provider`, credential = `token_encrypted` (AES-256-GCM, key from AUTH_SECRET — preferred) or `authRef` env-var name, `config` (repo, target productId, status/type maps), `status`, `lastSyncAt`, `lastError` |
 | `sync_log` | Item-level events (native mutations + sync runs); drives the activity feed |
 | `api_keys` | MCP access: per-user hashed `cpk_` tokens (`keyHash` sha256, `keyPrefix` for display, `scope` read/write, soft revoke) |
 
@@ -316,7 +316,7 @@ Client component (`WorkItemsClient`) with:
 Client component (`IntegrationsClient`) with:
 - Connection cards: provider icon, name, repo, mirrored count, last sync, status badge, surfaced `lastError`
 - "Sync now" → `syncIntegrationAction` (runs the pull-only sync engine; shows created/updated/unchanged)
-- "New Connection" dialog: provider select (GitHub Issues / GitLab Issues), name, repo/project path, instance URL (GitLab self-hosted, optional), target product, token env-var name → `createIntegrationAction`
+- "New Connection" dialog: provider select (GitHub Issues / GitLab Issues), name, repo/project path, instance URL (GitLab self-hosted, optional), target product, and the credential — paste a token (stored encrypted) or name a server env var → `createIntegrationAction`. Cards show credential status (token stored / env ✓ / env missing ⚠)
 - Delete with confirm (mirrored items are kept, stop syncing)
 
 #### `/api/mcp/[transport]` — MCP server (no UI)

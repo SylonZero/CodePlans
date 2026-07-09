@@ -51,7 +51,8 @@ export async function notifyPlanCompleted(planId: string): Promise<number> {
         if (!integration) continue
 
         const connector = getConnector(integration.provider)
-        const token = integration.authRef ? process.env[integration.authRef] : undefined
+        const { resolveConnectionToken } = await import('./secrets')
+        const token = resolveConnectionToken(integration)
         if (!connector?.postComment || !token) continue
 
         await connector.postComment(

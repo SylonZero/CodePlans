@@ -151,7 +151,7 @@ describe('runSync', () => {
     delete process.env.TEST_SYNC_TOKEN
     const integration = await makeIntegration()
     const result = await runSync(integration as any, stubConnector(makeItems()))
-    expect(result.error).toContain('TEST_SYNC_TOKEN')
+    expect(result.error).toContain('Auth token not found')
     expect(result.created).toBe(0)
   })
 })
@@ -408,5 +408,21 @@ describe('write-back: notifyPlanCompleted', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('nope', { status: 403 })))
     const { notifyPlanCompleted } = await import('@/lib/integrations/writeback')
     expect(await notifyPlanCompleted(F.planActive)).toBe(0) // failed but didn't throw
+  })
+})
+
+describe('stored-token connections', () => {
+  it('runSync works with a pasted (encrypted) token and no env var', async () => {
+    delete process.env.TEST_SYNC_TOKEN
+    const integration = await createIntegration({
+      organizationId: F.org,
+      provider: 'github',
+      name: 'Stored token repo',
+      token: 'ghp_stored_token',
+      config: { repo: 'acme/app', productId: F.productShared },
+    })
+    const result = await runSync(integration as any, stubConnector(makeItems()))
+    expect(result.error).toBeUndefined()
+    expect(result.created).toBe(2)
   })
 })
