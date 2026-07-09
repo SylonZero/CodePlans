@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,7 +27,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { Pencil, Trash2, ArrowUpRight, Link2, Unlink, ExternalLink, FileText } from 'lucide-react'
+import { Trash2, ArrowUpRight, Link2, Unlink, ExternalLink, FileText } from 'lucide-react'
+import { toast } from 'sonner'
 import ReactMarkdown from 'react-markdown'
 import type { WorkItemStatus } from '@/lib/types'
 import type { WorkItemWithContext } from '@/lib/db/queries'
@@ -119,14 +120,6 @@ export function WorkItemPanel({
   scopedProductId,
   onClose,
 }: WorkItemPanelProps) {
-  const [editing, setEditing] = useState(false)
-
-  useEffect(() => {
-    setEditing(false)
-  }, [item?.id, open])
-
-  const showForm = mode === 'create' || editing
-
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) onClose() }}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
@@ -144,50 +137,55 @@ export function WorkItemPanel({
             />
           </>
         ) : item ? (
-          showForm ? (
-            <>
-              <SheetHeader>
-                <SheetTitle>Edit Work Item</SheetTitle>
-                <SheetDescription>Update the work item details.</SheetDescription>
-              </SheetHeader>
-              <WorkItemForm
-                item={item}
-                products={products}
-                assets={assets}
-                onDone={() => setEditing(false)}
-              />
-            </>
-          ) : (
-            <WorkItemDetails
-              item={item}
-              plans={plans}
-              onEdit={() => setEditing(true)}
-              onDeleted={onClose}
-            />
-          )
+          <WorkItemEditor key={item.id} item={item} plans={plans} assets={assets} onDeleted={onClose} />
         ) : null}
       </SheetContent>
     </Sheet>
   )
 }
 
-function WorkItemDetails({
+function WorkItemEditor({
   item,
   plans,
-  onEdit,
+  assets,
   onDeleted,
 }: {
   item: WorkItemWithContext
   plans: PlanOption[]
-  onEdit: () => void
+  assets: AssetOption[]
   onDeleted: () => void
 }) {
   const [isPending, startTransition] = useTransition()
+  const formRef = useRef<HTMLFormElement>(null)
+  const [type, setType] = useState<string>(item.type)
+  const [status, setStatus] = useState<string>(item.status)
+  const [severity, setSeverity] = useState<string>(item.severity)
+  const [assetId, setAssetId] = useState<string>(item.assetId ?? 'none')
   const [linkPlanId, setLinkPlanId] = useState('')
+  const lastSaved = useRef<string>('')
 
   const isMirrored = item.source !== 'native'
+  const productAssets = assets.filter((a) => a.productId === item.productId)
   const linkedIds = new Set(item.linkedPlans.map((p) => p.id))
   const linkablePlans = plans.filter((p) => !linkedIds.has(p.id))
+
+  function commit(overrides: Record<string, string> = {}) {
+    const form = formRef.current
+    if (!form) return
+    const fd = new FormData(form)
+    fd.set('type', overrides.type ?? type)
+    fd.set('status', overrides.status ?? status)
+    fd.set('severity', overrides.severity ?? severity)
+    const a = overrides.assetId ?? assetId
+    fd.set('assetId', a === 'none' ? '' : a)
+    const snapshot = JSON.stringify([...fd.entries()])
+    if (snapshot === lastSaved.current) return
+    lastSaved.current = snapshot
+    startTransition(async () => {
+      await updateWorkItemAction(item.id, fd)
+      toast.success('Saved')
+    })
+  }
 
   function handleDelete() {
     startTransition(async () => {
@@ -207,39 +205,33 @@ function WorkItemDetails({
     <>
       <SheetHeader>
         <div className="flex items-center gap-2 pr-8 flex-wrap">
-          <Badge variant="secondary" className={cn('text-xs', typeStyles[item.type])}>
-            {typeLabel(item.type)}
-          </Badge>
-          <Badge variant="secondary" className={cn('text-xs', statusStyles[item.status])}>
-            {statusLabel(item.status)}
-          </Badge>
-          <Badge variant="secondary" className={cn('text-xs capitalize', severityStyles[item.severity])}>
-            {item.severity}
-          </Badge>
+          <Select value={type} onValueChange={(v) => { setType(v); commit({ type: v }) }} disabled={isMirrored}>
+            <SelectTrigger className={cn('h-7 w-auto gap-1 border-none text-xs', typeStyles[type])}><SelectValue /></SelectTrigger>
+            <SelectContent>{TYPES.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={status} onValueChange={(v) => { setStatus(v); commit({ status: v }) }} disabled={isMirrored}>
+            <SelectTrigger className={cn('h-7 w-auto gap-1 border-none text-xs', statusStyles[status as WorkItemStatus])}><SelectValue /></SelectTrigger>
+            <SelectContent>{STATUSES.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={severity} onValueChange={(v) => { setSeverity(v); commit({ severity: v }) }}>
+            <SelectTrigger className={cn('h-7 w-auto gap-1 border-none text-xs capitalize', severityStyles[severity])}><SelectValue /></SelectTrigger>
+            <SelectContent>{SEVERITIES.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+          </Select>
           {isMirrored && (
             <Badge variant="outline" className="text-xs capitalize">
-              {item.source}
-              {item.externalKey ? ` · ${item.externalKey}` : ''}
+              {item.source}{item.externalKey ? ` · ${item.externalKey}` : ''}
             </Badge>
           )}
         </div>
-        <SheetTitle className="text-lg">{item.title}</SheetTitle>
+        <SheetTitle className="sr-only">{item.title}</SheetTitle>
         <SheetDescription asChild>
           <span className="flex items-center gap-2">
-            <Link
-              href={`/products/${item.productSlug}`}
-              className="flex items-center gap-1 hover:text-accent transition-colors w-fit"
-            >
+            <Link href={`/products/${item.productSlug}`} className="flex items-center gap-1 hover:text-accent transition-colors w-fit">
               {item.productName}
               <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
             {item.externalUrl && (
-              <a
-                href={item.externalUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1 hover:text-accent transition-colors w-fit"
-              >
+              <a href={item.externalUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 hover:text-accent transition-colors w-fit">
                 View in {item.source}
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
@@ -248,37 +240,38 @@ function WorkItemDetails({
         </SheetDescription>
       </SheetHeader>
 
-      <div className="space-y-5 px-4">
-        {item.description && (
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1.5">Description</p>
-            <p className="text-sm whitespace-pre-wrap">{item.description}</p>
+      <form ref={formRef} onBlur={() => commit()} onSubmit={(e) => e.preventDefault()} className="space-y-4 px-4">
+        <Input name="title" defaultValue={item.title} disabled={isMirrored} className="font-medium" aria-label="Title" />
+        <Textarea name="description" defaultValue={item.description} disabled={isMirrored} rows={3} placeholder="Description" aria-label="Description" />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Asset</Label>
+            <Select value={assetId} onValueChange={(v) => { setAssetId(v); commit({ assetId: v }) }}>
+              <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {productAssets.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
-        )}
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1.5">Asset</p>
-            <span className="text-sm">{item.assetName ?? <span className="text-muted-foreground">None</span>}</span>
-          </div>
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1.5">Area</p>
-            <span className="text-sm">{item.area ?? <span className="text-muted-foreground">—</span>}</span>
+          <div className="space-y-1.5">
+            <Label htmlFor="wie-area" className="text-xs">Area</Label>
+            <Input id="wie-area" name="area" defaultValue={item.area} placeholder="e.g. billing/invoices" />
           </div>
         </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="wie-spec" className="text-xs">Spec URL</Label>
+          <Input id="wie-spec" name="specUrl" type="url" defaultValue={item.specUrl} placeholder="https://…/docs/specs/item.md" />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="wie-tags" className="text-xs">Tags (comma-separated)</Label>
+          <Input id="wie-tags" name="tags" defaultValue={item.tags.join(', ')} disabled={isMirrored} />
+        </div>
+        <p className="text-xs text-muted-foreground">{isPending ? 'Saving…' : 'Changes save automatically'}</p>
+      </form>
 
+      <div className="space-y-5 px-4">
         {item.specUrl && <SpecSection specUrl={item.specUrl} />}
-
-        {item.tags.length > 0 && (
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1.5">Tags</p>
-            <div className="flex flex-wrap gap-1.5">
-              {item.tags.map((tag) => (
-                <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Linked code plans */}
         <div>
@@ -287,10 +280,7 @@ function WorkItemDetails({
             <ul className="space-y-1.5 mb-3">
               {item.linkedPlans.map((plan) => (
                 <li key={plan.id} className="flex items-center justify-between gap-2 text-sm">
-                  <Link
-                    href={`/plans/${plan.id}`}
-                    className="flex items-center gap-1 hover:text-accent transition-colors truncate"
-                  >
+                  <Link href={`/plans/${plan.id}`} className="flex items-center gap-1 hover:text-accent transition-colors truncate">
                     {plan.title}
                     <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />
                   </Link>
@@ -316,14 +306,8 @@ function WorkItemDetails({
           {linkablePlans.length > 0 && (
             <div className="flex items-center gap-2">
               <Select value={linkPlanId} onValueChange={setLinkPlanId}>
-                <SelectTrigger className="h-8 flex-1 text-sm">
-                  <SelectValue placeholder="Link to a plan…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {linkablePlans.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
-                  ))}
-                </SelectContent>
+                <SelectTrigger className="h-8 flex-1 text-sm"><SelectValue placeholder="Link to a plan…" /></SelectTrigger>
+                <SelectContent>{linkablePlans.map((p) => <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>)}</SelectContent>
               </Select>
               <Button size="sm" variant="outline" disabled={!linkPlanId || isPending} onClick={handleLink}>
                 <Link2 className="mr-1.5 h-3.5 w-3.5" />
@@ -351,22 +335,12 @@ function WorkItemDetails({
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleDelete}
-                disabled={isPending}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
+              <AlertDialogAction onClick={handleDelete} disabled={isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                 {isPending ? 'Deleting…' : 'Delete'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-        {!isMirrored && (
-          <Button size="sm" onClick={onEdit}>
-            <Pencil className="mr-2 h-4 w-4" />
-            Edit
-          </Button>
-        )}
       </SheetFooter>
     </>
   )

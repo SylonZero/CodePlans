@@ -872,3 +872,17 @@ export async function revokeApiKeyAction(id: string) {
   await revokeApiKey(id, authUser.id)
   revalidatePath('/settings')
 }
+
+// Narrow row-level edits (inline list editing)
+export async function updateTaskPriorityAction(id: string, priority: 'low' | 'medium' | 'high' | 'critical') {
+  await requireUser()
+  await updateTask(id, { priority })
+  revalidatePath('/tasks')
+  revalidatePath('/plans')
+}
+
+export async function updateTaskAssigneeAction(id: string, assigneeId: string | null) {
+  await requireUser()
+  await updateTask(id, { assigneeId })
+  revalidatePath('/tasks')
+}

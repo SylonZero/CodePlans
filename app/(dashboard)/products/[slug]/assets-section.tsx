@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -44,6 +44,7 @@ import {
 } from 'lucide-react'
 import type { Asset, AssetType } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 import { createAssetAction, updateAssetAction, deleteAssetAction } from '../../actions'
 
 const assetTypeIcons: Record<AssetType, typeof Box> = {
@@ -129,14 +130,9 @@ export function AssetsSection({
   productSlug: string
 }) {
   const [openAsset, setOpenAsset] = useState<Asset | null>(null)
-  const [editing, setEditing] = useState(false)
 
   // Keep the panel in sync with refreshed server data after an edit
   const currentAsset = openAsset ? assets.find((a) => a.id === openAsset.id) ?? null : null
-
-  useEffect(() => {
-    setEditing(false)
-  }, [currentAsset?.id])
 
   const assetsByType = assets.reduce((acc, asset) => {
     if (!acc[asset.type]) acc[asset.type] = []
@@ -180,27 +176,7 @@ export function AssetsSection({
       <Sheet open={!!currentAsset} onOpenChange={(o) => { if (!o) setOpenAsset(null) }}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
           {currentAsset && (
-            editing ? (
-              <>
-                <SheetHeader>
-                  <SheetTitle>Edit Asset</SheetTitle>
-                  <SheetDescription>Update the asset details.</SheetDescription>
-                </SheetHeader>
-                <AssetForm
-                  asset={currentAsset}
-                  productId={productId}
-                  productSlug={productSlug}
-                  onDone={() => setEditing(false)}
-                />
-              </>
-            ) : (
-              <AssetDetails
-                asset={currentAsset}
-                productSlug={productSlug}
-                onEdit={() => setEditing(true)}
-                onDeleted={() => setOpenAsset(null)}
-              />
-            )
+            <AssetEditor key={currentAsset.id} asset={currentAsset} productSlug={productSlug} onDeleted={() => setOpenAsset(null)} />
           )}
         </SheetContent>
       </Sheet>
@@ -271,20 +247,36 @@ function AssetCard({ asset, onOpen }: { asset: Asset; onOpen: (asset: Asset) => 
   )
 }
 
-function AssetDetails({
+function AssetEditor({
   asset,
   productSlug,
-  onEdit,
   onDeleted,
 }: {
   asset: Asset
   productSlug: string
-  onEdit: () => void
   onDeleted: () => void
 }) {
   const [isPending, startTransition] = useTransition()
+  const formRef = useRef<HTMLFormElement>(null)
+  const [type, setType] = useState<string>(asset.type)
+  const [health, setHealth] = useState<string>(asset.health)
+  const lastSaved = useRef<string>('')
   const Icon = assetTypeIcons[asset.type]
-  const HealthIcon = healthIcons[asset.health]
+
+  function commit(overrides: Record<string, string> = {}) {
+    const form = formRef.current
+    if (!form) return
+    const fd = new FormData(form)
+    fd.set('type', overrides.type ?? type)
+    fd.set('health', overrides.health ?? health)
+    const snapshot = JSON.stringify([...fd.entries()])
+    if (snapshot === lastSaved.current) return
+    lastSaved.current = snapshot
+    startTransition(async () => {
+      await updateAssetAction(asset.id, productSlug, fd)
+      toast.success('Saved')
+    })
+  }
 
   function handleDelete() {
     startTransition(async () => {
@@ -307,67 +299,60 @@ function AssetDetails({
         </div>
       </SheetHeader>
 
-      <div className="space-y-5 px-4">
-        <div className="flex items-center gap-4">
-          <div className={cn('flex items-center gap-1.5', healthStyles[asset.health])}>
-            <HealthIcon className="h-4 w-4" />
-            <span className="text-sm capitalize">{asset.health}</span>
-          </div>
-          {asset.techDebtScore !== undefined && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Tech debt</span>
-              <span className="text-sm font-medium">{asset.techDebtScore}</span>
-            </div>
-          )}
-        </div>
-
-        {asset.description && (
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1.5">Description</p>
-            <p className="text-sm whitespace-pre-wrap">{asset.description}</p>
-          </div>
-        )}
-
-        {asset.tags.length > 0 && (
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1.5">Tags</p>
-            <div className="flex flex-wrap gap-1.5">
-              {asset.tags.map((tag) => (
-                <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {(asset.repositoryUrl || asset.documentationUrl) && (
+      {/* Auto-save: selects commit on change, inputs commit on blur */}
+      <form ref={formRef} onBlur={() => commit()} onSubmit={(e) => e.preventDefault()} className="space-y-4 px-4">
+        <Input name="name" defaultValue={asset.name} className="font-medium" aria-label="Name" />
+        <Textarea name="description" defaultValue={asset.description} rows={3} placeholder="Description" aria-label="Description" />
+        <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Links</p>
-            {asset.repositoryUrl && (
-              <a
-                href={asset.repositoryUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-sm hover:text-accent transition-colors w-fit"
-              >
-                Repository
-                {asset.repoPath && <span className="font-mono text-xs text-muted-foreground">/{asset.repoPath}</span>}
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            )}
-            {asset.documentationUrl && (
-              <a
-                href={asset.documentationUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-sm hover:text-accent transition-colors w-fit"
-              >
-                Documentation
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            )}
+            <Label className="text-xs">Type</Label>
+            <Select value={type} onValueChange={(v) => { setType(v); commit({ type: v }) }}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(Object.keys(assetTypeLabels) as AssetType[]).map((t) => (
+                  <SelectItem key={t} value={t}>{assetTypeLabels[t]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        )}
-      </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Health</Label>
+            <Select value={health} onValueChange={(v) => { setHealth(v); commit({ health: v }) }}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="healthy">Healthy</SelectItem>
+                <SelectItem value="warning">Warning</SelectItem>
+                <SelectItem value="critical">Critical</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="ae-debt" className="text-xs">
+            Tech Debt Score (0–100; blank = derived from open debt items{asset.openDebtCount ? ` — currently ${asset.derivedTechDebtScore ?? 0} from ${asset.openDebtCount}` : ''})
+          </Label>
+          <Input id="ae-debt" name="techDebtScore" type="number" min="0" max="100" defaultValue={asset.techDebtScore ?? ''} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="ae-tags" className="text-xs">Tags (comma-separated)</Label>
+          <Input id="ae-tags" name="tags" defaultValue={asset.tags.join(', ')} />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="ae-repo" className="text-xs">Repository URL</Label>
+            <Input id="ae-repo" name="repositoryUrl" type="url" defaultValue={asset.repositoryUrl ?? ''} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ae-path" className="text-xs">Repo Path</Label>
+            <Input id="ae-path" name="repoPath" defaultValue={asset.repoPath ?? ''} placeholder="apps/web" />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="ae-docs" className="text-xs">Documentation URL</Label>
+          <Input id="ae-docs" name="documentationUrl" type="url" defaultValue={asset.documentationUrl ?? ''} />
+        </div>
+        <p className="text-xs text-muted-foreground">{isPending ? 'Saving…' : 'Changes save automatically'}</p>
+      </form>
 
       <SheetFooter className="flex-row justify-end gap-2">
         <AlertDialog>
@@ -381,25 +366,17 @@ function AssetDetails({
             <AlertDialogHeader>
               <AlertDialogTitle>Delete asset?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently delete &ldquo;{asset.name}&rdquo; and remove it from any code plans that target it.
+                This will permanently delete &ldquo;{asset.name}&rdquo;. Tasks and work items pointing at it lose their asset link. This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleDelete}
-                disabled={isPending}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
+              <AlertDialogAction onClick={handleDelete} disabled={isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                 {isPending ? 'Deleting…' : 'Delete'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-        <Button size="sm" onClick={onEdit}>
-          <Pencil className="mr-2 h-4 w-4" />
-          Edit
-        </Button>
       </SheetFooter>
     </>
   )

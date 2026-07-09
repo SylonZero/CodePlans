@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,7 +28,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { Clock, Pencil, Trash2, ArrowUpRight, ExternalLink } from 'lucide-react'
+import { Trash2, ArrowUpRight, ExternalLink } from 'lucide-react'
+import { toast } from 'sonner'
 import type { TaskStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { createTaskAction, updateTaskAction, deleteTaskAction } from '../actions'
@@ -91,15 +92,6 @@ type TaskPanelProps = {
 }
 
 export function TaskPanel({ open, mode, task, plans, members, onClose }: TaskPanelProps) {
-  const [editing, setEditing] = useState(false)
-
-  // Reset to read-only whenever a different task is opened
-  useEffect(() => {
-    setEditing(false)
-  }, [task?.id, open])
-
-  const showForm = mode === 'create' || editing
-
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) onClose() }}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
@@ -112,26 +104,39 @@ export function TaskPanel({ open, mode, task, plans, members, onClose }: TaskPan
             <TaskForm plans={plans} members={members} onDone={onClose} />
           </>
         ) : task ? (
-          showForm ? (
-            <>
-              <SheetHeader>
-                <SheetTitle>Edit Task</SheetTitle>
-                <SheetDescription>Update the task details.</SheetDescription>
-              </SheetHeader>
-              <TaskForm task={task} plans={plans} members={members} onDone={() => setEditing(false)} />
-            </>
-          ) : (
-            <TaskDetails task={task} onEdit={() => setEditing(true)} onDeleted={onClose} />
-          )
+          <TaskEditor key={task.id} task={task} members={members} onDeleted={onClose} />
         ) : null}
       </SheetContent>
     </Sheet>
   )
 }
 
-function TaskDetails({ task, onEdit, onDeleted }: { task: TaskRow; onEdit: () => void; onDeleted: () => void }) {
+function TaskEditor({ task, members, onDeleted }: { task: TaskRow; members: MemberOption[]; onDeleted: () => void }) {
   const [isPending, startTransition] = useTransition()
+  const formRef = useRef<HTMLFormElement>(null)
+  const [status, setStatus] = useState<string>(task.status)
+  const [priority, setPriority] = useState<string>(task.priority)
+  const [assigneeId, setAssigneeId] = useState<string>(task.assigneeId ?? 'none')
+  const lastSaved = useRef<string>('')
+
   const isMirrored = !!task.source && task.source !== 'native'
+
+  function commit(overrides: Record<string, string> = {}) {
+    const form = formRef.current
+    if (!form) return
+    const fd = new FormData(form)
+    fd.set('status', overrides.status ?? status)
+    fd.set('priority', overrides.priority ?? priority)
+    const a = overrides.assigneeId ?? assigneeId
+    fd.set('assigneeId', a === 'none' ? '' : a)
+    const snapshot = JSON.stringify([...fd.entries()])
+    if (snapshot === lastSaved.current) return
+    lastSaved.current = snapshot
+    startTransition(async () => {
+      await updateTaskAction(task.id, fd)
+      toast.success('Saved')
+    })
+  }
 
   function handleDelete() {
     startTransition(async () => {
@@ -143,39 +148,38 @@ function TaskDetails({ task, onEdit, onDeleted }: { task: TaskRow; onEdit: () =>
   return (
     <>
       <SheetHeader>
-        <div className="flex items-center gap-2 pr-8">
-          <Badge variant="secondary" className={cn('text-xs', statusStyles[task.status])}>
-            {STATUSES.find((s) => s.value === task.status)?.label}
-          </Badge>
-          <Badge variant="secondary" className={cn('text-xs capitalize', priorityStyles[task.priority])}>
-            {task.priority}
-          </Badge>
+        <div className="flex items-center gap-2 pr-8 flex-wrap">
+          <Select value={status} onValueChange={(v) => { setStatus(v); commit({ status: v }) }} disabled={isMirrored}>
+            <SelectTrigger className={cn('h-7 w-auto gap-1 border-none text-xs', statusStyles[status as TaskStatus])}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUSES.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={priority} onValueChange={(v) => { setPriority(v); commit({ priority: v }) }}>
+            <SelectTrigger className={cn('h-7 w-auto gap-1 border-none text-xs capitalize', priorityStyles[priority as keyof typeof priorityStyles])}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PRIORITIES.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
           {isMirrored && (
             <Badge variant="outline" className="text-xs capitalize">
-              {task.source}
-              {task.externalKey ? ` · ${task.externalKey}` : ''}
+              {task.source}{task.externalKey ? ` · ${task.externalKey}` : ''}
             </Badge>
           )}
         </div>
-        <SheetTitle className={cn('text-lg', task.status === 'done' && 'line-through text-muted-foreground')}>
-          {task.title}
-        </SheetTitle>
+        <SheetTitle className="sr-only">{task.title}</SheetTitle>
         <SheetDescription asChild>
           <span className="flex items-center gap-3">
-            <Link
-              href={`/plans/${task.codePlanId}`}
-              className="flex items-center gap-1 hover:text-accent transition-colors w-fit"
-            >
+            <Link href={`/plans/${task.codePlanId}`} className="flex items-center gap-1 hover:text-accent transition-colors w-fit">
               {task.planTitle}
               <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
             {task.externalUrl && (
-              <a
-                href={task.externalUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1 hover:text-accent transition-colors w-fit"
-              >
+              <a href={task.externalUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 hover:text-accent transition-colors w-fit">
                 View in {task.source}
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
@@ -184,61 +188,41 @@ function TaskDetails({ task, onEdit, onDeleted }: { task: TaskRow; onEdit: () =>
         </SheetDescription>
       </SheetHeader>
 
-      <div className="space-y-5 px-4">
-        {task.description && (
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1.5">Description</p>
-            <p className="text-sm whitespace-pre-wrap">{task.description}</p>
+      {/* Auto-save: selects commit on change, inputs commit on blur */}
+      <form ref={formRef} onBlur={() => commit()} onSubmit={(e) => e.preventDefault()} className="space-y-4 px-4">
+        <Input name="title" defaultValue={task.title} disabled={isMirrored} className="font-medium" aria-label="Title" />
+        <Textarea name="description" defaultValue={task.description} disabled={isMirrored} rows={3} placeholder="Description" aria-label="Description" />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="te-est" className="text-xs">Estimated (h)</Label>
+            <Input id="te-est" name="estimatedEffort" type="number" min="0.5" step="0.5" defaultValue={task.estimatedEffort ?? ''} />
           </div>
-        )}
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1.5">Assignee</p>
-            {task.assigneeName ? (
-              <div className="flex items-center gap-2">
-                <Avatar className="h-6 w-6">
-                  <AvatarFallback className="text-xs bg-muted">
-                    {task.assigneeName.split(' ').map((n) => n[0]).join('')}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="text-sm">{task.assigneeName}</span>
-              </div>
-            ) : (
-              <span className="text-sm text-muted-foreground">Unassigned</span>
-            )}
-          </div>
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1.5">Asset</p>
-            <span className="text-sm">{task.assetName ?? <span className="text-muted-foreground">None</span>}</span>
-          </div>
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1.5">Effort</p>
-            {task.estimatedEffort ? (
-              <div className="flex items-center gap-1 text-sm">
-                <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                {task.actualEffort ?? task.estimatedEffort}h
-                {task.actualEffort != null && (
-                  <span className="text-xs text-muted-foreground">(est. {task.estimatedEffort}h)</span>
-                )}
-              </div>
-            ) : (
-              <span className="text-sm text-muted-foreground">Not estimated</span>
-            )}
+          <div className="space-y-1.5">
+            <Label htmlFor="te-act" className="text-xs">Actual (h)</Label>
+            <Input id="te-act" name="actualEffort" type="number" min="0.5" step="0.5" defaultValue={task.actualEffort ?? ''} />
           </div>
         </div>
-
-        {task.tags.length > 0 && (
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1.5">Tags</p>
-            <div className="flex flex-wrap gap-1.5">
-              {task.tags.map((tag) => (
-                <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
-              ))}
-            </div>
+        {members.length > 0 && (
+          <div className="space-y-1.5">
+            <Label className="text-xs">Assignee</Label>
+            <Select value={assigneeId} onValueChange={(v) => { setAssigneeId(v); commit({ assigneeId: v }) }}>
+              <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Unassigned</SelectItem>
+                {members.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
         )}
-      </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="te-tags" className="text-xs">Tags (comma-separated)</Label>
+          <Input id="te-tags" name="tags" defaultValue={task.tags.join(', ')} disabled={isMirrored} />
+        </div>
+        {task.assetName && (
+          <p className="text-xs text-muted-foreground">Asset: {task.assetName}</p>
+        )}
+        <p className="text-xs text-muted-foreground">{isPending ? 'Saving…' : 'Changes save automatically'}</p>
+      </form>
 
       <SheetFooter className="flex-row justify-end gap-2">
         <AlertDialog>
@@ -257,22 +241,12 @@ function TaskDetails({ task, onEdit, onDeleted }: { task: TaskRow; onEdit: () =>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleDelete}
-                disabled={isPending}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
+              <AlertDialogAction onClick={handleDelete} disabled={isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                 {isPending ? 'Deleting…' : 'Delete'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-        {!isMirrored && (
-          <Button size="sm" onClick={onEdit}>
-            <Pencil className="mr-2 h-4 w-4" />
-            Edit
-          </Button>
-        )}
       </SheetFooter>
     </>
   )

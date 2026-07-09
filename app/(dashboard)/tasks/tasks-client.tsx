@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Clock, Filter, CheckCircle2, Circle, Play, LayoutGrid, List, Plus } from 'lucide-react'
 import type { TaskStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { updateTaskStatusAction } from '../actions'
+import { updateTaskStatusAction, updateTaskPriorityAction, updateTaskAssigneeAction } from '../actions'
 import { TaskPanel, type TaskRow, type PlanOption, type MemberOption } from './task-panel'
 
 const PAGE_SIZE = 25
@@ -42,6 +42,64 @@ const priorityStyles = {
   medium: 'bg-chart-2/20 text-chart-2',
   high: 'bg-warning/20 text-warning',
   critical: 'bg-destructive/20 text-destructive',
+}
+
+const PRIORITY_OPTIONS = ['low', 'medium', 'high', 'critical'] as const
+
+function RowPrioritySelect({ task }: { task: TaskRow }) {
+  const [isPending, startTransition] = useTransition()
+  const [value, setValue] = useState(task.priority)
+  return (
+    <Select
+      value={value}
+      onValueChange={(v) => {
+        setValue(v as typeof value)
+        startTransition(() => updateTaskPriorityAction(task.id, v as typeof value))
+      }}
+    >
+      <SelectTrigger
+        disabled={isPending}
+        className={cn('h-6 w-auto gap-1 border-none px-2 text-xs capitalize', priorityStyles[value])}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {PRIORITY_OPTIONS.map((prio) => (
+          <SelectItem key={prio} value={prio} className="capitalize">{prio}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
+function RowAssigneeSelect({ task, members }: { task: TaskRow; members: MemberOption[] }) {
+  const [isPending, startTransition] = useTransition()
+  const [value, setValue] = useState(task.assigneeId ?? 'none')
+  const name = members.find((m) => m.id === value)?.name
+  return (
+    <Select
+      value={value}
+      onValueChange={(v) => {
+        setValue(v)
+        startTransition(() => updateTaskAssigneeAction(task.id, v === 'none' ? null : v))
+      }}
+    >
+      <SelectTrigger disabled={isPending} className="h-7 w-auto gap-1 border-none px-1 text-sm">
+        <span className="flex items-center gap-2">
+          <Avatar className="h-6 w-6">
+            <AvatarFallback className="text-xs bg-muted">
+              {name ? name.split(' ').map((n) => n[0]).join('') : '–'}
+            </AvatarFallback>
+          </Avatar>
+          <span className={cn('text-sm', !name && 'text-muted-foreground')}>{name ? name.split(' ')[0] : '-'}</span>
+        </span>
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="none">Unassigned</SelectItem>
+        {members.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  )
 }
 
 function nextStatus(current: TaskStatus): TaskStatus {
@@ -329,24 +387,11 @@ export function TasksClient({
                       </Link>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{task.assetName ?? '-'}</TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className={cn('text-xs capitalize', priorityStyles[task.priority])}>
-                        {task.priority}
-                      </Badge>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <RowPrioritySelect key={`${task.id}-${task.priority}`} task={task} />
                     </TableCell>
-                    <TableCell>
-                      {task.assigneeName ? (
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-6 w-6">
-                            <AvatarFallback className="text-xs bg-muted">
-                              {task.assigneeName.split(' ').map((n) => n[0]).join('')}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="text-sm">{task.assigneeName.split(' ')[0]}</span>
-                        </div>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">-</span>
-                      )}
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <RowAssigneeSelect key={`${task.id}-${task.assigneeId ?? 'none'}`} task={task} members={members} />
                     </TableCell>
                     <TableCell>
                       {task.estimatedEffort ? (
