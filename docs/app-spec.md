@@ -246,7 +246,7 @@ Two tabs: **Assets** and **Code Plans**.
 **Assets tab** (`assets-section.tsx`):
 - Assets grouped by type (app, service, library, datastore, platform)
 - Each card shows: name, type label, health status with color-coded icon, description, tags, tech debt score bar (if present)
-- Asset card click → view side panel; edit panel (all fields incl. health + tech debt score) → `updateAssetAction`; delete with confirm → `deleteAssetAction`
+- Asset card click → **auto-save editor panel** (all fields incl. health + tech debt score; selects commit on change, inputs on blur) → `updateAssetAction`; delete with confirm → `deleteAssetAction`
 - "Add Asset" button → create side panel → `createAssetAction`
 - "Settings" button → product edit side panel (`product-edit-panel.tsx`)
 
@@ -298,8 +298,9 @@ Client component (`TasksClient`) with:
 **Board view:** 3 kanban columns (up to 8 per column); task cards with priority badge, plan title, assignee avatar, effort.
 
 **Task panel** (`task-panel.tsx`, Sheet-based, deep-linkable via `?task=<id>`):
-- View mode with full task context; edit mode with all fields incl. status, assignee, actual effort → `updateTaskAction`; delete → `deleteTaskAction`
+- **Auto-save editor** (no view/edit split): status/priority/assignee selects commit on change, text/effort fields on blur, toast confirm → `updateTaskAction`; delete → `deleteTaskAction`; mirrored tasks disable tracker-owned fields
 - "New Task" button opens the panel in create mode → `createTaskAction`
+- List rows edit inline: status checkbox cycle, priority + assignee dropdowns in-row
 
 ---
 
@@ -309,7 +310,7 @@ Client component (`WorkItemsClient`) with:
 - Status tabs (All/Open/Planned/In Progress/Resolved), type filter dropdown, view toggle: **List** / **Debt Register**
 - List: table with title (+ mirrored-source icon), type/severity badges, asset + area, linked plan links, status badge — paginated (25/page; resets on filter change)
 - Debt Register: open `tech_debt` items grouped by asset with critical/high rollups
-- Deep-linkable panel (`?item=<id>`): view/edit/create → work item actions; link/unlink to plans; mirrored items show provenance badge + external link and are view-only (Edit hidden; mutations also reject mirrored-field writes)
+- Deep-linkable panel (`?item=<id>`): **auto-save editor** (selects commit on change, inputs on blur, toast confirm) — no view/edit mode split; link/unlink to plans; mirrored items disable tracker-owned fields (mutations also reject mirrored-field writes)
 
 #### `/integrations` — Integrations
 Client component (`IntegrationsClient`) with:

@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { users, organizations, products } from '@/lib/db/schema'
 import { eq, or } from 'drizzle-orm'
 import { AppShell } from '@/components/app-shell'
+import { Toaster } from '@/components/ui/sonner'
 import { config } from '@/lib/config'
 import { getProductScope } from '@/lib/product-scope'
 
@@ -55,6 +56,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       billingEnabled={config.billing.enabled}
     >
       {children}
+      <Toaster position="bottom-right" />
     </AppShell>
   )
 }
