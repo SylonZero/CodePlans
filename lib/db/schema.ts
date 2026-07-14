@@ -20,7 +20,6 @@ export const {
   assetDependencies,
   codePlans,
   codePlanAssets,
-  codePlanAssignees,
   workItems,
   workItemCodePlans,
   tasks,

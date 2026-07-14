@@ -6,7 +6,6 @@ import {
   integrations,
   codePlans,
   codePlanAssets,
-  codePlanAssignees,
   workItems,
   workItemCodePlans,
   tasks,
@@ -120,11 +119,11 @@ type CreateCodePlanData = {
   deadline?: string
   specUrl?: string
   ownerId?: string | null
-  assigneeIds: string[]
 }
 
-// Join tables are the source of truth for plan↔asset and plan↔assignee links
-// (the deprecated array columns were dropped in v0.3.0).
+// codePlanAssets is the source of truth for plan↔asset links (the deprecated
+// array column was dropped in v0.3.0). Plan assignees aren't a stored link at
+// all — see getCodePlan/getCodePlans, which derive them from task.assigneeId.
 
 async function syncPlanAssets(planId: string, assetIds: string[]) {
   const existing = await db
@@ -147,15 +146,8 @@ async function syncPlanAssets(planId: string, assetIds: string[]) {
   }
 }
 
-async function syncPlanAssignees(planId: string, userIds: string[]) {
-  await db.delete(codePlanAssignees).where(eq(codePlanAssignees.codePlanId, planId))
-  if (userIds.length > 0) {
-    await db.insert(codePlanAssignees).values(userIds.map((userId) => ({ codePlanId: planId, userId })))
-  }
-}
-
 export async function createCodePlan(data: CreateCodePlanData, userId: string) {
-  const { targetAssetIds, assigneeIds, ...columns } = data
+  const { targetAssetIds, ...columns } = data
   const [plan] = await db
     .insert(codePlans)
     .values({
@@ -165,7 +157,6 @@ export async function createCodePlan(data: CreateCodePlanData, userId: string) {
     })
     .returning()
   await syncPlanAssets(plan.id, targetAssetIds)
-  await syncPlanAssignees(plan.id, assigneeIds)
   return plan
 }
 
@@ -176,7 +167,7 @@ type UpdateCodePlanData = Partial<
 >
 
 export async function updateCodePlan(id: string, data: UpdateCodePlanData) {
-  const { targetAssetIds, assigneeIds, ...columns } = data
+  const { targetAssetIds, ...columns } = data
   const [plan] = await db
     .update(codePlans)
     .set({ ...columns, updatedAt: new Date() })
@@ -184,7 +175,6 @@ export async function updateCodePlan(id: string, data: UpdateCodePlanData) {
     .returning()
   if (!plan) return null
   if (targetAssetIds !== undefined) await syncPlanAssets(id, targetAssetIds)
-  if (assigneeIds !== undefined) await syncPlanAssignees(id, assigneeIds)
   return plan
 }
 

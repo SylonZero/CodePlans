@@ -432,7 +432,7 @@ const handler = createMcpHandler(
       async ({ workItemIds, ownerEmail, ...data }, extra) => {
         requireWrite(extra)
         const ownerId = ownerEmail ? await resolveAssigneeEmail(uid(extra), ownerEmail) : undefined
-        const plan = await createCodePlan({ ...data, ownerId, assigneeIds: [] }, uid(extra))
+        const plan = await createCodePlan({ ...data, ownerId }, uid(extra))
         for (const workItemId of workItemIds) await linkWorkItemToPlan(workItemId, plan.id)
         return json(plan)
       },

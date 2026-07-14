@@ -5,7 +5,6 @@ import {
   assetDependencies,
   codePlans,
   codePlanAssets,
-  codePlanAssignees,
   workItems,
   workItemCodePlans,
   tasks,
@@ -316,16 +315,18 @@ export async function getCodePlans(userId: string, filters: PlanFilters = {}): P
     .orderBy(desc(codePlans.updatedAt))
 
   const planIds = rows.map((r) => r.id)
-  const [assetLinks, assigneeLinks] = planIds.length
+  // Assignees are derived from who's actually assigned to the plan's tasks —
+  // not a separately-maintained list, so they can never drift from reality.
+  const [assetLinks, taskAssigneeLinks] = planIds.length
     ? await Promise.all([
         db
           .select({ codePlanId: codePlanAssets.codePlanId, assetId: codePlanAssets.assetId })
           .from(codePlanAssets)
           .where(inArray(codePlanAssets.codePlanId, planIds)),
         db
-          .select({ codePlanId: codePlanAssignees.codePlanId, userId: codePlanAssignees.userId })
-          .from(codePlanAssignees)
-          .where(inArray(codePlanAssignees.codePlanId, planIds)),
+          .select({ codePlanId: tasks.codePlanId, assigneeId: tasks.assigneeId })
+          .from(tasks)
+          .where(and(inArray(tasks.codePlanId, planIds), isNotNull(tasks.assigneeId))),
       ])
     : [[], []]
 
@@ -333,9 +334,12 @@ export async function getCodePlans(userId: string, filters: PlanFilters = {}): P
   for (const l of assetLinks) {
     assetsByPlan.set(l.codePlanId, [...(assetsByPlan.get(l.codePlanId) ?? []), l.assetId])
   }
-  const assigneesByPlan = new Map<string, string[]>()
-  for (const l of assigneeLinks) {
-    assigneesByPlan.set(l.codePlanId, [...(assigneesByPlan.get(l.codePlanId) ?? []), l.userId])
+  const assigneesByPlan = new Map<string, Set<string>>()
+  for (const l of taskAssigneeLinks) {
+    if (!l.assigneeId) continue
+    const set = assigneesByPlan.get(l.codePlanId) ?? new Set<string>()
+    set.add(l.assigneeId)
+    assigneesByPlan.set(l.codePlanId, set)
   }
 
   return rows.map((r) => ({
@@ -343,7 +347,7 @@ export async function getCodePlans(userId: string, filters: PlanFilters = {}): P
     ownerId: r.ownerId ?? undefined,
     specUrl: r.specUrl ?? undefined,
     targetAssetIds: assetsByPlan.get(r.id) ?? [],
-    assigneeIds: assigneesByPlan.get(r.id) ?? [],
+    assigneeIds: [...(assigneesByPlan.get(r.id) ?? [])],
     startDate: r.startDate ?? undefined,
     endDate: r.endDate ?? undefined,
     deadline: r.deadline ?? undefined,
@@ -375,7 +379,7 @@ export async function getCodePlan(id: string, userId: string): Promise<CodePlanD
   })
   if (!product) return null
 
-  const [planTasks, planAssetRows, resolvedAssignees] = await Promise.all([
+  const [planTasks, planAssetRows] = await Promise.all([
     db.query.tasks.findMany({
       where: eq(tasks.codePlanId, id),
       orderBy: desc(tasks.createdAt),
@@ -393,14 +397,16 @@ export async function getCodePlan(id: string, userId: string): Promise<CodePlanD
       .from(codePlanAssets)
       .innerJoin(assets, eq(codePlanAssets.assetId, assets.id))
       .where(eq(codePlanAssets.codePlanId, id)),
-    db
-      .select({ id: users.id, name: users.name })
-      .from(codePlanAssignees)
-      .innerJoin(users, eq(codePlanAssignees.userId, users.id))
-      .where(eq(codePlanAssignees.codePlanId, id)),
   ])
 
   const resolvedAssets = planAssetRows.map((r) => ({ id: r.assetId, name: r.assetName }))
+
+  // Assignees are derived from who's actually assigned to the plan's tasks —
+  // not a separately-maintained list, so they can never drift from reality.
+  const assigneeIds = [...new Set(planTasks.map((t) => t.assigneeId).filter((x): x is string => !!x))]
+  const resolvedAssignees = assigneeIds.length
+    ? await db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, assigneeIds))
+    : []
 
   const taskCount = planTasks.length
   const completedTaskCount = planTasks.filter((t) => t.status === 'done').length

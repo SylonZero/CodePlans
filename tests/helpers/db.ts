@@ -11,7 +11,6 @@ import {
   assets,
   codePlans,
   codePlanAssets,
-  codePlanAssignees,
   workItems,
   workItemCodePlans,
   tasks,
@@ -33,7 +32,6 @@ export async function clearTables() {
   await d.delete(workItemCodePlans)
   await d.delete(workItems)
   await d.delete(codePlanAssets)
-  await d.delete(codePlanAssignees)
   await d.delete(tasks)
   await d.delete(codePlans)
   await d.delete(assets)
@@ -224,13 +222,11 @@ export async function seedFixtures() {
     },
   ])
 
-  // 7b. Plan↔asset and plan↔assignee join rows (source of truth; arrays kept in step 7
-  //     to mirror the one-release rollback window)
+  // 7b. Plan↔asset join rows (source of truth for targeted assets). Plan
+  //     assignees aren't a stored link — they're derived from task.assigneeId
+  //     (task1 below, assigned to bob, is what makes planActive show bob).
   await d.insert(codePlanAssets).values([
     { codePlanId: F.planActive, assetId: F.assetApi },
-  ])
-  await d.insert(codePlanAssignees).values([
-    { codePlanId: F.planActive, userId: F.bob },
   ])
 
   // 8. Tasks

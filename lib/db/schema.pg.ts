@@ -175,14 +175,6 @@ export const codePlanAssets = pgTable('code_plan_assets', {
   uniqueIndex('code_plan_assets_plan_asset_idx').on(t.codePlanId, t.assetId),
 ])
 
-export const codePlanAssignees = pgTable('code_plan_assignees', {
-  codePlanId: uuid('code_plan_id').notNull().references(() => codePlans.id, { onDelete: 'cascade' }),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [
-  primaryKey({ columns: [t.codePlanId, t.userId] }),
-])
-
 export const workItems = pgTable('work_items', {
   id: uuid('id').primaryKey().defaultRandom(),
   productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
