@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Switch } from '@/components/ui/switch'
 import { Clock, Filter, CheckCircle2, Circle, Play, LayoutGrid, List, Plus } from 'lucide-react'
 import type { TaskStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -285,13 +286,13 @@ export function TasksClient({
             <TabsTrigger value="done">Done</TabsTrigger>
           </TabsList>
         </Tabs>
-        <Button
-          variant={mineOnly ? 'secondary' : 'outline'}
-          size="sm"
-          onClick={() => { setMineOnly((v) => !v); setPage(0) }}
-        >
-          Assigned to me
-        </Button>
+        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+          <Switch
+            checked={mineOnly}
+            onCheckedChange={(v) => { setMineOnly(v); setPage(0) }}
+          />
+          <span className="text-muted-foreground">Assigned to me</span>
+        </label>
         <div className="flex items-center gap-2 sm:ml-auto">
           <Filter className="h-4 w-4 text-muted-foreground" />
           <Select value={planFilter} onValueChange={(v) => { setPlanFilter(v); setPage(0) }}>
@@ -357,8 +358,12 @@ export function TasksClient({
                         )}
                       </div>
                     </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <Link href={`/plans/${task.codePlanId}`} className="text-sm hover:text-accent transition-colors">
+                    <TableCell className="max-w-[200px]" onClick={(e) => e.stopPropagation()}>
+                      <Link
+                        href={`/plans/${task.codePlanId}`}
+                        title={task.planTitle}
+                        className="text-sm hover:text-accent transition-colors truncate block"
+                      >
                         {task.planTitle}
                       </Link>
                     </TableCell>

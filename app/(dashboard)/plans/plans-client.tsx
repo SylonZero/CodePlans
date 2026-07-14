@@ -6,9 +6,11 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
+import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Calendar, Users, Filter, ArrowUpRight, Clock } from 'lucide-react'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Plus, Calendar, Users, Filter, ArrowUpRight, Clock, List, LayoutGrid } from 'lucide-react'
 import type { CodePlanStatus, CodePlanType } from '@/lib/types'
 import { cn, formatDate } from '@/lib/utils'
 import { PlanCreatePanel } from './plan-create-panel'
@@ -57,6 +59,7 @@ export function PlansClient({ plans, products, currentUserId }: { plans: Plan[];
   const [mineOnly, setMineOnly] = useState(false)
   const [statusFilter, setStatusFilter] = useState<CodePlanStatus | 'all' | 'open'>('open')
   const [productFilter, setProductFilter] = useState<string>('all')
+  const [view, setView] = useState<'card' | 'list'>('card')
 
   const filteredPlans = plans.filter((plan) => {
     if (mineOnly && plan.ownerId !== currentUserId && !plan.assigneeIds.includes(currentUserId ?? '')) return false
@@ -131,13 +134,10 @@ export function PlansClient({ plans, products, currentUserId }: { plans: Plan[];
             <TabsTrigger value="completed">Completed</TabsTrigger>
           </TabsList>
         </Tabs>
-        <Button
-          variant={mineOnly ? 'secondary' : 'outline'}
-          size="sm"
-          onClick={() => setMineOnly((v) => !v)}
-        >
-          My plans
-        </Button>
+        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+          <Switch checked={mineOnly} onCheckedChange={setMineOnly} />
+          <span className="text-muted-foreground">My plans</span>
+        </label>
         <div className="flex items-center gap-2 sm:ml-auto">
           <Filter className="h-4 w-4 text-muted-foreground" />
           <Select value={productFilter} onValueChange={setProductFilter}>
@@ -151,20 +151,104 @@ export function PlansClient({ plans, products, currentUserId }: { plans: Plan[];
               ))}
             </SelectContent>
           </Select>
+          <div className="flex border border-border rounded-md">
+            <Button variant={view === 'card' ? 'secondary' : 'ghost'} size="icon" className="h-9 w-9 rounded-r-none" title="Card view" onClick={() => setView('card')}>
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+            <Button variant={view === 'list' ? 'secondary' : 'ghost'} size="icon" className="h-9 w-9 rounded-l-none" title="List view" onClick={() => setView('list')}>
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Plans List */}
-      <div className="space-y-4">
-        {filteredPlans.map((plan) => (
-          <Card key={plan.id} className="bg-card border-border hover:border-muted-foreground/30 transition-colors">
-            <CardContent className="p-6">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 flex-wrap mb-2">
-                    <Link href={`/plans/${plan.id}`} className="text-lg font-semibold hover:text-accent transition-colors">
+      {/* Plans */}
+      {filteredPlans.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Plus className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-1">No plans found</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              {statusFilter !== 'all' || productFilter !== 'all'
+                ? 'Try adjusting your filters'
+                : 'Create your first code plan to get started'}
+            </p>
+            <PlanCreatePanel
+              products={products}
+              defaultProductId={productFilter !== 'all' ? productFilter : undefined}
+              trigger={
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Plan
+                </Button>
+              }
+            />
+          </CardContent>
+        </Card>
+      ) : view === 'list' ? (
+        <Card className="bg-card border-border">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Plan</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Product</TableHead>
+                <TableHead>Progress</TableHead>
+                <TableHead>Deadline</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredPlans.map((plan) => (
+                <TableRow key={plan.id}>
+                  <TableCell className="max-w-[240px]">
+                    <Link
+                      href={`/plans/${plan.id}`}
+                      title={plan.title}
+                      className="font-medium hover:text-accent transition-colors truncate block"
+                    >
                       {plan.title}
                     </Link>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="secondary" className={cn('text-xs', typeStyles[plan.type])}>
+                      {typeLabels[plan.type]}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="secondary" className={cn('text-xs', statusStyles[plan.status])}>
+                      {plan.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground max-w-[160px]">
+                    <div className="truncate" title={plan.productName}>{plan.productName}</div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2 w-32">
+                      <Progress value={plan.progress} className="h-1.5" />
+                      <span className="text-xs text-muted-foreground shrink-0">{plan.progress}%</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {plan.deadline ? formatDate(plan.deadline) : '-'}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {filteredPlans.map((plan) => (
+            <Card key={plan.id} className="bg-card border-border hover:border-muted-foreground/30 transition-colors flex flex-col">
+              <CardContent className="p-6 flex flex-col gap-4 flex-1">
+                <div>
+                  <div className="mb-2">
+                    <Link href={`/plans/${plan.id}`} className="text-base font-semibold hover:text-accent transition-colors line-clamp-1">
+                      {plan.title}
+                    </Link>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap mb-2">
                     <Badge variant="secondary" className={cn('text-xs', typeStyles[plan.type])}>
                       {typeLabels[plan.type]}
                     </Badge>
@@ -173,7 +257,7 @@ export function PlansClient({ plans, products, currentUserId }: { plans: Plan[];
                     </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{plan.description}</p>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
+                  <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
                     <span className="text-foreground font-medium">{plan.productName}</span>
                     {plan.deadline && (
                       <div className="flex items-center gap-1">
@@ -189,7 +273,7 @@ export function PlansClient({ plans, products, currentUserId }: { plans: Plan[];
                     )}
                   </div>
                 </div>
-                <div className="w-full lg:w-48">
+                <div className="mt-auto">
                   <div className="flex items-center justify-between text-sm mb-2">
                     <span className="text-muted-foreground">Progress</span>
                     <span className="font-medium">{plan.progress}%</span>
@@ -199,42 +283,18 @@ export function PlansClient({ plans, products, currentUserId }: { plans: Plan[];
                     {plan.completedTaskCount} / {plan.taskCount} tasks
                   </div>
                 </div>
-              </div>
-              {plan.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mt-4 pt-4 border-t border-border">
-                  {plan.tags.map((tag) => (
-                    <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-
-        {filteredPlans.length === 0 && (
-          <Card className="border-dashed">
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Plus className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-1">No plans found</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                {statusFilter !== 'all' || productFilter !== 'all'
-                  ? 'Try adjusting your filters'
-                  : 'Create your first code plan to get started'}
-              </p>
-              <PlanCreatePanel
-                products={products}
-                defaultProductId={productFilter !== 'all' ? productFilter : undefined}
-                trigger={
-                  <Button>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Create Plan
-                  </Button>
-                }
-              />
-            </CardContent>
-          </Card>
-        )}
-      </div>
+                {plan.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-4 border-t border-border">
+                    {plan.tags.map((tag) => (
+                      <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </>
   )
 }
