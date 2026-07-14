@@ -198,17 +198,17 @@ export function WorkItemsClient({
           <TableBody>
             {pageItems.map((item) => (
               <TableRow key={item.id} className="cursor-pointer" onClick={() => openPanel(item)}>
-                <TableCell>
+                <TableCell className="max-w-[240px]">
                   <div>
                     <p className={cn('font-medium flex items-center gap-1.5', item.status === 'wont_do' && 'line-through text-muted-foreground')}>
-                      {item.title}
+                      <span className="truncate min-w-0" title={item.title}>{item.title}</span>
                       {item.source !== 'native' && (
-                        <span title={`Mirrored from ${item.source}`}>
+                        <span title={`Mirrored from ${item.source}`} className="shrink-0">
                           <ExternalLink className="h-3 w-3 text-muted-foreground" />
                         </span>
                       )}
                     </p>
-                    <p className="text-xs text-muted-foreground">{item.productName}</p>
+                    <p className="text-xs text-muted-foreground truncate" title={item.productName}>{item.productName}</p>
                   </div>
                 </TableCell>
                 <TableCell>
@@ -221,18 +221,19 @@ export function WorkItemsClient({
                     {item.severity}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {item.assetName ?? '-'}
-                  {item.area && <span className="text-xs block">{item.area}</span>}
+                <TableCell className="text-sm text-muted-foreground max-w-[160px]">
+                  <div className="truncate" title={item.assetName ?? undefined}>{item.assetName ?? '-'}</div>
+                  {item.area && <div className="text-xs truncate" title={item.area}>{item.area}</div>}
                 </TableCell>
-                <TableCell onClick={(e) => e.stopPropagation()}>
+                <TableCell className="max-w-[180px]" onClick={(e) => e.stopPropagation()}>
                   {item.linkedPlans.length > 0 ? (
                     <div className="flex flex-col gap-0.5">
                       {item.linkedPlans.slice(0, 2).map((plan) => (
                         <Link
                           key={plan.id}
                           href={`/plans/${plan.id}`}
-                          className="text-sm hover:text-accent transition-colors truncate max-w-[180px]"
+                          title={plan.title}
+                          className="text-sm hover:text-accent transition-colors truncate block"
                         >
                           {plan.title}
                         </Link>
