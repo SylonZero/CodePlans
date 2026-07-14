@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { ThemeToggle } from '@/components/theme-toggle'
 import {
   LayoutDashboard,
   UserCircle2,
@@ -265,6 +266,8 @@ export function AppShell({ children, user, orgName, products, selectedProductId,
           </div>
 
           <div className="ml-auto flex items-center gap-2">
+            <ThemeToggle />
+
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5" />
             </Button>
