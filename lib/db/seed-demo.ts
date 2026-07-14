@@ -18,7 +18,6 @@ import {
   assets,
   codePlans,
   codePlanAssets,
-  codePlanAssignees,
   tasks,
 } from './schema'
 import { eq, inArray } from 'drizzle-orm'
@@ -282,7 +281,7 @@ async function seed() {
 
   async function findOrCreatePlan(
     title: string,
-    values: typeof codePlans.$inferInsert & { targetAssetIds?: string[]; assigneeIds?: string[] },
+    values: typeof codePlans.$inferInsert & { targetAssetIds?: string[] },
   ) {
     const existing = await db.query.codePlans.findFirst({
       where: (p, { eq }) => eq(p.title, title),
@@ -291,15 +290,11 @@ async function seed() {
       console.log(`  plan exists: ${title}`)
       return existing.id
     }
-    const { targetAssetIds: _t, assigneeIds: _a, ...columns } = values
+    const { targetAssetIds: _t, ...columns } = values
     const [p] = await db.insert(codePlans).values(columns).returning()
     const assetIds = (values.targetAssetIds ?? []) as string[]
     if (assetIds.length > 0) {
       await db.insert(codePlanAssets).values(assetIds.map((assetId) => ({ codePlanId: p.id, assetId })))
-    }
-    const assigneeIds = (values.assigneeIds ?? []) as string[]
-    if (assigneeIds.length > 0) {
-      await db.insert(codePlanAssignees).values(assigneeIds.map((userId) => ({ codePlanId: p.id, userId })))
     }
     console.log(`  created plan: ${title}`)
     return p.id
@@ -312,7 +307,7 @@ async function seed() {
     tags: ['ai', 'llm', 'q2'],
     targetAssetIds: [webAppId, planEngineId],
     startDate: '2026-04-01', endDate: '2026-05-20', deadline: '2026-06-01',
-    creatorId: alexId, assigneeIds: [alexId, mikeId],
+    creatorId: alexId,
   })
 
   const collabPlanId = await findOrCreatePlan('Real-time Collaboration', {
@@ -322,7 +317,7 @@ async function seed() {
     tags: ['realtime', 'websockets', 'collab'],
     targetAssetIds: [webAppId, planEngineId, redisId],
     startDate: '2026-04-15', endDate: '2026-06-01', deadline: '2026-06-15',
-    creatorId: sarahId, assigneeIds: [sarahId, lisaId],
+    creatorId: sarahId,
   })
 
   const uiLibPlanId = await findOrCreatePlan('Component Library v2', {
@@ -332,7 +327,7 @@ async function seed() {
     tags: ['frontend', 'a11y', 'design-system'],
     targetAssetIds: [uiLibId],
     startDate: '2026-03-01', endDate: '2026-04-15', deadline: '2026-04-20',
-    creatorId: mikeId, assigneeIds: [mikeId],
+    creatorId: mikeId,
   })
 
   const apiV2PlanId = await findOrCreatePlan('API Gateway v2', {
@@ -342,7 +337,7 @@ async function seed() {
     tags: ['api', 'backend', 'performance'],
     targetAssetIds: [apiGatewayId, workerSvcId],
     startDate: '2026-03-20', endDate: '2026-05-10', deadline: '2026-05-20',
-    creatorId: sarahId, assigneeIds: [sarahId, lisaId],
+    creatorId: sarahId,
   })
 
   const analyticsPlanId = await findOrCreatePlan('Analytics Pipeline Overhaul', {
@@ -352,7 +347,7 @@ async function seed() {
     tags: ['analytics', 'performance', 'urgent'],
     targetAssetIds: [analyticsDbId],
     startDate: '2026-05-01', endDate: '2026-05-31', deadline: '2026-06-07',
-    creatorId: alexId, assigneeIds: [alexId, lisaId],
+    creatorId: alexId,
   })
 
   const pushPlanId = await findOrCreatePlan('Push Notifications', {
@@ -362,7 +357,7 @@ async function seed() {
     tags: ['mobile', 'notifications', 'feature'],
     targetAssetIds: [iosId, androidId, bffId],
     startDate: '2026-04-10', endDate: '2026-05-15', deadline: '2026-05-20',
-    creatorId: sarahId, assigneeIds: [sarahId],
+    creatorId: sarahId,
   })
 
   const androidPlanId = await findOrCreatePlan('Android Performance Optimization', {
@@ -372,7 +367,7 @@ async function seed() {
     tags: ['mobile', 'android', 'performance'],
     targetAssetIds: [androidId],
     startDate: '2026-05-10', endDate: '2026-06-05', deadline: '2026-06-10',
-    creatorId: lisaId, assigneeIds: [lisaId],
+    creatorId: lisaId,
   })
 
   await findOrCreatePlan('SSO & OAuth Integration', {
@@ -382,7 +377,7 @@ async function seed() {
     tags: ['auth', 'sso', 'oauth'],
     targetAssetIds: [authSvcId],
     startDate: '2026-01-20', endDate: '2026-03-10', deadline: '2026-03-15',
-    creatorId: alexId, assigneeIds: [alexId, sarahId],
+    creatorId: alexId,
   })
 
   await findOrCreatePlan('Database Schema v2', {
@@ -391,7 +386,7 @@ async function seed() {
     productId: apiId, type: 'refactor', status: 'draft',
     tags: ['database', 'maintenance'],
     targetAssetIds: [postgresId],
-    creatorId: alexId, assigneeIds: [],
+    creatorId: alexId,
   })
 
   // ── Tasks ──────────────────────────────────────────────────────────────────

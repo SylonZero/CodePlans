@@ -243,7 +243,6 @@ export async function createCodePlanAction(formData: FormData) {
       type,
       tags,
       targetAssetIds: [],
-      assigneeIds: [],
       deadline,
       specUrl,
     },

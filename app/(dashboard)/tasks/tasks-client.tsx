@@ -218,15 +218,9 @@ export function TasksClient({
 
   return (
     <>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Tasks</h1>
-          <p className="text-muted-foreground">Track and manage tasks across all code plans</p>
-        </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Task
-        </Button>
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold tracking-tight">Tasks</h1>
+        <p className="text-muted-foreground">Track and manage tasks across all code plans</p>
       </div>
 
       <TaskPanel
@@ -277,6 +271,10 @@ export function TasksClient({
 
       {/* Filters */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center mb-6">
+        <Button onClick={() => setCreateOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          New Task
+        </Button>
         <Tabs value={statusFilter} onValueChange={(v) => { setStatusFilter(v as TaskStatus | 'all' | 'open'); setPage(0) }} className="w-full sm:w-auto">
           <TabsList className="bg-muted">
             <TabsTrigger value="open">Open</TabsTrigger>

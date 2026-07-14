@@ -169,14 +169,6 @@ export const codePlanAssets = sqliteTable('code_plan_assets', {
   uniqueIndex('code_plan_assets_plan_asset_idx').on(t.codePlanId, t.assetId),
 ])
 
-export const codePlanAssignees = sqliteTable('code_plan_assignees', {
-  codePlanId: text('code_plan_id').notNull().references(() => codePlans.id, { onDelete: 'cascade' }),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
-}, (t) => [
-  primaryKey({ columns: [t.codePlanId, t.userId] }),
-])
-
 export const workItems = sqliteTable('work_items', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   productId: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),

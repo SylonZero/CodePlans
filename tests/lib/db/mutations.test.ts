@@ -178,7 +178,6 @@ describe('createCodePlan', () => {
         type: 'improvement',
         tags: ['perf'],
         targetAssetIds: [F.assetApi],
-        assigneeIds: [F.bob],
       },
       F.alice,
     )
@@ -187,10 +186,11 @@ describe('createCodePlan', () => {
     expect(plan.status).toBe('draft')
     expect(plan.creatorId).toBe(F.alice)
 
-    // Links live in the join tables (array columns dropped in v0.3.0)
+    // Target assets live in the join table (array column dropped in v0.3.0).
+    // Assignees aren't a stored link at all — a fresh plan with no tasks has none.
     const detail = await getCodePlan(plan.id, F.alice)
     expect(detail!.targetAssetIds).toEqual([F.assetApi])
-    expect(detail!.assigneeIds).toEqual([F.bob])
+    expect(detail!.assignees).toEqual([])
   })
 })
 
@@ -205,17 +205,37 @@ describe('updateCodePlan', () => {
     const updated = await updateCodePlan(F.planActive, {
       title: 'Renamed Plan',
       tags: ['new-tag'],
-      assigneeIds: [],
     })
     expect(updated!.title).toBe('Renamed Plan')
     expect(updated!.tags).toEqual(['new-tag'])
-    const detail = await getCodePlan(F.planActive, F.alice)
-    expect(detail!.assigneeIds).toEqual([])
   })
 
   it('returns null for non-existent plan', async () => {
     const result = await updateCodePlan('nonexistent', { status: 'active' })
     expect(result).toBeNull()
+  })
+})
+
+describe('plan assignees (derived from task assignment)', () => {
+  it('reflects the unique set of assignees across the plan\'s tasks', async () => {
+    // Fixture: planActive already has task1 assigned to bob.
+    let detail = await getCodePlan(F.planActive, F.alice)
+    expect(detail!.assignees.map((a) => a.id)).toEqual([F.bob])
+
+    // Assigning task2 to carol adds her to the derived set.
+    await updateTask(F.task2, { assigneeId: F.carol })
+    detail = await getCodePlan(F.planActive, F.alice)
+    expect(detail!.assignees.map((a) => a.id).sort()).toEqual([F.bob, F.carol].sort())
+
+    // Unassigning task1 removes bob once no task in the plan points to him.
+    await updateTask(F.task1, { assigneeId: null })
+    detail = await getCodePlan(F.planActive, F.alice)
+    expect(detail!.assignees.map((a) => a.id)).toEqual([F.carol])
+  })
+
+  it('a plan with no tasks has no assignees', async () => {
+    const detail = await getCodePlan(F.planDraft, F.alice)
+    expect(detail!.assignees).toEqual([])
   })
 })
 
