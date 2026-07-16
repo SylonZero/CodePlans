@@ -22,6 +22,7 @@ import type {
   AssetOwner,
   CodePlan,
   CodePlanStatus,
+  CodePlanType,
   PlanAsset,
   Task,
   WorkItem,
@@ -881,6 +882,164 @@ export async function getOwnedAssets(userId: string): Promise<OwnedAsset[]> {
       }
     })
     .sort((a, b) => b.effectiveDebtScore - a.effectiveDebtScore)
+}
+
+export type AssetPlanRow = {
+  planId: string
+  planTitle: string
+  planStatus: CodePlanStatus
+  planType: CodePlanType
+  branch?: string
+  prUrl?: string
+  prStatus: PlanAsset['prStatus']
+  /** Per-plan join notes: what this plan does to this asset. */
+  notes?: string
+}
+
+export type AssetDependencyRow = {
+  edgeId: string
+  /** upstream: this asset depends on the listed one; downstream: the listed one depends on this asset. */
+  direction: 'upstream' | 'downstream'
+  assetId: string
+  assetName: string
+  assetType: Asset['type']
+  health: 'healthy' | 'warning' | 'critical'
+  owners: AssetOwner[]
+  dependencyType: 'depends_on' | 'integrates_with' | 'aggregates'
+  description: string | null
+}
+
+export type AssetDetail = Asset & {
+  productName: string
+  productSlug: string
+  owners: AssetOwner[]
+  derivedTechDebtScore: number
+  openDebtCount: number
+  plans: AssetPlanRow[]
+  dependencyEdges: AssetDependencyRow[]
+}
+
+/** Everything the asset detail page needs in one call. */
+export async function getAssetDetail(id: string, userId: string): Promise<AssetDetail | null> {
+  const asset = await db.query.assets.findFirst({ where: eq(assets.id, id) })
+  if (!asset) return null
+
+  // Org-scope guard: the asset's product must be visible to this user.
+  const product = await db.query.products.findFirst({
+    where: and(eq(products.id, asset.productId), await productAccessWhere(userId)),
+  })
+  if (!product) return null
+
+  const [debtRows, planRows, upstreamRows, downstreamRows] = await Promise.all([
+    db
+      .select({ severity: workItems.severity })
+      .from(workItems)
+      .where(
+        and(
+          eq(workItems.assetId, id),
+          eq(workItems.type, 'tech_debt'),
+          inArray(workItems.status, ['open', 'planned', 'in_progress']),
+        ),
+      ),
+    db
+      .select({
+        planId: codePlans.id,
+        planTitle: codePlans.title,
+        planStatus: codePlans.status,
+        planType: codePlans.type,
+        branch: codePlanAssets.branch,
+        prUrl: codePlanAssets.prUrl,
+        prStatus: codePlanAssets.prStatus,
+        notes: codePlanAssets.notes,
+      })
+      .from(codePlanAssets)
+      .innerJoin(codePlans, eq(codePlanAssets.codePlanId, codePlans.id))
+      .where(eq(codePlanAssets.assetId, id))
+      .orderBy(desc(codePlans.updatedAt)),
+    db
+      .select({
+        edgeId: assetDependencies.id,
+        assetId: assets.id,
+        assetName: assets.name,
+        assetType: assets.type,
+        health: assets.health,
+        dependencyType: assetDependencies.dependencyType,
+        description: assetDependencies.description,
+      })
+      .from(assetDependencies)
+      .innerJoin(assets, eq(assetDependencies.targetAssetId, assets.id))
+      .where(eq(assetDependencies.sourceAssetId, id)),
+    db
+      .select({
+        edgeId: assetDependencies.id,
+        assetId: assets.id,
+        assetName: assets.name,
+        assetType: assets.type,
+        health: assets.health,
+        dependencyType: assetDependencies.dependencyType,
+        description: assetDependencies.description,
+      })
+      .from(assetDependencies)
+      .innerJoin(assets, eq(assetDependencies.sourceAssetId, assets.id))
+      .where(eq(assetDependencies.targetAssetId, id)),
+  ])
+
+  const owners = await ownersByAsset([
+    id,
+    ...upstreamRows.map((r) => r.assetId),
+    ...downstreamRows.map((r) => r.assetId),
+  ])
+
+  const DEBT_WEIGHT: Record<string, number> = { low: 3, medium: 8, high: 15, critical: 25 }
+  const derivedScore = Math.min(
+    100,
+    debtRows.reduce((sum, r) => sum + (DEBT_WEIGHT[r.severity] ?? 8), 0),
+  )
+
+  const edge = (direction: 'upstream' | 'downstream') => (r: (typeof upstreamRows)[number]): AssetDependencyRow => ({
+    edgeId: r.edgeId,
+    direction,
+    assetId: r.assetId,
+    assetName: r.assetName,
+    assetType: r.assetType,
+    health: r.health,
+    owners: owners.get(r.assetId) ?? [],
+    dependencyType: r.dependencyType,
+    description: r.description,
+  })
+
+  return {
+    id: asset.id,
+    productId: asset.productId,
+    name: asset.name,
+    type: asset.type,
+    description: asset.description,
+    tags: asset.tags,
+    health: asset.health,
+    techDebtScore: asset.techDebtScore ?? undefined,
+    derivedTechDebtScore: derivedScore,
+    openDebtCount: debtRows.length,
+    notes: asset.notes ?? undefined,
+    owners: owners.get(id) ?? [],
+    repositoryUrl: asset.repositoryUrl ?? undefined,
+    repoPath: asset.repoPath ?? undefined,
+    documentationUrl: asset.documentationUrl ?? undefined,
+    dependencies: upstreamRows.map((r) => r.assetId),
+    createdAt: asset.createdAt.toISOString(),
+    productName: product.name,
+    productSlug: product.slug,
+    plans: planRows.map((r) => ({
+      planId: r.planId,
+      planTitle: r.planTitle,
+      planStatus: r.planStatus,
+      planType: r.planType,
+      branch: r.branch ?? undefined,
+      prUrl: r.prUrl ?? undefined,
+      prStatus: r.prStatus,
+      notes: r.notes ?? undefined,
+    })),
+    dependencyEdges: [...upstreamRows.map(edge('upstream')), ...downstreamRows.map(edge('downstream'))],
+  }
 }
 
 // ---------------------------------------------------------------------------

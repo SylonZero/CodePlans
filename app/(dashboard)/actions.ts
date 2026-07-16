@@ -228,7 +228,22 @@ export async function setAssetOwnersAction(assetId: string, productSlug: string,
   if (!accessible.some((a) => a.id === assetId)) throw new Error('Asset not found or not accessible')
   await setAssetOwners(assetId, userIds)
   revalidatePath(`/products/${productSlug}`)
+  revalidatePath(`/assets/${assetId}`)
   revalidatePath('/my-work')
+}
+
+/** Update just the long-form content (description / notes) from the asset detail page. */
+export async function updateAssetContentAction(
+  assetId: string,
+  productSlug: string,
+  content: { description?: string; notes?: string },
+) {
+  const authUser = await requireUser()
+  const accessible = await getAssetOptions(authUser.id)
+  if (!accessible.some((a) => a.id === assetId)) throw new Error('Asset not found or not accessible')
+  await updateAsset(assetId, content)
+  revalidatePath(`/assets/${assetId}`)
+  revalidatePath(`/products/${productSlug}`)
 }
 
 // ---------------------------------------------------------------------------

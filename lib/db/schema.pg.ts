@@ -113,6 +113,8 @@ export const assets = pgTable('assets', {
   health: assetHealthEnum('health').notNull().default('healthy'),
   status: assetStatusEnum('status').notNull().default('active'),
   techDebtScore: integer('tech_debt_score'),
+  // Freeform ideation/notes doc (markdown) — design thinking, migration ideas, known quirks.
+  notes: text('notes'),
   repositoryUrl: text('repository_url'),
   // Path within the repository for monorepo assets (e.g. apps/web, packages/ui).
   repoPath: text('repo_path'),

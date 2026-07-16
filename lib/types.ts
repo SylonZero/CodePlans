@@ -82,6 +82,8 @@ export interface Asset {
   /** Open tech-debt work items targeting this asset. */
   openDebtCount?: number
   owners?: AssetOwner[]
+  /** Freeform ideation/notes doc (markdown). */
+  notes?: string
   repositoryUrl?: string
   repoPath?: string
   documentationUrl?: string

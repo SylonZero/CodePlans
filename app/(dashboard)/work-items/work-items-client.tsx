@@ -296,8 +296,14 @@ export function WorkItemsClient({
                     {item.severity}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground max-w-[160px]">
-                  <div className="truncate" title={item.assetName ?? undefined}>{item.assetName ?? '-'}</div>
+                <TableCell className="text-sm text-muted-foreground max-w-[160px]" onClick={(e) => item.assetId && e.stopPropagation()}>
+                  {item.assetId && item.assetName ? (
+                    <Link href={`/assets/${item.assetId}`} className="truncate block hover:text-accent transition-colors" title={item.assetName}>
+                      {item.assetName}
+                    </Link>
+                  ) : (
+                    <div className="truncate">-</div>
+                  )}
                   {item.area && <div className="text-xs truncate" title={item.area}>{item.area}</div>}
                 </TableCell>
                 <TableCell className="max-w-[180px]" onClick={(e) => e.stopPropagation()}>
@@ -427,7 +433,13 @@ function DebtRegister({
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="font-semibold">{group.label}</h3>
+                    {group.asset ? (
+                      <Link href={`/assets/${group.asset.id}`} className="font-semibold hover:text-accent transition-colors">
+                        {group.label}
+                      </Link>
+                    ) : (
+                      <h3 className="font-semibold">{group.label}</h3>
+                    )}
                     {group.asset && (
                       <Badge variant="secondary" className={cn('text-xs capitalize', healthStyles[group.asset.health])}>
                         {group.asset.health}

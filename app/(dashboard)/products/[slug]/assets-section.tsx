@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -192,13 +193,14 @@ export function AssetsSection({
 }
 
 function AssetCard({ asset, onOpen }: { asset: Asset; onOpen: (asset: Asset) => void }) {
+  const router = useRouter()
   const Icon = assetTypeIcons[asset.type]
   const HealthIcon = healthIcons[asset.health]
 
   return (
     <Card
       className="bg-card border-border hover:border-muted-foreground/30 transition-colors cursor-pointer"
-      onClick={() => onOpen(asset)}
+      onClick={() => router.push(`/assets/${asset.id}`)}
     >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
@@ -211,9 +213,20 @@ function AssetCard({ asset, onOpen }: { asset: Asset; onOpen: (asset: Asset) => 
               <p className="text-sm text-muted-foreground">{assetTypeLabels[asset.type]}</p>
             </div>
           </div>
-          <div className={cn('flex items-center gap-1', healthStyles[asset.health])}>
-            <HealthIcon className="h-4 w-4" />
-            <span className="text-xs capitalize">{asset.health}</span>
+          <div className="flex items-center gap-2">
+            <div className={cn('flex items-center gap-1', healthStyles[asset.health])}>
+              <HealthIcon className="h-4 w-4" />
+              <span className="text-xs capitalize">{asset.health}</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground"
+              title="Edit asset"
+              onClick={(e) => { e.stopPropagation(); onOpen(asset) }}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
           </div>
         </div>
       </CardHeader>

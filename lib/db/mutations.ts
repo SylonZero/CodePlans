@@ -85,6 +85,7 @@ type UpdateAssetData = Partial<Omit<CreateAssetData, 'productId'> & {
   health: 'healthy' | 'warning' | 'critical'
   status: 'active' | 'deprecated' | 'planned'
   techDebtScore: number
+  notes: string
 }>
 
 export async function updateAsset(id: string, data: UpdateAssetData) {

@@ -167,7 +167,7 @@ export default async function MyWorkPage() {
               {ownedAssets.map((asset) => (
                 <li key={asset.id} className="flex items-center justify-between gap-3 py-2.5">
                   <div className="min-w-0">
-                    <Link href={`/products/${asset.productSlug}`} className="text-sm font-medium truncate block hover:text-accent transition-colors">
+                    <Link href={`/assets/${asset.id}`} className="text-sm font-medium truncate block hover:text-accent transition-colors">
                       {asset.name}
                     </Link>
                     <p className="text-xs text-muted-foreground">{asset.productName}</p>
