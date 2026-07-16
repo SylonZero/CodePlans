@@ -14,6 +14,7 @@ import { Filter, Plus, Circle, Play, CheckCircle2, Wrench, ExternalLink, List, L
 import type { WorkItemStatus, WorkItemType } from '@/lib/types'
 import type { WorkItemWithContext, AssetDebtInfo } from '@/lib/db/queries'
 import { cn } from '@/lib/utils'
+import { OwnerAvatars } from '@/components/owner-avatars'
 import {
   WorkItemPanel,
   TYPES,
@@ -431,6 +432,9 @@ function DebtRegister({
                       <Badge variant="secondary" className={cn('text-xs capitalize', healthStyles[group.asset.health])}>
                         {group.asset.health}
                       </Badge>
+                    )}
+                    {group.asset && group.asset.owners.length > 0 && (
+                      <OwnerAvatars owners={group.asset.owners} />
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">{group.product}</p>

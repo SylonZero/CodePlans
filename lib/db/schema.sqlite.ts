@@ -116,6 +116,18 @@ export const assets = sqliteTable('assets', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 })
 
+// Declared responsibility (like code owners) — routing and visibility, not an ACL.
+// Explicit rather than derived: unlike plan assignees, there is no activity to derive it from.
+export const assetOwners = sqliteTable('asset_owners', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  assetId: text('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('asset_owners_asset_user_idx').on(t.assetId, t.userId),
+  index('asset_owners_user_idx').on(t.userId),
+])
+
 export const assetDependencies = sqliteTable('asset_dependencies', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   sourceAssetId: text('source_asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
