@@ -1,4 +1,5 @@
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { FileText, ExternalLink } from 'lucide-react'
 
@@ -27,7 +28,7 @@ export function SpecCard({ specUrl, markdown }: { specUrl: string; markdown: str
       <CardContent>
         {markdown ? (
           <div className="prose prose-sm prose-invert max-w-none max-h-[480px] overflow-y-auto [&_h1]:text-lg [&_h2]:text-base [&_h3]:text-sm [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:rounded [&_code]:text-xs [&_table]:text-sm">
-            <ReactMarkdown>{markdown}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
