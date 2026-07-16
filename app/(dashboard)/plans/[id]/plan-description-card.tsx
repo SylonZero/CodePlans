@@ -1,19 +1,21 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { AlignLeft, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-/** Long-form plan description in its own card, clamped to ~5 lines with an expander. */
+/** Long-form plan description in its own card, collapsed to a preview with an expander. */
 export function PlanDescriptionCard({ description }: { description: string }) {
   const [expanded, setExpanded] = useState(false)
   const [clamped, setClamped] = useState(false)
-  const textRef = useRef<HTMLParagraphElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const el = textRef.current
+    const el = contentRef.current
     if (el) setClamped(el.scrollHeight > el.clientHeight + 1)
   }, [description])
 
@@ -26,15 +28,17 @@ export function PlanDescriptionCard({ description }: { description: string }) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <p
-          ref={textRef}
+        {/* Descriptions are markdown (authored via the rich text editor or MCP) — render, don't show syntax. */}
+        <div
+          ref={contentRef}
           className={cn(
-            'text-sm text-muted-foreground whitespace-pre-line',
-            !expanded && 'line-clamp-5',
+            'prose prose-sm prose-invert max-w-none text-muted-foreground',
+            '[&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_pre]:bg-muted [&_pre]:p-2 [&_pre]:rounded [&_code]:text-xs [&_table]:text-xs [&_ul.contains-task-list]:list-none [&_ul.contains-task-list]:pl-1',
+            !expanded && 'max-h-36 overflow-hidden',
           )}
         >
-          {description}
-        </p>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{description}</ReactMarkdown>
+        </div>
         {(clamped || expanded) && (
           <Button
             variant="ghost"
