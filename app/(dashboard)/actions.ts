@@ -14,6 +14,7 @@ import {
   createAsset,
   updateAsset,
   deleteAsset,
+  setAssetOwners,
   createCodePlan,
   updateCodePlan,
   deleteCodePlan,
@@ -37,6 +38,7 @@ import {
   linkPlanToExternalScope,
   unlinkPlanFromExternalScope,
 } from '@/lib/db/mutations'
+import { getAssetOptions } from '@/lib/db/queries'
 import type { UserRole, WorkItemType, WorkItemStatus, WorkItemSeverity } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
@@ -218,6 +220,15 @@ export async function deleteAssetAction(id: string, productSlug: string) {
   await requireUser()
   await deleteAsset(id)
   revalidatePath(`/products/${productSlug}`)
+}
+
+export async function setAssetOwnersAction(assetId: string, productSlug: string, userIds: string[]) {
+  const authUser = await requireUser()
+  const accessible = await getAssetOptions(authUser.id)
+  if (!accessible.some((a) => a.id === assetId)) throw new Error('Asset not found or not accessible')
+  await setAssetOwners(assetId, userIds)
+  revalidatePath(`/products/${productSlug}`)
+  revalidatePath('/my-work')
 }
 
 // ---------------------------------------------------------------------------

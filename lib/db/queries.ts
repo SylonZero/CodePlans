@@ -2,6 +2,7 @@ import { db } from './index'
 import {
   products,
   assets,
+  assetOwners,
   assetDependencies,
   codePlans,
   codePlanAssets,
@@ -18,6 +19,7 @@ import { eq, and, sql, desc, or, inArray, gte, isNotNull } from 'drizzle-orm'
 import type {
   Product,
   Asset,
+  AssetOwner,
   CodePlan,
   CodePlanStatus,
   PlanAsset,
@@ -191,6 +193,30 @@ export async function getProducts(userId: string, productId?: string): Promise<P
   }))
 }
 
+/** Owner rows (with user context) for a set of assets, keyed by asset id. */
+async function ownersByAsset(assetIds: string[]): Promise<Map<string, AssetOwner[]>> {
+  const map = new Map<string, AssetOwner[]>()
+  if (assetIds.length === 0) return map
+  const rows = await db
+    .select({
+      assetId: assetOwners.assetId,
+      id: users.id,
+      name: users.name,
+      avatarUrl: users.avatarUrl,
+    })
+    .from(assetOwners)
+    .innerJoin(users, eq(assetOwners.userId, users.id))
+    .where(inArray(assetOwners.assetId, assetIds))
+    .orderBy(users.name)
+  for (const r of rows) {
+    map.set(r.assetId, [
+      ...(map.get(r.assetId) ?? []),
+      { id: r.id, name: r.name, avatarUrl: r.avatarUrl ?? undefined },
+    ])
+  }
+  return map
+}
+
 export async function getProduct(slug: string, userId: string): Promise<(Product & { assets: Asset[] }) | null> {
   const productFilter = and(eq(products.slug, slug), await productAccessWhere(userId))
 
@@ -201,6 +227,8 @@ export async function getProduct(slug: string, userId: string): Promise<(Product
     where: eq(assets.productId, product.id),
     orderBy: desc(assets.createdAt),
   })
+
+  const owners = await ownersByAsset(productAssets.map((a) => a.id))
 
   const [activePlanCount] = await db
     .select({ count: sql<number>`CAST(count(*) AS INTEGER)` })
@@ -251,6 +279,7 @@ export async function getProduct(slug: string, userId: string): Promise<(Product
       techDebtScore: a.techDebtScore ?? undefined,
       derivedTechDebtScore: derivedByAsset.get(a.id)?.score,
       openDebtCount: derivedByAsset.get(a.id)?.count ?? 0,
+      owners: owners.get(a.id) ?? [],
       repositoryUrl: a.repositoryUrl ?? undefined,
       repoPath: a.repoPath ?? undefined,
       documentationUrl: a.documentationUrl ?? undefined,
@@ -767,16 +796,91 @@ export type AssetDebtInfo = {
   health: 'healthy' | 'warning' | 'critical'
   /** Manual override score, when set. */
   techDebtScore: number | null
+  owners: AssetOwner[]
 }
 
-/** Health + manual debt-score override for accessible assets — for the tech debt register. */
+/** Health, manual debt-score override, and owners for accessible assets — for the tech debt register. */
 export async function getAssetDebtInfo(userId: string): Promise<AssetDebtInfo[]> {
   const productFilter = await productAccessWhere(userId)
-  return db
+  const rows = await db
     .select({ id: assets.id, health: assets.health, techDebtScore: assets.techDebtScore })
     .from(assets)
     .innerJoin(products, eq(assets.productId, products.id))
     .where(productFilter)
+  const owners = await ownersByAsset(rows.map((r) => r.id))
+  return rows.map((r) => ({ ...r, owners: owners.get(r.id) ?? [] }))
+}
+
+export type OwnedAsset = {
+  id: string
+  name: string
+  type: Asset['type']
+  productName: string
+  productSlug: string
+  health: 'healthy' | 'warning' | 'critical'
+  /** Manual override when set, otherwise severity-weighted from open tech debt. */
+  effectiveDebtScore: number
+  openDebtCount: number
+  openItemCount: number
+}
+
+/** Assets the user owns, with health and debt rollups — for My Work. */
+export async function getOwnedAssets(userId: string): Promise<OwnedAsset[]> {
+  const rows = await db
+    .select({
+      id: assets.id,
+      name: assets.name,
+      type: assets.type,
+      health: assets.health,
+      techDebtScore: assets.techDebtScore,
+      productName: products.name,
+      productSlug: products.slug,
+    })
+    .from(assetOwners)
+    .innerJoin(assets, eq(assetOwners.assetId, assets.id))
+    .innerJoin(products, eq(assets.productId, products.id))
+    .where(eq(assetOwners.userId, userId))
+    .orderBy(assets.name)
+  if (rows.length === 0) return []
+
+  const itemRows = await db
+    .select({ assetId: workItems.assetId, type: workItems.type, severity: workItems.severity })
+    .from(workItems)
+    .where(
+      and(
+        inArray(workItems.assetId, rows.map((r) => r.id)),
+        inArray(workItems.status, ['open', 'planned', 'in_progress']),
+      ),
+    )
+  const DEBT_WEIGHT: Record<string, number> = { low: 3, medium: 8, high: 15, critical: 25 }
+  const rollup = new Map<string, { debtScore: number; debtCount: number; itemCount: number }>()
+  for (const r of itemRows) {
+    if (!r.assetId) continue
+    const cur = rollup.get(r.assetId) ?? { debtScore: 0, debtCount: 0, itemCount: 0 }
+    cur.itemCount += 1
+    if (r.type === 'tech_debt') {
+      cur.debtCount += 1
+      cur.debtScore = Math.min(100, cur.debtScore + (DEBT_WEIGHT[r.severity] ?? 8))
+    }
+    rollup.set(r.assetId, cur)
+  }
+
+  return rows
+    .map((r) => {
+      const roll = rollup.get(r.id)
+      return {
+        id: r.id,
+        name: r.name,
+        type: r.type,
+        productName: r.productName,
+        productSlug: r.productSlug,
+        health: r.health,
+        effectiveDebtScore: r.techDebtScore ?? roll?.debtScore ?? 0,
+        openDebtCount: roll?.debtCount ?? 0,
+        openItemCount: roll?.itemCount ?? 0,
+      }
+    })
+    .sort((a, b) => b.effectiveDebtScore - a.effectiveDebtScore)
 }
 
 // ---------------------------------------------------------------------------

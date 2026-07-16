@@ -1,7 +1,10 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { authAdapter } from '@/lib/auth'
-import { getProduct, getCodePlans, getProductDependencyEdges } from '@/lib/db/queries'
+import { getProduct, getCodePlans, getProductDependencyEdges, getTeamMembers } from '@/lib/db/queries'
+import { db } from '@/lib/db'
+import { users } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
 import { DependenciesSection } from './dependencies-section'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -27,6 +30,10 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
   const productPlans = plans.filter((p) => p.productId === product.id)
   const dependencyEdges = await getProductDependencyEdges(product.id)
+
+  const profile = await db.query.users.findFirst({ where: eq(users.id, user.id) })
+  const teamMembers = profile?.organizationId ? await getTeamMembers(profile.organizationId) : []
+  const memberList = teamMembers.map((m) => ({ id: m.userId, name: m.user.name }))
 
   return (
     <div className="space-y-6">
@@ -71,7 +78,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         </TabsList>
 
         <TabsContent value="assets" className="space-y-6">
-          <AssetsSection assets={product.assets} productId={product.id} productSlug={slug} />
+          <AssetsSection assets={product.assets} productId={product.id} productSlug={slug} members={memberList} />
         </TabsContent>
 
         <TabsContent value="dependencies" className="space-y-6">

@@ -15,6 +15,7 @@ import {
   updateProduct,
   createAsset,
   updateAsset,
+  setAssetOwners,
   createAssetDependency,
   deleteAssetDependency,
   createWorkItem,
@@ -202,17 +203,23 @@ const handler = createMcpHandler(
         repositoryUrl: z.string().optional(),
         repoPath: z.string().optional(),
         documentationUrl: z.string().optional(),
+        ownerEmails: z.array(z.string()).optional(),
       },
-      async (args, extra) => {
+      async ({ ownerEmails, ...args }, extra) => {
         requireWrite(extra)
         await assertProductAccess(uid(extra), args.productId)
-        return json(await createAsset(args))
+        const asset = await createAsset(args)
+        if (ownerEmails !== undefined) {
+          const ownerIds = await Promise.all(ownerEmails.map((e) => resolveAssigneeEmail(uid(extra), e)))
+          await setAssetOwners(asset.id, ownerIds)
+        }
+        return json(asset)
       },
     )
 
     server.tool(
       'update_asset',
-      'Update an asset: description, tags, health, manual tech-debt score, repo details.',
+      'Update an asset: description, tags, health, manual tech-debt score, repo details, owners (ownerEmails replaces the full owner set; [] clears it).',
       {
         id: z.string(),
         name: z.string().optional(),
@@ -223,11 +230,16 @@ const handler = createMcpHandler(
         repositoryUrl: z.string().optional(),
         repoPath: z.string().optional(),
         documentationUrl: z.string().optional(),
+        ownerEmails: z.array(z.string()).optional(),
       },
-      async ({ id, ...data }, extra) => {
+      async ({ id, ownerEmails, ...data }, extra) => {
         requireWrite(extra)
         const options = await getAssetOptions(uid(extra))
         if (!options.some((a) => a.id === id)) return json({ error: 'Asset not found or not accessible' })
+        if (ownerEmails !== undefined) {
+          const ownerIds = await Promise.all(ownerEmails.map((e) => resolveAssigneeEmail(uid(extra), e)))
+          await setAssetOwners(id, ownerIds)
+        }
         return json(await updateAsset(id, data))
       },
     )

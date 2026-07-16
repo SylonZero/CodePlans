@@ -41,11 +41,14 @@ import {
   CheckCircle2,
   XCircle,
   ExternalLink,
+  X,
+  UserPlus,
 } from 'lucide-react'
 import type { Asset, AssetType } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { createAssetAction, updateAssetAction, deleteAssetAction } from '../../actions'
+import { OwnerAvatars } from '@/components/owner-avatars'
+import { createAssetAction, updateAssetAction, deleteAssetAction, setAssetOwnersAction } from '../../actions'
 
 const assetTypeIcons: Record<AssetType, typeof Box> = {
   app: Box,
@@ -120,14 +123,18 @@ export function AssetCreatePanel({ productId, productSlug, open: controlledOpen,
   )
 }
 
+export type MemberOption = { id: string; name: string }
+
 export function AssetsSection({
   assets,
   productId,
   productSlug,
+  members = [],
 }: {
   assets: Asset[]
   productId: string
   productSlug: string
+  members?: MemberOption[]
 }) {
   const [openAsset, setOpenAsset] = useState<Asset | null>(null)
 
@@ -176,7 +183,7 @@ export function AssetsSection({
       <Sheet open={!!currentAsset} onOpenChange={(o) => { if (!o) setOpenAsset(null) }}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
           {currentAsset && (
-            <AssetEditor key={currentAsset.id} asset={currentAsset} productSlug={productSlug} onDeleted={() => setOpenAsset(null)} />
+            <AssetEditor key={currentAsset.id} asset={currentAsset} productSlug={productSlug} members={members} onDeleted={() => setOpenAsset(null)} />
           )}
         </SheetContent>
       </Sheet>
@@ -212,10 +219,13 @@ function AssetCard({ asset, onOpen }: { asset: Asset; onOpen: (asset: Asset) => 
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground line-clamp-2">{asset.description}</p>
-        <div className="flex flex-wrap gap-1.5">
-          {asset.tags.slice(0, 4).map((tag) => (
-            <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
-          ))}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-1.5">
+            {asset.tags.slice(0, 4).map((tag) => (
+              <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+            ))}
+          </div>
+          <OwnerAvatars owners={asset.owners ?? []} className="shrink-0" />
         </div>
         {(() => {
           const score = asset.techDebtScore ?? asset.derivedTechDebtScore
@@ -250,17 +260,31 @@ function AssetCard({ asset, onOpen }: { asset: Asset; onOpen: (asset: Asset) => 
 function AssetEditor({
   asset,
   productSlug,
+  members,
   onDeleted,
 }: {
   asset: Asset
   productSlug: string
+  members: MemberOption[]
   onDeleted: () => void
 }) {
   const [isPending, startTransition] = useTransition()
   const formRef = useRef<HTMLFormElement>(null)
   const [type, setType] = useState<string>(asset.type)
   const [health, setHealth] = useState<string>(asset.health)
+  const [addOwnerId, setAddOwnerId] = useState('')
   const lastSaved = useRef<string>('')
+
+  const owners = asset.owners ?? []
+  const ownerIds = new Set(owners.map((o) => o.id))
+  const addableMembers = members.filter((m) => !ownerIds.has(m.id))
+
+  function saveOwners(userIds: string[]) {
+    startTransition(async () => {
+      await setAssetOwnersAction(asset.id, productSlug, userIds)
+      toast.success('Owners updated')
+    })
+  }
 
   // Baseline the dirty-check on mount: focusing/blurring without edits must not save.
   useEffect(() => {
@@ -361,6 +385,54 @@ function AssetEditor({
         </div>
         <p className="text-xs text-muted-foreground">{isPending ? 'Saving…' : 'Changes save automatically'}</p>
       </form>
+
+      {/* Owners — routing and visibility (like code owners), not permissions */}
+      <div className="px-4 space-y-2">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Owners</p>
+        {owners.length > 0 ? (
+          <ul className="space-y-1.5">
+            {owners.map((owner) => (
+              <li key={owner.id} className="flex items-center justify-between gap-2 text-sm">
+                <span className="flex items-center gap-2 min-w-0">
+                  <OwnerAvatars owners={[owner]} max={1} />
+                  <span className="truncate">{owner.name}</span>
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                  title="Remove owner"
+                  disabled={isPending}
+                  onClick={() => saveOwners(owners.filter((o) => o.id !== owner.id).map((o) => o.id))}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">No owners yet — assign someone to route work here.</p>
+        )}
+        {addableMembers.length > 0 && (
+          <div className="flex items-center gap-2">
+            <Select value={addOwnerId} onValueChange={setAddOwnerId}>
+              <SelectTrigger className="h-8 flex-1 text-sm"><SelectValue placeholder="Add an owner…" /></SelectTrigger>
+              <SelectContent>
+                {addableMembers.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!addOwnerId || isPending}
+              onClick={() => { const id = addOwnerId; setAddOwnerId(''); saveOwners([...owners.map((o) => o.id), id]) }}
+            >
+              <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+              Add
+            </Button>
+          </div>
+        )}
+      </div>
 
       <SheetFooter className="flex-row justify-end gap-2">
         <AlertDialog>

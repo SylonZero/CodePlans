@@ -17,6 +17,7 @@ export const {
   integrations,
   products,
   assets,
+  assetOwners,
   assetDependencies,
   codePlans,
   codePlanAssets,

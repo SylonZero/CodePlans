@@ -60,6 +60,13 @@ export interface Product {
   createdAt: string
 }
 
+/** Declared owner of an asset (like a code owner) — routing and visibility, not an ACL. */
+export interface AssetOwner {
+  id: string
+  name: string
+  avatarUrl?: string
+}
+
 export interface Asset {
   id: string
   productId: string
@@ -74,6 +81,7 @@ export interface Asset {
   derivedTechDebtScore?: number
   /** Open tech-debt work items targeting this asset. */
   openDebtCount?: number
+  owners?: AssetOwner[]
   repositoryUrl?: string
   repoPath?: string
   documentationUrl?: string

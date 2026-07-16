@@ -122,6 +122,18 @@ export const assets = pgTable('assets', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+// Declared responsibility (like code owners) — routing and visibility, not an ACL.
+// Explicit rather than derived: unlike plan assignees, there is no activity to derive it from.
+export const assetOwners = pgTable('asset_owners', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('asset_owners_asset_user_idx').on(t.assetId, t.userId),
+  index('asset_owners_user_idx').on(t.userId),
+])
+
 export const assetDependencies = pgTable('asset_dependencies', {
   id: uuid('id').primaryKey().defaultRandom(),
   sourceAssetId: uuid('source_asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),

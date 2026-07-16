@@ -2,6 +2,7 @@ import { db } from './index'
 import {
   products,
   assets,
+  assetOwners,
   assetDependencies,
   integrations,
   codePlans,
@@ -101,6 +102,15 @@ export async function deleteAsset(id: string) {
     .where(eq(assets.id, id))
     .returning({ id: assets.id })
   return deleted ?? null
+}
+
+/** Replace the full owner set for an asset. */
+export async function setAssetOwners(assetId: string, userIds: string[]) {
+  await db.delete(assetOwners).where(eq(assetOwners.assetId, assetId))
+  const unique = [...new Set(userIds)]
+  if (unique.length > 0) {
+    await db.insert(assetOwners).values(unique.map((userId) => ({ assetId, userId })))
+  }
 }
 
 // ---------------------------------------------------------------------------

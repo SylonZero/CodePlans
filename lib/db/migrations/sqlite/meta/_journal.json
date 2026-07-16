@@ -78,6 +78,13 @@
       "when": 1784058835573,
       "tag": "0010_drop_plan_assignees",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1784169685774,
+      "tag": "0011_asset_owners",
+      "breakpoints": true
     }
   ]
 }
