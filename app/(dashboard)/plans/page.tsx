@@ -1,6 +1,8 @@
+import { cookies } from 'next/headers'
 import { authAdapter } from '@/lib/auth'
 import { getCodePlans, getProducts } from '@/lib/db/queries'
 import { getProductScope } from '@/lib/product-scope'
+import { PLANS_VIEW_COOKIE, parsePlansView } from '@/lib/plans-view-cookie'
 import { PlansClient } from './plans-client'
 import { PlanCreatePanel } from './plan-create-panel'
 
@@ -15,6 +17,9 @@ export default async function PlansPage({ searchParams }: Props) {
   const { product: productParam } = await searchParams
   const scope = await getProductScope()
   const productId = productParam || scope || undefined
+
+  const cookieStore = await cookies()
+  const initialView = parsePlansView(cookieStore.get(PLANS_VIEW_COOKIE)?.value)
 
   const [plans, products] = await Promise.all([
     getCodePlans(user.id, { productId }),
@@ -37,7 +42,7 @@ export default async function PlansPage({ searchParams }: Props) {
         <PlanCreatePanel products={productList} defaultProductId={productId} />
       </div>
 
-      <PlansClient plans={enrichedPlans} products={productList} currentUserId={user.id} />
+      <PlansClient plans={enrichedPlans} products={productList} currentUserId={user.id} initialView={initialView} />
     </div>
   )
 }
