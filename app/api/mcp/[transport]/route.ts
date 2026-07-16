@@ -32,7 +32,7 @@ import {
   addPlanAsset,
   removePlanAsset,
 } from '@/lib/db/mutations'
-import { getAssetOptions } from '@/lib/db/queries'
+import { getAssetOptions, getAssetDetail } from '@/lib/db/queries'
 import { resolveAssigneeEmail } from '@/lib/mcp/users'
 
 /** Guard: the key's user must be able to see the product. */
@@ -219,11 +219,12 @@ const handler = createMcpHandler(
 
     server.tool(
       'update_asset',
-      'Update an asset: description, tags, health, manual tech-debt score, repo details, owners (ownerEmails replaces the full owner set; [] clears it).',
+      'Update an asset: description, notes (freeform ideation doc, markdown), tags, health, manual tech-debt score, repo details, owners (ownerEmails replaces the full owner set; [] clears it).',
       {
         id: z.string(),
         name: z.string().optional(),
         description: z.string().optional(),
+        notes: z.string().optional(),
         tags: z.array(z.string()).optional(),
         health: z.enum(['healthy', 'warning', 'critical']).optional(),
         techDebtScore: z.number().int().min(0).max(100).optional(),
@@ -241,6 +242,17 @@ const handler = createMcpHandler(
           await setAssetOwners(id, ownerIds)
         }
         return json(await updateAsset(id, data))
+      },
+    )
+
+    server.tool(
+      'get_asset',
+      'Full asset context: description, notes, owners, debt score breakdown, linked code plans (with per-plan notes/PRs), and dependency edges in both directions.',
+      { id: z.string() },
+      async ({ id }, extra) => {
+        const detail = await getAssetDetail(id, uid(extra))
+        if (!detail) return json({ error: 'Asset not found or not accessible' })
+        return json(detail)
       },
     )
 
