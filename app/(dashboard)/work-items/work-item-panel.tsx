@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Sheet,
@@ -30,6 +29,8 @@ import {
 import { Trash2, ArrowUpRight, Link2, Unlink, ExternalLink, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { RichTextField } from '@/components/rich-text-field'
 import type { WorkItemStatus } from '@/lib/types'
 import type { WorkItemWithContext } from '@/lib/db/queries'
 import { cn } from '@/lib/utils'
@@ -259,7 +260,13 @@ function WorkItemEditor({
 
       <form ref={formRef} onBlur={() => commit()} onSubmit={(e) => e.preventDefault()} className="space-y-4 px-4">
         <Input name="title" defaultValue={item.title} disabled={isMirrored} className="font-medium" aria-label="Title" />
-        <Textarea name="description" defaultValue={item.description} disabled={isMirrored} rows={3} placeholder="Description" aria-label="Description" />
+        {isMirrored ? (
+          <div className="prose prose-sm prose-invert max-w-none rounded-md border border-border px-3 py-2 [&_table]:text-xs">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.description}</ReactMarkdown>
+          </div>
+        ) : (
+          <RichTextField name="description" defaultValue={item.description} />
+        )}
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label className="text-xs">Asset</Label>
@@ -405,7 +412,7 @@ function SpecSection({ specUrl }: { specUrl: string }) {
       </p>
       {markdown ? (
         <div className="prose prose-sm prose-invert max-w-none max-h-64 overflow-y-auto rounded-md border border-border p-3 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_pre]:bg-muted [&_pre]:p-2 [&_pre]:rounded [&_code]:text-xs [&_table]:text-xs">
-          <ReactMarkdown>{markdown}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">
@@ -490,14 +497,8 @@ function WorkItemForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="wi-description">Description</Label>
-        <Textarea
-          id="wi-description"
-          name="description"
-          defaultValue={item?.description}
-          placeholder="What is being asked for, or what is wrong?"
-          rows={3}
-        />
+        <Label>Description</Label>
+        <RichTextField name="description" defaultValue={item?.description} />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">

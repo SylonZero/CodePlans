@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
+import { RichTextField } from '@/components/rich-text-field'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Sheet,
@@ -82,8 +82,8 @@ export function PlanCreatePanel({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="np-description">Description <span className="text-destructive">*</span></Label>
-            <Textarea id="np-description" name="description" placeholder="What changes does this plan coordinate?" rows={3} required />
+            <Label>Description <span className="text-destructive">*</span></Label>
+            <RichTextField name="description" />
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">

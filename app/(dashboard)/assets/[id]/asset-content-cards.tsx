@@ -2,9 +2,10 @@
 
 import { useState, useTransition } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
+import { RichTextEditor } from '@/components/rich-text-editor'
 import { AlignLeft, NotebookPen, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import { updateAssetContentAction } from '../../actions'
@@ -64,12 +65,11 @@ export function AssetContentCard({ assetId, productSlug, field, value }: Editabl
       <CardContent>
         {editing ? (
           <div className="space-y-2">
-            <Textarea
+            <RichTextEditor
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              rows={field === 'notes' ? 10 : 4}
-              placeholder={meta.placeholder}
+              onChange={setDraft}
               autoFocus
+              size={field === 'notes' ? 'tall' : 'default'}
             />
             <div className="flex justify-end gap-2">
               <Button variant="outline" size="sm" onClick={() => setEditing(false)} disabled={isPending}>Cancel</Button>
@@ -77,13 +77,9 @@ export function AssetContentCard({ assetId, productSlug, field, value }: Editabl
             </div>
           </div>
         ) : value ? (
-          field === 'notes' ? (
-            <div className="prose prose-sm prose-invert max-w-none [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_pre]:bg-muted [&_pre]:p-2 [&_pre]:rounded [&_code]:text-xs [&_table]:text-xs">
-              <ReactMarkdown>{value}</ReactMarkdown>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground whitespace-pre-line">{value}</p>
-          )
+          <div className="prose prose-sm prose-invert max-w-none [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_pre]:bg-muted [&_pre]:p-2 [&_pre]:rounded [&_code]:text-xs [&_table]:text-xs [&_ul.contains-task-list]:list-none [&_ul.contains-task-list]:pl-1">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{value}</ReactMarkdown>
+          </div>
         ) : (
           <p className="text-sm text-muted-foreground italic">{meta.empty}</p>
         )}

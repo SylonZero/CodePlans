@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { RichTextField } from '@/components/rich-text-field'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Sheet,
@@ -120,8 +121,8 @@ export function PlanEditSheet({ plan, members = [] }: { plan: CodePlanDetail; me
             <Input id="edit-title" name="title" defaultValue={plan.title} required />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="edit-description">Description</Label>
-            <Textarea id="edit-description" name="description" defaultValue={plan.description} rows={3} />
+            <Label>Description</Label>
+            <RichTextField name="description" defaultValue={plan.description} />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
