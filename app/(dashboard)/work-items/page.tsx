@@ -1,5 +1,5 @@
 import { authAdapter } from '@/lib/auth'
-import { getWorkItems, getCodePlans, getProducts, getAssetOptions, getTeamMembers } from '@/lib/db/queries'
+import { getWorkItems, getCodePlans, getProducts, getAssetOptions, getAssetDebtInfo, getTeamMembers } from '@/lib/db/queries'
 import { db } from '@/lib/db'
 import { users } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
@@ -12,11 +12,12 @@ export default async function WorkItemsPage() {
 
   const scope = await getProductScope()
 
-  const [items, plans, products, assetOptions] = await Promise.all([
+  const [items, plans, products, assetOptions, assetDebtInfo] = await Promise.all([
     getWorkItems(user.id, { productId: scope ?? undefined }),
     getCodePlans(user.id, { productId: scope ?? undefined }),
     getProducts(user.id), // all accessible products — create form needs the full list
     getAssetOptions(user.id),
+    getAssetDebtInfo(user.id),
   ])
 
   const profile = await db.query.users.findFirst({ where: eq(users.id, user.id) })
@@ -35,8 +36,10 @@ export default async function WorkItemsPage() {
         plans={planList}
         products={productList}
         assets={assetOptions}
+        assetDebtInfo={assetDebtInfo}
         members={memberList}
         scopedProductId={scope}
+        currentUserId={user.id}
       />
     </div>
   )

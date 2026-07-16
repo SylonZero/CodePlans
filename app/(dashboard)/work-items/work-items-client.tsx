@@ -6,12 +6,13 @@ import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Filter, Plus, Circle, Play, CheckCircle2, Wrench, ExternalLink, List, Layers } from 'lucide-react'
 import type { WorkItemStatus, WorkItemType } from '@/lib/types'
-import type { WorkItemWithContext } from '@/lib/db/queries'
+import type { WorkItemWithContext, AssetDebtInfo } from '@/lib/db/queries'
 import { cn } from '@/lib/utils'
 import {
   WorkItemPanel,
@@ -27,25 +28,34 @@ import {
 } from './work-item-panel'
 
 const PAGE_SIZE = 25
+const UNASSIGNED_ASSET = '__unassigned__'
+const UNASSIGNED_AREA = '__unassigned__'
 
 export function WorkItemsClient({
   items,
   plans,
   products,
   assets,
+  assetDebtInfo = [],
   members = [],
   scopedProductId,
+  currentUserId,
 }: {
   items: WorkItemWithContext[]
   plans: PlanOption[]
   products: ProductOption[]
   assets: AssetOption[]
+  assetDebtInfo?: AssetDebtInfo[]
   members?: { id: string; name: string }[]
   scopedProductId: string | null
+  currentUserId?: string
 }) {
   const searchParams = useSearchParams()
   const [statusFilter, setStatusFilter] = useState<WorkItemStatus | 'all'>('all')
   const [typeFilter, setTypeFilter] = useState<WorkItemType | 'all'>('all')
+  const [assetFilter, setAssetFilter] = useState<string>('all')
+  const [areaFilter, setAreaFilter] = useState<string>('all')
+  const [mineOnly, setMineOnly] = useState(false)
   const [view, setView] = useState<'list' | 'debt'>('list')
   const [page, setPage] = useState(0)
   const [createOpen, setCreateOpen] = useState(false)
@@ -65,9 +75,39 @@ export function WorkItemsClient({
     if (openItemId) window.history.pushState(null, '', '/work-items')
   }, [openItemId])
 
+  const assetFilterOptions = useMemo(() => {
+    const map = new Map<string, string>()
+    let hasUnassigned = false
+    for (const item of items) {
+      if (item.assetId && item.assetName) map.set(item.assetId, item.assetName)
+      else hasUnassigned = true
+    }
+    return {
+      known: [...map.entries()].sort((a, b) => a[1].localeCompare(b[1])),
+      hasUnassigned,
+    }
+  }, [items])
+
+  const areaFilterOptions = useMemo(() => {
+    const set = new Set<string>()
+    let hasUnassigned = false
+    for (const item of items) {
+      if (item.area) set.add(item.area)
+      else hasUnassigned = true
+    }
+    return { known: [...set].sort(), hasUnassigned }
+  }, [items])
+
   const filteredItems = items.filter((item) => {
     if (statusFilter !== 'all' && item.status !== statusFilter) return false
     if (typeFilter !== 'all' && item.type !== typeFilter) return false
+    if (assetFilter === UNASSIGNED_ASSET) {
+      if (item.assetId) return false
+    } else if (assetFilter !== 'all' && item.assetId !== assetFilter) return false
+    if (areaFilter === UNASSIGNED_AREA) {
+      if (item.area) return false
+    } else if (areaFilter !== 'all' && item.area !== areaFilter) return false
+    if (mineOnly && item.ownerId !== currentUserId) return false
     return true
   })
   const pageItems = filteredItems.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
@@ -156,10 +196,16 @@ export function WorkItemsClient({
             <TabsTrigger value="resolved">Resolved</TabsTrigger>
           </TabsList>
         </Tabs>
-        <div className="flex items-center gap-2 sm:ml-auto">
+        {currentUserId && (
+          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+            <Switch checked={mineOnly} onCheckedChange={(v) => { setMineOnly(v); setPage(0) }} />
+            <span className="text-muted-foreground">Owned by me</span>
+          </label>
+        )}
+        <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
           <Filter className="h-4 w-4 text-muted-foreground" />
           <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v as WorkItemType | 'all'); setPage(0) }}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-[150px]">
               <SelectValue placeholder="All Types" />
             </SelectTrigger>
             <SelectContent>
@@ -167,6 +213,34 @@ export function WorkItemsClient({
               {TYPES.map((t) => (
                 <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+          <Select value={assetFilter} onValueChange={(v) => { setAssetFilter(v); setPage(0) }}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="All Assets" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Assets</SelectItem>
+              {assetFilterOptions.known.map(([id, name]) => (
+                <SelectItem key={id} value={id}>{name}</SelectItem>
+              ))}
+              {assetFilterOptions.hasUnassigned && (
+                <SelectItem value={UNASSIGNED_ASSET}>No asset</SelectItem>
+              )}
+            </SelectContent>
+          </Select>
+          <Select value={areaFilter} onValueChange={(v) => { setAreaFilter(v); setPage(0) }}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="All Areas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Areas</SelectItem>
+              {areaFilterOptions.known.map((area) => (
+                <SelectItem key={area} value={area}>{area}</SelectItem>
+              ))}
+              {areaFilterOptions.hasUnassigned && (
+                <SelectItem value={UNASSIGNED_AREA}>No area</SelectItem>
+              )}
             </SelectContent>
           </Select>
           <div className="flex border border-border rounded-md">
@@ -181,7 +255,7 @@ export function WorkItemsClient({
       </div>
 
       {view === 'debt' ? (
-        <DebtRegister items={items} onOpen={openPanel} />
+        <DebtRegister items={items} assetDebtInfo={assetDebtInfo} onOpen={openPanel} />
       ) : (
       <Card className="bg-card border-border">
         <Table>
@@ -278,23 +352,40 @@ export function WorkItemsClient({
   )
 }
 
-/** Open tech-debt items grouped by asset — the debt register. */
+// Matches the weighting used server-side for asset debt scores (lib/db/queries.ts getProduct/getAnalytics)
+// so the register's ranking agrees with the score shown on the Products/Assets pages.
+const DEBT_WEIGHT: Record<WorkItemWithContext['severity'], number> = { low: 3, medium: 8, high: 15, critical: 25 }
+
+const healthStyles: Record<AssetDebtInfo['health'], string> = {
+  healthy: 'bg-accent/20 text-accent',
+  warning: 'bg-warning/20 text-warning',
+  critical: 'bg-destructive/20 text-destructive',
+}
+
+/** Open tech-debt items grouped by asset, ranked by debt score — the debt register. */
 function DebtRegister({
   items,
+  assetDebtInfo,
   onOpen,
 }: {
   items: WorkItemWithContext[]
+  assetDebtInfo: AssetDebtInfo[]
   onOpen: (item: WorkItemWithContext) => void
 }) {
   const openStatuses = ['open', 'planned', 'in_progress']
   const debtItems = items.filter((i) => i.type === 'tech_debt' && openStatuses.includes(i.status))
+  const assetById = new Map(assetDebtInfo.map((a) => [a.id, a]))
 
-  const groups = new Map<string, { label: string; product: string; items: WorkItemWithContext[] }>()
+  const groups = new Map<
+    string,
+    { label: string; product: string; asset?: AssetDebtInfo; items: WorkItemWithContext[] }
+  >()
   for (const item of debtItems) {
     const key = item.assetId ?? `unassigned-${item.productId}`
     const group = groups.get(key) ?? {
       label: item.assetName ?? 'Unassigned',
       product: item.productName,
+      asset: item.assetId ? assetById.get(item.assetId) : undefined,
       items: [],
     }
     group.items.push(item)
@@ -302,14 +393,22 @@ function DebtRegister({
   }
 
   const severityRank = { critical: 0, high: 1, medium: 2, low: 3 }
-  const sortedGroups = [...groups.entries()].sort((a, b) => b[1].items.length - a[1].items.length)
+  const scored = [...groups.entries()].map(([key, group]) => {
+    const derivedScore = Math.min(
+      100,
+      group.items.reduce((sum, item) => sum + (DEBT_WEIGHT[item.severity] ?? 8), 0),
+    )
+    const effectiveScore = group.asset?.techDebtScore ?? derivedScore
+    return { key, group, effectiveScore }
+  })
+  const sortedGroups = scored.sort((a, b) => b.effectiveScore - a.effectiveScore)
 
   if (debtItems.length === 0) {
     return (
       <Card className="bg-card border-border">
         <div className="py-12 text-center text-muted-foreground">
           <p>No open tech debt</p>
-          <p className="text-sm">Tech-debt work items appear here grouped by asset</p>
+          <p className="text-sm">Tech-debt work items appear here grouped by asset, ranked by debt score</p>
         </div>
       </Card>
     )
@@ -317,7 +416,7 @@ function DebtRegister({
 
   return (
     <div className="space-y-4">
-      {sortedGroups.map(([key, group]) => {
+      {sortedGroups.map(({ key, group, effectiveScore }) => {
         const critical = group.items.filter((i) => i.severity === 'critical').length
         const high = group.items.filter((i) => i.severity === 'high').length
         const sorted = [...group.items].sort((a, b) => severityRank[a.severity] - severityRank[b.severity])
@@ -326,10 +425,24 @@ function DebtRegister({
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="font-semibold">{group.label}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold">{group.label}</h3>
+                    {group.asset && (
+                      <Badge variant="secondary" className={cn('text-xs capitalize', healthStyles[group.asset.health])}>
+                        {group.asset.health}
+                      </Badge>
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground">{group.product}</p>
                 </div>
                 <div className="flex items-center gap-2">
+                  <Badge
+                    variant="secondary"
+                    className={cn('text-xs', effectiveScore >= 60 ? severityStyles.critical : effectiveScore >= 30 ? severityStyles.high : severityStyles.medium)}
+                    title={group.asset?.techDebtScore != null ? 'Manually set debt score' : 'Derived from open tech-debt severity'}
+                  >
+                    Debt score {effectiveScore}
+                  </Badge>
                   {critical > 0 && (
                     <Badge variant="secondary" className={severityStyles.critical}>{critical} critical</Badge>
                   )}

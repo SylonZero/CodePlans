@@ -762,6 +762,23 @@ export async function getAssetOptions(
     .orderBy(assets.name)
 }
 
+export type AssetDebtInfo = {
+  id: string
+  health: 'healthy' | 'warning' | 'critical'
+  /** Manual override score, when set. */
+  techDebtScore: number | null
+}
+
+/** Health + manual debt-score override for accessible assets — for the tech debt register. */
+export async function getAssetDebtInfo(userId: string): Promise<AssetDebtInfo[]> {
+  const productFilter = await productAccessWhere(userId)
+  return db
+    .select({ id: assets.id, health: assets.health, techDebtScore: assets.techDebtScore })
+    .from(assets)
+    .innerJoin(products, eq(assets.productId, products.id))
+    .where(productFilter)
+}
+
 // ---------------------------------------------------------------------------
 // Asset dependencies & impact analysis
 // ---------------------------------------------------------------------------

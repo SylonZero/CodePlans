@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Plus, Calendar, Users, Filter, ArrowUpRight, Clock, List, LayoutGrid } from 'lucide-react'
 import type { CodePlanStatus, CodePlanType } from '@/lib/types'
 import { cn, formatDate } from '@/lib/utils'
+import { PLANS_VIEW_COOKIE, type PlansView } from '@/lib/plans-view-cookie'
 import { PlanCreatePanel } from './plan-create-panel'
 
 type Plan = {
@@ -55,11 +56,26 @@ const typeStyles: Record<CodePlanType, string> = {
   bugfix: 'bg-chart-5/20 text-chart-5',
 }
 
-export function PlansClient({ plans, products, currentUserId }: { plans: Plan[]; products: Product[]; currentUserId?: string }) {
+export function PlansClient({
+  plans,
+  products,
+  currentUserId,
+  initialView = 'card',
+}: {
+  plans: Plan[]
+  products: Product[]
+  currentUserId?: string
+  initialView?: PlansView
+}) {
   const [mineOnly, setMineOnly] = useState(false)
   const [statusFilter, setStatusFilter] = useState<CodePlanStatus | 'all' | 'open'>('open')
   const [productFilter, setProductFilter] = useState<string>('all')
-  const [view, setView] = useState<'card' | 'list'>('card')
+  const [view, setView] = useState<PlansView>(initialView)
+
+  function updateView(next: PlansView) {
+    setView(next)
+    document.cookie = `${PLANS_VIEW_COOKIE}=${next}; path=/; max-age=${60 * 60 * 24 * 365}`
+  }
 
   const filteredPlans = plans.filter((plan) => {
     if (mineOnly && plan.ownerId !== currentUserId && !plan.assigneeIds.includes(currentUserId ?? '')) return false
@@ -152,10 +168,10 @@ export function PlansClient({ plans, products, currentUserId }: { plans: Plan[];
             </SelectContent>
           </Select>
           <div className="flex border border-border rounded-md">
-            <Button variant={view === 'card' ? 'secondary' : 'ghost'} size="icon" className="h-9 w-9 rounded-r-none" title="Card view" onClick={() => setView('card')}>
+            <Button variant={view === 'card' ? 'secondary' : 'ghost'} size="icon" className="h-9 w-9 rounded-r-none" title="Card view" onClick={() => updateView('card')}>
               <LayoutGrid className="h-4 w-4" />
             </Button>
-            <Button variant={view === 'list' ? 'secondary' : 'ghost'} size="icon" className="h-9 w-9 rounded-l-none" title="List view" onClick={() => setView('list')}>
+            <Button variant={view === 'list' ? 'secondary' : 'ghost'} size="icon" className="h-9 w-9 rounded-l-none" title="List view" onClick={() => updateView('list')}>
               <List className="h-4 w-4" />
             </Button>
           </div>
