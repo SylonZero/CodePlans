@@ -322,9 +322,9 @@ Specs live in git (`docs/specs/*.md` by convention), not in CodePlans. Link a sp
 
 ---
 
-## Connect Claude Code or Cursor (MCP)
+## Connect an AI coding agent (MCP)
 
-CodePlans ships an MCP server at `/api/mcp/mcp` (Streamable HTTP). Create an API key in **Settings → API Keys** — the settings page shows these snippets with your host and freshly minted key pre-filled.
+CodePlans ships an MCP server at `/api/mcp/mcp` (Streamable HTTP, bearer-token auth). Create an API key in **Settings → API Keys** — the settings page shows these snippets with your host and freshly minted key pre-filled, for Claude Code, Cursor, Codex, GitHub Copilot, and Antigravity.
 
 **Claude Code** (user scope — available in every project):
 
@@ -340,6 +340,37 @@ claude mcp add --scope user --transport http codeplans http://localhost:3000/api
   "mcpServers": {
     "codeplans": {
       "url": "http://localhost:3000/api/mcp/mcp",
+      "headers": { "Authorization": "Bearer cpk_your_key" }
+    }
+  }
+}
+```
+
+**Codex CLI** — reads the bearer token from an environment variable rather than storing it in `~/.codex/config.toml` directly:
+
+```bash
+export CODEPLANS_API_KEY="cpk_your_key"
+codex mcp add codeplans \
+  --url http://localhost:3000/api/mcp/mcp \
+  --bearer-token-env-var CODEPLANS_API_KEY
+```
+
+**GitHub Copilot CLI**:
+
+```bash
+copilot mcp add --transport http codeplans http://localhost:3000/api/mcp/mcp \
+  --header "Authorization: Bearer cpk_your_key"
+```
+
+In VS Code's Copilot Chat instead, add the same URL/header under a `"servers"` entry in `.vscode/mcp.json` with `"type": "http"`.
+
+**Antigravity** — add to `~/.gemini/config/mcp_config.json` (note the field is `serverUrl`, not `url`), then reload MCP servers from the agent panel:
+
+```json
+{
+  "mcpServers": {
+    "codeplans": {
+      "serverUrl": "http://localhost:3000/api/mcp/mcp",
       "headers": { "Authorization": "Bearer cpk_your_key" }
     }
   }
