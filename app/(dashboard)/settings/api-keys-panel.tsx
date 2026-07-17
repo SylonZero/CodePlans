@@ -154,6 +154,20 @@ function ConnectCard({ mintedKey }: { mintedKey: string | null }) {
     }
   }
 }`
+  const codexSnippet = `export CODEPLANS_API_KEY="${key}"
+codex mcp add codeplans \\
+  --url ${origin}/api/mcp/mcp \\
+  --bearer-token-env-var CODEPLANS_API_KEY`
+  const copilotSnippet = `copilot mcp add --transport http codeplans ${origin}/api/mcp/mcp \\
+  --header "Authorization: Bearer ${key}"`
+  const antigravitySnippet = `{
+  "mcpServers": {
+    "codeplans": {
+      "serverUrl": "${origin}/api/mcp/mcp",
+      "headers": { "Authorization": "Bearer ${key}" }
+    }
+  }
+}`
 
   function copy(label: string, text: string) {
     navigator.clipboard.writeText(text)
@@ -188,7 +202,7 @@ function ConnectCard({ mintedKey }: { mintedKey: string | null }) {
       <CardHeader>
         <div className="flex items-center gap-2">
           <TerminalSquare className="h-5 w-5 text-muted-foreground" />
-          <CardTitle className="text-base">Use with Claude Code &amp; Cursor</CardTitle>
+          <CardTitle className="text-base">Use with your AI coding agent</CardTitle>
         </div>
         <CardDescription>
           {mintedKey
@@ -198,9 +212,12 @@ function ConnectCard({ mintedKey }: { mintedKey: string | null }) {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="claude">
-          <TabsList className="bg-muted mb-3">
+          <TabsList className="bg-muted mb-3 flex-wrap h-auto">
             <TabsTrigger value="claude">Claude Code</TabsTrigger>
             <TabsTrigger value="cursor">Cursor</TabsTrigger>
+            <TabsTrigger value="codex">Codex</TabsTrigger>
+            <TabsTrigger value="copilot">Copilot</TabsTrigger>
+            <TabsTrigger value="antigravity">Antigravity</TabsTrigger>
           </TabsList>
           <TabsContent value="claude" className="space-y-2">
             <p className="text-xs text-muted-foreground">
@@ -216,6 +233,33 @@ function ConnectCard({ mintedKey }: { mintedKey: string | null }) {
               Add to <code>~/.cursor/mcp.json</code> (all projects) or <code>.cursor/mcp.json</code> in a repo (that project only), then enable it under Cursor Settings → MCP:
             </p>
             <Snippet label="cursor" text={cursorSnippet} />
+          </TabsContent>
+          <TabsContent value="codex" className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Run once in a terminal. Codex reads the key from an env var rather than storing it in{' '}
+              <code>~/.codex/config.toml</code> directly:
+            </p>
+            <Snippet label="codex" text={codexSnippet} />
+            <p className="text-xs text-muted-foreground">
+              Verify with <code>codex mcp list</code>. Re-export <code>CODEPLANS_API_KEY</code> in new shells, or add it to your shell profile.
+            </p>
+          </TabsContent>
+          <TabsContent value="copilot" className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              GitHub Copilot CLI — run once in a terminal:
+            </p>
+            <Snippet label="copilot" text={copilotSnippet} />
+            <p className="text-xs text-muted-foreground">
+              Verify with <code>copilot mcp list</code>. In VS Code&apos;s Copilot Chat instead, add the same URL/header under a{' '}
+              <code>&quot;servers&quot;</code> entry in <code>.vscode/mcp.json</code> with <code>&quot;type&quot;: &quot;http&quot;</code>.
+            </p>
+          </TabsContent>
+          <TabsContent value="antigravity" className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Add to <code>~/.gemini/config/mcp_config.json</code>, then reload MCP servers from the agent panel. Note the field is{' '}
+              <code>serverUrl</code>, not <code>url</code>:
+            </p>
+            <Snippet label="antigravity" text={antigravitySnippet} />
           </TabsContent>
         </Tabs>
       </CardContent>

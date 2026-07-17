@@ -3,6 +3,14 @@
 > **Status: SHIPPED in v0.3.1; management tools added in v0.3.2** (28 tools; plans and work items carry ownerEmail:
 > products, assets, dependencies, plan lifecycle/targets, full work-item edit). Companion to
 > `design-spec-v3.md`; reuses its data layer and access model unchanged.
+>
+> **Client support expanded:** the Settings → API Keys page now shows connection
+> snippets for Codex CLI, GitHub Copilot (CLI + VS Code), and Antigravity, alongside Claude
+> Code and Cursor. No server changes were needed — all five speak Streamable HTTP with a
+> bearer-token `Authorization` header against the same `/api/mcp/mcp` endpoint; only the
+> client-side config format differs (CLI command vs. JSON, and Antigravity's `serverUrl`
+> field instead of `url`). See the "Connect an AI coding agent" section of the README for
+> per-client snippets.
 
 ## Goal
 
