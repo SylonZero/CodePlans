@@ -23,6 +23,7 @@ export const {
   codePlanAssets,
   releases,
   releaseAssets,
+  assetDesignLog,
   workItems,
   workItemCodePlans,
   tasks,

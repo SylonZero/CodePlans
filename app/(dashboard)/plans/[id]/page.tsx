@@ -4,7 +4,8 @@ import { authAdapter } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { users } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { getCodePlan, getCodePlans, getTeamMembers, getWorkItems, getAssetOptions, getImpactedAssets, getIntegrations } from '@/lib/db/queries'
+import { getCodePlan, getCodePlans, getTeamMembers, getWorkItems, getAssetOptions, getImpactedAssets, getIntegrations, getReleases } from '@/lib/db/queries'
+import { PlanReleasePicker } from './plan-release-picker'
 import { PlanAssetsSection } from './plan-assets-section'
 import { PlanDescriptionCard } from './plan-description-card'
 import { SpecCard } from '@/components/spec-card'
@@ -52,13 +53,14 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
   if (!plan) notFound()
 
   const profile = await db.query.users.findFirst({ where: eq(users.id, user.id) })
-  const [teamMembers, linkedItems, assetOptions, impactedAssets, orgIntegrations, allPlans] = await Promise.all([
+  const [teamMembers, linkedItems, assetOptions, impactedAssets, orgIntegrations, allPlans, productReleases] = await Promise.all([
     profile?.organizationId ? getTeamMembers(profile.organizationId) : Promise.resolve([]),
     getWorkItems(user.id, { planId: id }),
     getAssetOptions(user.id),
     getImpactedAssets(id),
     profile?.organizationId ? getIntegrations(profile.organizationId) : Promise.resolve([]),
     getCodePlans(user.id),
+    getReleases(user.id, { productId: plan.productId }),
   ])
   const otherPlans = allPlans
     .filter((p) => p.id !== id && p.status !== 'completed' && p.status !== 'cancelled')
@@ -107,6 +109,13 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
                 <span>Owner: {plan.ownerName}</span>
               </div>
             )}
+            <PlanReleasePicker
+              planId={plan.id}
+              releaseId={plan.releaseId}
+              releases={productReleases
+                .filter((r) => r.status !== 'abandoned')
+                .map((r) => ({ id: r.id, name: r.name }))}
+            />
           </div>
         </div>
         <div className="flex gap-2 flex-wrap items-center">

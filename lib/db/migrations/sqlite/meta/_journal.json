@@ -99,6 +99,13 @@
       "when": 1785812652617,
       "tag": "0013_releases",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1785812653617,
+      "tag": "0014_asset_design_log",
+      "breakpoints": true
     }
   ]
 }

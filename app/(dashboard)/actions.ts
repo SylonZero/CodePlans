@@ -44,6 +44,8 @@ import {
   detachPlanFromRelease,
   setReleaseAsset,
   removeReleaseAsset,
+  createDesignNote,
+  deleteDesignNote,
 } from '@/lib/db/mutations'
 import { getAssetOptions } from '@/lib/db/queries'
 import type { UserRole, WorkItemType, WorkItemStatus, WorkItemSeverity } from '@/lib/types'
@@ -1094,4 +1096,62 @@ export async function removeReleaseAssetAction(releaseId: string, assetId: strin
   await requireUser()
   await removeReleaseAsset(releaseId, assetId)
   revalidatePath(`/releases/${releaseId}`)
+}
+
+// ---------------------------------------------------------------------------
+// Asset design log
+// ---------------------------------------------------------------------------
+
+export async function addDesignNoteAction(assetId: string, formData: FormData) {
+  const authUser = await requireUser()
+  const releaseId = (formData.get('releaseId') as string) || undefined
+  const codePlanId = (formData.get('codePlanId') as string) || undefined
+  const note = await createDesignNote({
+    assetId,
+    title: formData.get('title') as string,
+    body: (formData.get('body') as string) || '',
+    releaseId: releaseId === 'none' ? undefined : releaseId,
+    codePlanId: codePlanId === 'none' ? undefined : codePlanId,
+    authorKind: 'user',
+    authorId: authUser.id,
+  })
+  await logActivity({
+    entityType: 'asset',
+    entityId: assetId,
+    event: 'design_note_added',
+    actorId: authUser.id,
+    payload: { title: note.title },
+  })
+  revalidatePath(`/assets/${assetId}`)
+}
+
+export async function deleteDesignNoteAction(noteId: string, assetId: string) {
+  await requireUser()
+  await deleteDesignNote(noteId)
+  revalidatePath(`/assets/${assetId}`)
+}
+
+// ---------------------------------------------------------------------------
+// Plan ↔ release picker (plan detail)
+// ---------------------------------------------------------------------------
+
+export async function setPlanReleaseAction(codePlanId: string, releaseId: string | null) {
+  const authUser = await requireUser()
+  if (releaseId) {
+    const plan = await attachPlanToRelease(codePlanId, releaseId)
+    if (plan) {
+      await logActivity({
+        entityType: 'release',
+        entityId: releaseId,
+        event: 'plan_attached',
+        actorId: authUser.id,
+        payload: { planId: codePlanId, planTitle: plan.title },
+      })
+    }
+    revalidatePath(`/releases/${releaseId}`)
+  } else {
+    await detachPlanFromRelease(codePlanId)
+    revalidatePath('/releases')
+  }
+  revalidatePath(`/plans/${codePlanId}`)
 }
