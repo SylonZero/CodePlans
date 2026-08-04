@@ -406,6 +406,11 @@ Your agent can then read plans/work items/tech debt and (with a write-scope key)
 - [x] **v0.3.18–v0.3.23 — UI refinement:** agent connect snippets beside API key generation, light/dark/system theme switcher, Code Plan detail redesign, plan assignees derived from task assignment, Work Items filters + reworked Tech Debt Register, persisted view preferences
 - [x] **v0.3.24–v0.3.25 — Asset ownership & detail page:** code owners (routing & visibility), asset detail page with notes/ideation doc
 - [x] **v0.3.26–v0.3.29 — Rich text editing:** TipTap editor (markdown + GFM canonical) and markdown rendering for plan descriptions; MCP connect snippets for Codex, Copilot & Antigravity
+- [x] **v0.4.0 — Derived asset history:** History tab on assets — plans delivered, work items resolved, debt movement, projected from existing data
+- [x] **v0.4.1 — Releases:** delivery grouping above code plans with per-asset version stamps, derived work-item rollups (release notes), ship lifecycle
+- [x] **v0.4.2 — Version-structured history & design log:** version ladder on asset history, user/agent-authored design notes, plan-side release picker, 10 new MCP tools (39 total)
+- [x] **v0.4.3 — AI drafting (feature-flagged):** release notes & design notes drafted from delivered work, always landing in an editor
+- [ ] **v0.4.4+ — Asset Record & round-trip engineering** (see [`docs/specs/asset-record-spec.md`](docs/specs/asset-record-spec.md)): capabilities register, reconciliation proposals, release publishing
 - [ ] AI-assisted effort estimation
 - [ ] Billing / subscription management (hosted tier, optional & feature-flagged)
 

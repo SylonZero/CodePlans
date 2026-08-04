@@ -2,7 +2,7 @@
 
 > **Status: PROPOSED** (2026-08). The follow-on signposted in
 > `releases-and-asset-history-spec.md` §11, all four phases of which are now
-> shipped. Targets the v0.5.x line. Companion to `design-spec-v3.md`; reuses the
+> shipped. Continues the v0.4.x line. Companion to `design-spec-v3.md`; reuses the
 > existing data layer, access model, and MCP conventions unchanged.
 
 ---
@@ -327,21 +327,21 @@ work items). Every arrow is traversable by an agent over MCP.
 Each phase ships migrations for both PG and SQLite, seed updates, tests, and
 `docs/app-spec.md` updates.
 
-### Phase A — The Record `v0.5.0`
+### Phase A — The Record `v0.4.4`
 `asset_capabilities` + graduation mutation; Record tab (capabilities + derived
 known issues/debt); resolve-time graduation prompt + backfill checklist;
 `graduate_work_item` + `get_asset_record` MCP tools; sync_log events.
 *Exit criteria: a team can build and browse a receipted capabilities register
 with zero agent involvement.*
 
-### Phase B — Reconciliation `v0.5.1`
+### Phase B — Reconciliation `v0.4.5`
 `record_proposals` + review queue UI; `propose_record_change`,
 `list_record_proposals`, `resolve_record_proposal` MCP tools; the reconcile
 guide; AI-drafted capability descriptions on graduation (flagged, Phase D
 plumbing). *Exit criteria: an agent-run reconcile pass on this repo files
 sensible proposals end-to-end.*
 
-### Phase C — Round-trip `v0.5.2`
+### Phase C — Round-trip `v0.4.6`
 Publish-to-GitHub-Releases action on shipped releases; spec-audit section in the
 reconcile guide; Record freshness surfaced on the asset header (oldest
 `verifiedAt` drives a "record last verified" hint). *Exit criteria: the litmus
