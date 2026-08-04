@@ -32,6 +32,7 @@ export const workItemTypeEnum = pgEnum('work_item_type', ['feature', 'bug', 'enh
 export const workItemStatusEnum = pgEnum('work_item_status', ['open', 'planned', 'in_progress', 'resolved', 'wont_do'])
 export const workItemSeverityEnum = pgEnum('work_item_severity', ['low', 'medium', 'high', 'critical'])
 export const prStatusEnum = pgEnum('pr_status', ['none', 'draft', 'open', 'merged', 'closed'])
+export const releaseStatusEnum = pgEnum('release_status', ['planned', 'in_progress', 'shipped', 'abandoned'])
 // source/provider columns are intentionally text (not enum) — new connectors must not need a migration.
 
 // ---------------------------------------------------------------------------
@@ -161,6 +162,8 @@ export const codePlans = pgTable('code_plans', {
   ownerId: uuid('owner_id').references(() => users.id, { onDelete: 'set null' }),
   // Link to the design spec (markdown in the repo, or any doc URL).
   specUrl: text('spec_url'),
+  // A plan ships in at most one release; detaching a release never touches its plans.
+  releaseId: uuid('release_id').references((): AnyPgColumn => releases.id, { onDelete: 'set null' }),
   source: text('source').notNull().default('native'),
   connectionId: uuid('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
   externalId: text('external_id'),
@@ -187,6 +190,48 @@ export const codePlanAssets = pgTable('code_plan_assets', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   uniqueIndex('code_plan_assets_plan_asset_idx').on(t.codePlanId, t.assetId),
+])
+
+// Delivery grouping above code plans: what ships together, stamping per-asset
+// versions via release_assets. Status is explicit — shipping is a human act.
+export const releases = pgTable('releases', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description').notNull().default(''),
+  status: releaseStatusEnum('status').notNull().default('planned'),
+  shippedAt: timestamp('shipped_at', { withTimezone: true }),
+  creatorId: uuid('creator_id').notNull().references(() => users.id),
+  tags: text('tags').array().notNull().default([]),
+  source: text('source').notNull().default('native'),
+  connectionId: uuid('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
+  externalId: text('external_id'),
+  externalKey: text('external_key'),
+  externalUrl: text('external_url'),
+  externalData: jsonb('external_data').notNull().default({}),
+  externalDeleted: boolean('external_deleted').notNull().default(false),
+  syncedAt: timestamp('synced_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('releases_connection_external_idx').on(t.connectionId, t.externalId),
+  index('releases_product_idx').on(t.productId),
+])
+
+// The version stamp: "this release took this asset to this version".
+// Explicitly managed — a release may version an asset no plan touched, or
+// exclude an incidentally-touched one.
+export const releaseAssets = pgTable('release_assets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  releaseId: uuid('release_id').notNull().references(() => releases.id, { onDelete: 'cascade' }),
+  assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
+  version: text('version'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('release_assets_release_asset_idx').on(t.releaseId, t.assetId),
+  index('release_assets_asset_idx').on(t.assetId),
 ])
 
 export const workItems = pgTable('work_items', {
@@ -266,7 +311,7 @@ export const syncLog = pgTable('sync_log', {
   id: uuid('id').primaryKey().defaultRandom(),
   organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
   connectionId: uuid('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
-  entityType: text('entity_type').notNull(), // 'work_item' | 'task' | 'code_plan' | 'asset' | 'product'
+  entityType: text('entity_type').notNull(), // 'work_item' | 'task' | 'code_plan' | 'asset' | 'product' | 'release'
   entityId: uuid('entity_id').notNull(),
   event: text('event').notNull(),
   // Null when a connection (not a user) is the actor.

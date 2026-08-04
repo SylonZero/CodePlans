@@ -14,6 +14,8 @@ import {
   organizationMembers,
   syncLog,
   integrations,
+  releases,
+  releaseAssets,
 } from './schema'
 import { eq, and, sql, desc, or, inArray, gte, isNotNull } from 'drizzle-orm'
 import type {
@@ -34,6 +36,9 @@ import type {
   TeamMember,
   DashboardStats,
   ActivityItem,
+  Release,
+  ReleaseStatus,
+  AssetType,
 } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
@@ -328,6 +333,7 @@ export async function getCodePlans(userId: string, filters: PlanFilters = {}): P
       creatorId: codePlans.creatorId,
       ownerId: codePlans.ownerId,
       specUrl: codePlans.specUrl,
+      releaseId: codePlans.releaseId,
       createdAt: codePlans.createdAt,
       updatedAt: codePlans.updatedAt,
       productName: products.name,
@@ -376,6 +382,7 @@ export async function getCodePlans(userId: string, filters: PlanFilters = {}): P
     ...r,
     ownerId: r.ownerId ?? undefined,
     specUrl: r.specUrl ?? undefined,
+    releaseId: r.releaseId ?? undefined,
     targetAssetIds: assetsByPlan.get(r.id) ?? [],
     assigneeIds: [...(assigneesByPlan.get(r.id) ?? [])],
     startDate: r.startDate ?? undefined,
@@ -455,6 +462,7 @@ export async function getCodePlan(id: string, userId: string): Promise<CodePlanD
       ? ((await db.query.users.findFirst({ where: eq(users.id, plan.ownerId) }))?.name ?? null)
       : null,
     specUrl: plan.specUrl ?? undefined,
+    releaseId: plan.releaseId ?? undefined,
     source: plan.source as ItemSource,
     connectionId: plan.connectionId ?? undefined,
     externalKey: plan.externalKey ?? undefined,
@@ -1514,6 +1522,13 @@ function activityPresentation(entityType: string, event: string, payload: Record
     if (event === 'created') return { type: 'asset_added', title: 'created a product' }
     return null
   }
+  if (entityType === 'release') {
+    if (event === 'created') return { type: 'plan_created', title: 'created a release' }
+    if (event === 'shipped') return { type: 'plan_completed', title: 'shipped a release' }
+    if (event === 'plan_attached') return { type: 'plan_updated', title: 'attached a plan to a release' }
+    if (event === 'asset_versioned') return { type: 'plan_updated', title: 'stamped an asset version on a release' }
+    return { type: 'plan_updated', title: 'updated a release' }
+  }
   if (entityType === 'work_item') {
     if (event === 'created') return { type: 'item_created', title: 'created a work item' }
     if (event === 'status_changed' && payload.status === 'resolved') {
@@ -1687,4 +1702,267 @@ export async function getIntegrations(orgId: string): Promise<IntegrationSummary
         : ('none' as const),
     lastSyncAt: r.lastSyncAt?.toISOString() ?? null,
   }))
+}
+
+// ---------------------------------------------------------------------------
+// Releases (releases-and-asset-history-spec.md, Phase B)
+// ---------------------------------------------------------------------------
+
+export type ReleaseAssetChip = {
+  assetId: string
+  assetName: string
+  assetType: AssetType
+  version?: string
+  notes?: string
+}
+
+export type ReleaseListRow = Release & {
+  productName: string
+  productSlug: string
+  planCount: number
+  assets: ReleaseAssetChip[]
+  /** Derived through attached plans — the release-notes rollup in miniature. */
+  workItemCounts: Partial<Record<WorkItemType, number>>
+}
+
+export type ReleasePlanRow = {
+  planId: string
+  title: string
+  status: CodePlanStatus
+  type: CodePlanType
+  taskCount: number
+  completedTaskCount: number
+}
+
+export type ReleaseWorkItemRow = {
+  id: string
+  title: string
+  type: WorkItemType
+  status: WorkItemStatus
+  severity: WorkItemSeverity
+  assetId?: string
+}
+
+export type ReleaseDetail = ReleaseListRow & {
+  plans: ReleasePlanRow[]
+  workItems: ReleaseWorkItemRow[]
+  /** Per-asset PR chips rolled up from attached plans' code_plan_assets rows. */
+  assetPrChips: Map<string, { branch?: string; prUrl?: string; prStatus: PlanAsset['prStatus'] }[]>
+}
+
+function releaseRow(r: typeof releases.$inferSelect): Release {
+  return {
+    id: r.id,
+    productId: r.productId,
+    name: r.name,
+    description: r.description,
+    status: r.status as ReleaseStatus,
+    shippedAt: r.shippedAt?.toISOString(),
+    tags: r.tags,
+    creatorId: r.creatorId,
+    createdAt: r.createdAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
+  }
+}
+
+/** Asset chips + derived work-item counts for a set of releases, keyed by release id. */
+async function releaseRollups(releaseIds: string[]) {
+  const assetChips = new Map<string, ReleaseAssetChip[]>()
+  const itemCounts = new Map<string, Partial<Record<WorkItemType, number>>>()
+  const planCounts = new Map<string, number>()
+  if (releaseIds.length === 0) return { assetChips, itemCounts, planCounts }
+
+  const [chipRows, itemRows] = await Promise.all([
+    db
+      .select({
+        releaseId: releaseAssets.releaseId,
+        assetId: releaseAssets.assetId,
+        assetName: assets.name,
+        assetType: assets.type,
+        version: releaseAssets.version,
+        notes: releaseAssets.notes,
+      })
+      .from(releaseAssets)
+      .innerJoin(assets, eq(releaseAssets.assetId, assets.id))
+      .where(inArray(releaseAssets.releaseId, releaseIds))
+      .orderBy(assets.name),
+    db
+      .select({
+        releaseId: codePlans.releaseId,
+        planId: codePlans.id,
+        itemId: workItems.id,
+        itemType: workItems.type,
+      })
+      .from(codePlans)
+      .innerJoin(workItemCodePlans, eq(workItemCodePlans.codePlanId, codePlans.id))
+      .innerJoin(workItems, eq(workItemCodePlans.workItemId, workItems.id))
+      .where(inArray(codePlans.releaseId, releaseIds)),
+  ])
+
+  const planRows = await db
+    .select({ releaseId: codePlans.releaseId, id: codePlans.id })
+    .from(codePlans)
+    .where(inArray(codePlans.releaseId, releaseIds))
+
+  for (const r of chipRows) {
+    assetChips.set(r.releaseId, [
+      ...(assetChips.get(r.releaseId) ?? []),
+      {
+        assetId: r.assetId,
+        assetName: r.assetName,
+        assetType: r.assetType,
+        version: r.version ?? undefined,
+        notes: r.notes ?? undefined,
+      },
+    ])
+  }
+  // One work item linked to two plans in the same release counts once.
+  const seen = new Set<string>()
+  for (const r of itemRows) {
+    if (!r.releaseId) continue
+    const key = `${r.releaseId}:${r.itemId}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    const counts = itemCounts.get(r.releaseId) ?? {}
+    counts[r.itemType] = (counts[r.itemType] ?? 0) + 1
+    itemCounts.set(r.releaseId, counts)
+  }
+  for (const r of planRows) {
+    if (!r.releaseId) continue
+    planCounts.set(r.releaseId, (planCounts.get(r.releaseId) ?? 0) + 1)
+  }
+  return { assetChips, itemCounts, planCounts }
+}
+
+export async function getReleases(
+  userId: string,
+  filters: { productId?: string; status?: ReleaseStatus } = {},
+): Promise<ReleaseListRow[]> {
+  const conditions = [await productAccessWhere(userId)]
+  if (filters.productId) conditions.push(eq(releases.productId, filters.productId))
+  if (filters.status) conditions.push(eq(releases.status, filters.status))
+
+  const rows = await db
+    .select({ release: releases, productName: products.name, productSlug: products.slug })
+    .from(releases)
+    .innerJoin(products, eq(releases.productId, products.id))
+    .where(and(...conditions))
+    .orderBy(desc(releases.updatedAt))
+
+  const { assetChips, itemCounts, planCounts } = await releaseRollups(rows.map((r) => r.release.id))
+
+  return rows.map((r) => ({
+    ...releaseRow(r.release),
+    productName: r.productName,
+    productSlug: r.productSlug,
+    planCount: planCounts.get(r.release.id) ?? 0,
+    assets: assetChips.get(r.release.id) ?? [],
+    workItemCounts: itemCounts.get(r.release.id) ?? {},
+  }))
+}
+
+export async function getRelease(id: string, userId: string): Promise<ReleaseDetail | null> {
+  const [row] = await db
+    .select({ release: releases, productName: products.name, productSlug: products.slug })
+    .from(releases)
+    .innerJoin(products, eq(releases.productId, products.id))
+    .where(and(eq(releases.id, id), await productAccessWhere(userId)))
+
+  if (!row) return null
+
+  const [{ assetChips, itemCounts, planCounts }, planRows, prChipRows] = await Promise.all([
+    releaseRollups([id]),
+    db
+      .select({
+        planId: codePlans.id,
+        title: codePlans.title,
+        status: codePlans.status,
+        type: codePlans.type,
+        taskCount: sql<number>`(
+          select CAST(count(*) AS INTEGER) from tasks where tasks.code_plan_id = code_plans.id
+        )`,
+        completedTaskCount: sql<number>`(
+          select CAST(count(*) AS INTEGER) from tasks
+          where tasks.code_plan_id = code_plans.id and tasks.status = 'done'
+        )`,
+      })
+      .from(codePlans)
+      .where(eq(codePlans.releaseId, id))
+      .orderBy(desc(codePlans.updatedAt)),
+    db
+      .select({
+        assetId: codePlanAssets.assetId,
+        branch: codePlanAssets.branch,
+        prUrl: codePlanAssets.prUrl,
+        prStatus: codePlanAssets.prStatus,
+      })
+      .from(codePlanAssets)
+      .innerJoin(codePlans, eq(codePlanAssets.codePlanId, codePlans.id))
+      .where(eq(codePlans.releaseId, id)),
+  ])
+
+  const itemRows = await db
+    .select({
+      id: workItems.id,
+      title: workItems.title,
+      type: workItems.type,
+      status: workItems.status,
+      severity: workItems.severity,
+      assetId: workItems.assetId,
+    })
+    .from(workItems)
+    .innerJoin(workItemCodePlans, eq(workItemCodePlans.workItemId, workItems.id))
+    .innerJoin(codePlans, eq(workItemCodePlans.codePlanId, codePlans.id))
+    .where(eq(codePlans.releaseId, id))
+
+  const assetPrChips = new Map<string, { branch?: string; prUrl?: string; prStatus: PlanAsset['prStatus'] }[]>()
+  for (const r of prChipRows) {
+    assetPrChips.set(r.assetId, [
+      ...(assetPrChips.get(r.assetId) ?? []),
+      { branch: r.branch ?? undefined, prUrl: r.prUrl ?? undefined, prStatus: r.prStatus },
+    ])
+  }
+
+  const seenItems = new Set<string>()
+  const items: ReleaseWorkItemRow[] = []
+  for (const r of itemRows) {
+    if (seenItems.has(r.id)) continue
+    seenItems.add(r.id)
+    items.push({ ...r, assetId: r.assetId ?? undefined })
+  }
+
+  return {
+    ...releaseRow(row.release),
+    productName: row.productName,
+    productSlug: row.productSlug,
+    planCount: planCounts.get(id) ?? 0,
+    assets: assetChips.get(id) ?? [],
+    workItemCounts: itemCounts.get(id) ?? {},
+    plans: planRows,
+    workItems: items,
+    assetPrChips,
+  }
+}
+
+/** Assets targeted by the release's attached plans but not yet on the release. */
+export async function getSuggestedReleaseAssets(releaseId: string): Promise<ReleaseAssetChip[]> {
+  const rows = await db
+    .select({ assetId: codePlanAssets.assetId, assetName: assets.name, assetType: assets.type })
+    .from(codePlanAssets)
+    .innerJoin(codePlans, eq(codePlanAssets.codePlanId, codePlans.id))
+    .innerJoin(assets, eq(codePlanAssets.assetId, assets.id))
+    .where(eq(codePlans.releaseId, releaseId))
+  const existing = await db
+    .select({ assetId: releaseAssets.assetId })
+    .from(releaseAssets)
+    .where(eq(releaseAssets.releaseId, releaseId))
+  const have = new Set(existing.map((r) => r.assetId))
+  const out: ReleaseAssetChip[] = []
+  const seen = new Set<string>()
+  for (const r of rows) {
+    if (have.has(r.assetId) || seen.has(r.assetId)) continue
+    seen.add(r.assetId)
+    out.push({ assetId: r.assetId, assetName: r.assetName, assetType: r.assetType })
+  }
+  return out
 }

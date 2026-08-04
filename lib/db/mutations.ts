@@ -10,9 +10,11 @@ import {
   workItems,
   workItemCodePlans,
   tasks,
+  releases,
+  releaseAssets,
 } from './schema'
 import { eq, and, ne } from 'drizzle-orm'
-import type { WorkItemType, WorkItemStatus, WorkItemSeverity } from '@/lib/types'
+import type { WorkItemType, WorkItemStatus, WorkItemSeverity, ReleaseStatus } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
 // Products
@@ -562,5 +564,94 @@ export async function deleteIntegration(id: string) {
     .delete(integrations)
     .where(eq(integrations.id, id))
     .returning({ id: integrations.id })
+  return deleted ?? null
+}
+
+// ---------------------------------------------------------------------------
+// Releases (releases-and-asset-history-spec.md, Phase B)
+// ---------------------------------------------------------------------------
+
+type CreateReleaseData = {
+  productId: string
+  name: string
+  description?: string
+  tags?: string[]
+}
+
+export async function createRelease(data: CreateReleaseData, userId: string) {
+  const [release] = await db
+    .insert(releases)
+    .values({ ...data, creatorId: userId, status: 'planned' })
+    .returning()
+  return release
+}
+
+type UpdateReleaseData = Partial<{
+  name: string
+  description: string
+  tags: string[]
+  status: ReleaseStatus
+}>
+
+export async function updateRelease(id: string, data: UpdateReleaseData) {
+  const patch: Record<string, unknown> = { ...data, updatedAt: new Date() }
+  // shippedAt tracks the status transition, not a separate edit.
+  if (data.status === 'shipped') patch.shippedAt = new Date()
+  if (data.status && data.status !== 'shipped') patch.shippedAt = null
+  const [release] = await db.update(releases).set(patch).where(eq(releases.id, id)).returning()
+  return release ?? null
+}
+
+export async function deleteRelease(id: string) {
+  // code_plans.releaseId is ON DELETE SET NULL — plans are detached, never deleted.
+  const [deleted] = await db.delete(releases).where(eq(releases.id, id)).returning({ id: releases.id })
+  return deleted ?? null
+}
+
+export async function attachPlanToRelease(codePlanId: string, releaseId: string) {
+  const [plan] = await db
+    .update(codePlans)
+    .set({ releaseId, updatedAt: new Date() })
+    .where(eq(codePlans.id, codePlanId))
+    .returning()
+  return plan ?? null
+}
+
+export async function detachPlanFromRelease(codePlanId: string) {
+  const [plan] = await db
+    .update(codePlans)
+    .set({ releaseId: null, updatedAt: new Date() })
+    .where(eq(codePlans.id, codePlanId))
+    .returning()
+  return plan ?? null
+}
+
+type SetReleaseAssetData = { version?: string | null; notes?: string | null }
+
+/** Upsert the per-asset version stamp on a release. */
+export async function setReleaseAsset(releaseId: string, assetId: string, data: SetReleaseAssetData = {}) {
+  const existing = await db.query.releaseAssets.findFirst({
+    where: and(eq(releaseAssets.releaseId, releaseId), eq(releaseAssets.assetId, assetId)),
+  })
+  if (existing) {
+    const [row] = await db
+      .update(releaseAssets)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(releaseAssets.id, existing.id))
+      .returning()
+    return row
+  }
+  const [row] = await db
+    .insert(releaseAssets)
+    .values({ releaseId, assetId, version: data.version ?? null, notes: data.notes ?? null })
+    .returning()
+  return row
+}
+
+export async function removeReleaseAsset(releaseId: string, assetId: string) {
+  const [deleted] = await db
+    .delete(releaseAssets)
+    .where(and(eq(releaseAssets.releaseId, releaseId), eq(releaseAssets.assetId, assetId)))
+    .returning({ id: releaseAssets.id })
   return deleted ?? null
 }

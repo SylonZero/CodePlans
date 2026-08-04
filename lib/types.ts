@@ -92,6 +92,31 @@ export interface Asset {
 }
 
 export type PrStatus = 'none' | 'draft' | 'open' | 'merged' | 'closed'
+export type ReleaseStatus = 'planned' | 'in_progress' | 'shipped' | 'abandoned'
+
+/** A release's per-asset row: the version this release stamps on the asset. */
+export interface ReleaseAssetRow {
+  id: string
+  assetId: string
+  assetName: string
+  assetType: AssetType
+  version?: string
+  notes?: string
+}
+
+/** Delivery grouping above code plans: what ships together. */
+export interface Release {
+  id: string
+  productId: string
+  name: string
+  description: string
+  status: ReleaseStatus
+  shippedAt?: string
+  tags: string[]
+  creatorId: string
+  createdAt: string
+  updatedAt: string
+}
 
 /** A code plan's per-asset row: the slice of the plan delivered in one repo/PR. */
 export interface PlanAsset {
@@ -113,6 +138,7 @@ export interface CodePlan {
   status: CodePlanStatus
   ownerId?: string
   specUrl?: string
+  releaseId?: string
   source?: ItemSource
   connectionId?: string
   externalKey?: string

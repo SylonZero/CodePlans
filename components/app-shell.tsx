@@ -35,6 +35,7 @@ import {
   Building2,
   Layers,
   Plug,
+  Rocket,
 } from 'lucide-react'
 import { signOut } from '@/app/(auth)/actions'
 import { setProductScopeAction } from '@/lib/actions/product-scope'
@@ -56,6 +57,7 @@ const navigation = [
   { name: 'Products', href: '/products', icon: Package },
   { name: 'Work Items', href: '/work-items', icon: ClipboardList },
   { name: 'Code Plans', href: '/plans', icon: FileCode2 },
+  { name: 'Releases', href: '/releases', icon: Rocket },
   { name: 'Tasks', href: '/tasks', icon: CheckSquare },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
 ]

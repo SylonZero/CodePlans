@@ -29,7 +29,8 @@ export type PrStatus = 'none' | 'draft' | 'open' | 'merged' | 'closed'
 // Provider list is intentionally text (not enum) — new connectors must not need a migration.
 export type ItemSource = 'native' | 'github' | 'gitlab' | 'jira' | 'asana' | 'linear'
 export type IntegrationStatus = 'active' | 'paused' | 'error'
-export type SyncEntityType = 'work_item' | 'task' | 'code_plan' | 'asset' | 'product'
+export type SyncEntityType = 'work_item' | 'task' | 'code_plan' | 'asset' | 'product' | 'release'
+export type ReleaseStatus = 'planned' | 'in_progress' | 'shipped' | 'abandoned'
 
 // ---------------------------------------------------------------------------
 // Tables
@@ -155,6 +156,8 @@ export const codePlans = sqliteTable('code_plans', {
   ownerId: text('owner_id').references(() => users.id, { onDelete: 'set null' }),
   // Link to the design spec (markdown in the repo, or any doc URL).
   specUrl: text('spec_url'),
+  // A plan ships in at most one release; detaching a release never touches its plans.
+  releaseId: text('release_id').references((): AnySQLiteColumn => releases.id, { onDelete: 'set null' }),
   source: text('source').$type<ItemSource>().notNull().default('native'),
   connectionId: text('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
   externalId: text('external_id'),
@@ -181,6 +184,48 @@ export const codePlanAssets = sqliteTable('code_plan_assets', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 }, (t) => [
   uniqueIndex('code_plan_assets_plan_asset_idx').on(t.codePlanId, t.assetId),
+])
+
+// Delivery grouping above code plans: what ships together, stamping per-asset
+// versions via release_assets. Status is explicit — shipping is a human act.
+export const releases = sqliteTable('releases', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  productId: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description').notNull().default(''),
+  status: text('status').$type<ReleaseStatus>().notNull().default('planned'),
+  shippedAt: integer('shipped_at', { mode: 'timestamp' }),
+  creatorId: text('creator_id').notNull().references(() => users.id),
+  tags: text('tags', { mode: 'json' }).$type<string[]>().notNull().default([]),
+  source: text('source').$type<ItemSource>().notNull().default('native'),
+  connectionId: text('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
+  externalId: text('external_id'),
+  externalKey: text('external_key'),
+  externalUrl: text('external_url'),
+  externalData: text('external_data', { mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
+  externalDeleted: integer('external_deleted', { mode: 'boolean' }).notNull().default(false),
+  syncedAt: integer('synced_at', { mode: 'timestamp' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('releases_connection_external_idx').on(t.connectionId, t.externalId),
+  index('releases_product_idx').on(t.productId),
+])
+
+// The version stamp: "this release took this asset to this version".
+// Explicitly managed — a release may version an asset no plan touched, or
+// exclude an incidentally-touched one.
+export const releaseAssets = sqliteTable('release_assets', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  releaseId: text('release_id').notNull().references(() => releases.id, { onDelete: 'cascade' }),
+  assetId: text('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
+  version: text('version'),
+  notes: text('notes'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('release_assets_release_asset_idx').on(t.releaseId, t.assetId),
+  index('release_assets_asset_idx').on(t.assetId),
 ])
 
 export const workItems = sqliteTable('work_items', {
