@@ -783,6 +783,22 @@ async function seed() {
     createdAt: new Date('2026-04-12'), updatedAt: new Date('2026-04-12'),
   }, [apiV2PlanId])
 
+  // Open items on Auth Service (the Record tab's derived registers).
+  await findOrCreateWorkItem('Passkey prompt shown twice on Safari', {
+    productId: platformId, assetId: authSvcId, type: 'ux', status: 'open',
+    title: 'Passkey prompt shown twice on Safari', severity: 'medium', tags: ['auth', 'safari'],
+    reporterId: jamesId, ownerId: alexId, area: 'webauthn',
+    description: 'Safari 18 fires the conditional-UI prompt twice when autofill races the explicit call.',
+    createdAt: new Date('2026-04-18'), updatedAt: new Date('2026-04-18'),
+  })
+  await findOrCreateWorkItem('Token refresh duplicated across strategies', {
+    productId: platformId, assetId: authSvcId, type: 'tech_debt', status: 'open',
+    title: 'Token refresh duplicated across strategies', severity: 'medium', tags: ['auth'],
+    reporterId: alexId, ownerId: alexId, area: 'strategies/',
+    description: 'Each provider strategy carries its own refresh loop; consolidate into the token-exchange core.',
+    createdAt: new Date('2026-03-20'), updatedAt: new Date('2026-03-20'),
+  })
+
   // Untriaged backlog (open, unlinked — populates the Work Items inbox).
   await findOrCreateWorkItem('Dark mode flashes light theme on load', {
     productId: platformId, assetId: webAppId, type: 'ux', status: 'open',

@@ -297,6 +297,22 @@
     .footer-links a { font-size: 0.8125rem; color: var(--muted); }
     .footer-links a:hover { color: var(--text); }
 
+    /* ── Tour ── */
+    .tour-tabs { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 28px 0 20px; }
+    .tour-tab {
+      padding: 7px 14px; border-radius: 999px; border: 1px solid var(--border);
+      background: var(--surface); color: var(--muted); font-size: .85rem;
+      cursor: pointer; transition: color .15s, border-color .15s, background .15s; font-family: inherit;
+    }
+    .tour-tab:hover { color: var(--text); border-color: var(--muted); }
+    .tour-tab.active { color: var(--accent); border-color: var(--accent-dim); background: var(--accent-dim); }
+    .tour-frame {
+      border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+      background: var(--surface); box-shadow: 0 24px 64px rgba(0, 0, 0, .5);
+    }
+    .tour-frame img { display: block; width: 100%; height: auto; }
+    .tour-caption { text-align: center; color: var(--muted); font-size: .9rem; margin-top: 14px; }
+
     @media (max-width: 640px) {
       .hero { padding: 64px 0 48px; }
       .hierarchy-inner { padding: 16px; }
@@ -316,6 +332,7 @@
       CodePlans
     </div>
     <div class="nav-links">
+      <a href="#tour">Tour</a>
       <a href="#features">Features</a>
       <a href="#ai">AI Agents</a>
       <a href="#docs">Docs</a>
@@ -378,6 +395,31 @@
         </div>
       </div>
     </div>
+  </div>
+</section>
+
+<!-- ── Tour ── -->
+<section class="section" id="tour">
+  <div class="container">
+    <div class="section-label">Tour</div>
+    <h2>See it in action</h2>
+    <p class="section-sub">The demo workspace that ships with the repo — seed it locally with <code>pnpm db:seed-demo</code> and explore the same views.</p>
+
+    <div class="tour-tabs" role="tablist">
+      <button class="tour-tab active" data-img="screenshots/dashboard.png" data-caption="The dashboard — team velocity, active plans, and a live activity feed across your products.">Dashboard</button>
+      <button class="tour-tab" data-img="screenshots/asset-record.png" data-caption="The Record tab — capabilities graduated from delivered work items, each claim carrying its delivery lineage, beside derived known-issues and debt registers.">Asset Record</button>
+      <button class="tour-tab" data-img="screenshots/asset-history.png" data-caption="Asset history — a version ladder of shipped releases, delivered plans, resolved work items, and design notes (user- or agent-authored).">Asset History</button>
+      <button class="tour-tab" data-img="screenshots/releases.png" data-caption="Releases — group the plans that ship together, stamp per-asset versions, and track the ship lifecycle.">Releases</button>
+      <button class="tour-tab" data-img="screenshots/release-detail.png" data-caption="A shipped release — per-asset version stamps, merged PR chips rolled up from attached plans, and derived release notes.">Release Detail</button>
+      <button class="tour-tab" data-img="screenshots/plan-detail.png" data-caption="A code plan — tasks, target assets, branch/PR delivery tracking, and the release it ships in.">Code Plan</button>
+      <button class="tour-tab" data-img="screenshots/work-items.png" data-caption="Work items — features, bugs, UX issues, and tech debt with severity, asset/area, and the plans that address them.">Work Items</button>
+      <button class="tour-tab" data-img="screenshots/asset-dependencies.png" data-caption="Asset dependencies — both directions of the graph, feeding impact analysis when plans target an asset.">Dependencies</button>
+    </div>
+
+    <div class="tour-frame">
+      <img id="tour-img" src="screenshots/dashboard.png" alt="CodePlans screenshot" width="1440" height="900">
+    </div>
+    <p class="tour-caption" id="tour-caption">The dashboard — team velocity, active plans, and a live activity feed across your products.</p>
   </div>
 </section>
 
@@ -903,6 +945,23 @@
     </div>
   </div>
 </footer>
+
+<script>
+  (function () {
+    var tabs = document.querySelectorAll('.tour-tab')
+    var img = document.getElementById('tour-img')
+    var caption = document.getElementById('tour-caption')
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        tabs.forEach(function (t) { t.classList.remove('active') })
+        tab.classList.add('active')
+        img.src = tab.dataset.img
+        img.alt = tab.textContent + ' — CodePlans screenshot'
+        caption.textContent = tab.dataset.caption
+      })
+    })
+  })()
+</script>
 
 </body>
 </html>
