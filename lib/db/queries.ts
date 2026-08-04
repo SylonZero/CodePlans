@@ -16,6 +16,7 @@ import {
   integrations,
   releases,
   releaseAssets,
+  assetDesignLog,
 } from './schema'
 import { eq, and, sql, desc, or, inArray, gte, isNotNull } from 'drizzle-orm'
 import type {
@@ -1057,7 +1058,7 @@ export async function getAssetDetail(id: string, userId: string): Promise<AssetD
 export type AssetHistoryEntry = {
   /** Synthetic, stable within a render: `${kind}:${entityId}`. */
   id: string
-  kind: 'plan_completed' | 'work_item_resolved' | 'debt_opened' | 'debt_resolved'
+  kind: 'plan_completed' | 'work_item_resolved' | 'debt_opened' | 'debt_resolved' | 'release_stamp' | 'design_note'
   timestamp: string
   title: string
   planId?: string
@@ -1069,6 +1070,16 @@ export type AssetHistoryEntry = {
   itemType?: WorkItemType
   severity?: WorkItemSeverity
   area?: string
+  /** release_stamp: the version this release stamped on the asset. */
+  releaseId?: string
+  version?: string
+  /** design_note fields. */
+  noteId?: string
+  body?: string
+  authorKind?: 'user' | 'agent'
+  authorName?: string
+  /** Anchor chip for design notes recorded against a plan. */
+  planTitle?: string
 }
 
 /**
@@ -1088,7 +1099,7 @@ export async function getAssetHistory(assetId: string, userId: string): Promise<
   })
   if (!product) return null
 
-  const [planRows, itemRows] = await Promise.all([
+  const [planRows, itemRows, stampRows, noteRows] = await Promise.all([
     db
       .select({
         planId: codePlans.id,
@@ -1115,6 +1126,34 @@ export async function getAssetHistory(assetId: string, userId: string): Promise<
       })
       .from(workItems)
       .where(eq(workItems.assetId, assetId)),
+    // Version tick marks: shipped releases that stamped this asset.
+    db
+      .select({
+        releaseId: releases.id,
+        releaseName: releases.name,
+        version: releaseAssets.version,
+        shippedAt: releases.shippedAt,
+        updatedAt: releases.updatedAt,
+      })
+      .from(releaseAssets)
+      .innerJoin(releases, eq(releaseAssets.releaseId, releases.id))
+      .where(and(eq(releaseAssets.assetId, assetId), eq(releases.status, 'shipped'))),
+    db
+      .select({
+        noteId: assetDesignLog.id,
+        title: assetDesignLog.title,
+        body: assetDesignLog.body,
+        authorKind: assetDesignLog.authorKind,
+        authorName: users.name,
+        releaseId: assetDesignLog.releaseId,
+        codePlanId: assetDesignLog.codePlanId,
+        planTitle: codePlans.title,
+        createdAt: assetDesignLog.createdAt,
+      })
+      .from(assetDesignLog)
+      .leftJoin(users, eq(assetDesignLog.authorId, users.id))
+      .leftJoin(codePlans, eq(assetDesignLog.codePlanId, codePlans.id))
+      .where(eq(assetDesignLog.assetId, assetId)),
   ])
 
   const completedAt = new Map<string, Date>()
@@ -1178,6 +1217,33 @@ export async function getAssetHistory(assetId: string, userId: string): Promise<
         area: r.area ?? undefined,
       })
     }
+  }
+
+  for (const r of stampRows) {
+    entries.push({
+      id: `release_stamp:${r.releaseId}`,
+      kind: 'release_stamp',
+      timestamp: (r.shippedAt ?? r.updatedAt).toISOString(),
+      title: r.releaseName,
+      releaseId: r.releaseId,
+      version: r.version ?? undefined,
+    })
+  }
+
+  for (const r of noteRows) {
+    entries.push({
+      id: `design_note:${r.noteId}`,
+      kind: 'design_note',
+      timestamp: r.createdAt.toISOString(),
+      title: r.title,
+      noteId: r.noteId,
+      body: r.body,
+      authorKind: r.authorKind as 'user' | 'agent',
+      authorName: r.authorName ?? undefined,
+      releaseId: r.releaseId ?? undefined,
+      planId: r.codePlanId ?? undefined,
+      planTitle: r.planTitle ?? undefined,
+    })
   }
 
   entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp))

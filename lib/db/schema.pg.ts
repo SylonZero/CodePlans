@@ -234,6 +234,24 @@ export const releaseAssets = pgTable('release_assets', {
   index('release_assets_asset_idx').on(t.assetId),
 ])
 
+// Curated, backward-looking record: what a change meant for an asset's design.
+// The forward-looking scratchpad stays in assets.notes. Agents are first-class
+// authors here (authorKind) — recorded via MCP at plan-completion time.
+export const assetDesignLog = pgTable('asset_design_log', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
+  releaseId: uuid('release_id').references(() => releases.id, { onDelete: 'set null' }),
+  codePlanId: uuid('code_plan_id').references(() => codePlans.id, { onDelete: 'set null' }),
+  title: text('title').notNull(),
+  body: text('body').notNull().default(''),
+  authorKind: text('author_kind').notNull().default('user'), // 'user' | 'agent'
+  authorId: uuid('author_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('asset_design_log_asset_idx').on(t.assetId),
+])
+
 export const workItems = pgTable('work_items', {
   id: uuid('id').primaryKey().defaultRandom(),
   productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),

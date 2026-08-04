@@ -9,6 +9,9 @@ import {
   getCodePlans,
   getCodePlan,
   getImpactedAssets,
+  getReleases,
+  getRelease,
+  getAssetHistory,
 } from '@/lib/db/queries'
 import {
   createProduct,
@@ -31,6 +34,12 @@ import {
   updatePlanAsset,
   addPlanAsset,
   removePlanAsset,
+  createRelease,
+  updateRelease,
+  attachPlanToRelease,
+  detachPlanFromRelease,
+  setReleaseAsset,
+  createDesignNote,
 } from '@/lib/db/mutations'
 import { getAssetOptions, getAssetDetail } from '@/lib/db/queries'
 import { resolveAssigneeEmail } from '@/lib/mcp/users'
@@ -542,6 +551,160 @@ const handler = createMcpHandler(
         requireWrite(extra)
         const row = await updatePlanAsset(codePlanId, assetId, data)
         return json(row ?? { error: 'Asset is not a target of this plan — add it in the plan first.' })
+      },
+    )
+
+    // ── Releases & asset history ───────────────────────────────────────────
+
+    server.tool(
+      'list_releases',
+      'List releases (delivery groupings above code plans) with asset/version stamps, plan counts, and derived work-item counts.',
+      {
+        productId: z.string().optional(),
+        status: z.enum(['planned', 'in_progress', 'shipped', 'abandoned']).optional(),
+      },
+      async (filters, extra) => json(await getReleases(uid(extra), filters)),
+    )
+
+    server.tool(
+      'get_release',
+      'Full detail for one release: asset version stamps, attached plans with progress, and the derived work-item rollup (the release notes).',
+      { id: z.string() },
+      async ({ id }, extra) => {
+        const release = await getRelease(id, uid(extra))
+        if (!release) return json({ error: 'Release not found or not accessible' })
+        const { assetPrChips, ...rest } = release
+        return json({ ...rest, assetPrChips: Object.fromEntries(assetPrChips) })
+      },
+    )
+
+    server.tool(
+      'create_release',
+      'Create a release for a product. Attach plans with attach_plan_to_release, then stamp asset versions with set_release_asset.',
+      {
+        productId: z.string(),
+        name: z.string(),
+        description: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+      },
+      async ({ productId, ...data }, extra) => {
+        requireWrite(extra)
+        const userId = uid(extra)
+        await assertProductAccess(userId, productId)
+        return json(await createRelease({ productId, ...data }, userId))
+      },
+    )
+
+    server.tool(
+      'update_release',
+      'Update a release name/description/tags, or move it between planned and in_progress. Shipped releases are read-only (reopen in the UI to correct). Use ship_release to ship.',
+      {
+        id: z.string(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+        status: z.enum(['planned', 'in_progress', 'abandoned']).optional(),
+      },
+      async ({ id, ...data }, extra) => {
+        requireWrite(extra)
+        const release = await getRelease(id, uid(extra))
+        if (!release) return json({ error: 'Release not found or not accessible' })
+        if (release.status === 'shipped') {
+          return json({ error: 'Shipped releases are read-only — the record must stay trustworthy.' })
+        }
+        return json(await updateRelease(id, data))
+      },
+    )
+
+    server.tool(
+      'ship_release',
+      'Mark a release shipped, recording it in each stamped asset’s history. Warns about assets without a version stamp.',
+      { id: z.string() },
+      async ({ id }, extra) => {
+        requireWrite(extra)
+        const release = await getRelease(id, uid(extra))
+        if (!release) return json({ error: 'Release not found or not accessible' })
+        const unversioned = release.assets.filter((a) => !a.version).map((a) => a.assetName)
+        const shipped = await updateRelease(id, { status: 'shipped' })
+        return json({
+          release: shipped,
+          ...(unversioned.length > 0
+            ? { warning: `Shipped without version stamps on: ${unversioned.join(', ')}` }
+            : {}),
+        })
+      },
+    )
+
+    server.tool(
+      'attach_plan_to_release',
+      'Attach a code plan to a release (a plan ships in at most one release). Its linked work items join the release’s derived rollup.',
+      { codePlanId: z.string(), releaseId: z.string() },
+      async ({ codePlanId, releaseId }, extra) => {
+        requireWrite(extra)
+        const release = await getRelease(releaseId, uid(extra))
+        if (!release) return json({ error: 'Release not found or not accessible' })
+        const plan = await attachPlanToRelease(codePlanId, releaseId)
+        return json(plan ?? { error: 'Plan not found' })
+      },
+    )
+
+    server.tool(
+      'detach_plan_from_release',
+      'Detach a code plan from its release. The plan itself is untouched.',
+      { codePlanId: z.string() },
+      async ({ codePlanId }, extra) => {
+        requireWrite(extra)
+        const plan = await detachPlanFromRelease(codePlanId)
+        return json(plan ?? { error: 'Plan not found' })
+      },
+    )
+
+    server.tool(
+      'set_release_asset',
+      'Stamp an asset version on a release ("this release takes asset X to v1.2.0"), or update the stamp/notes. Upserts.',
+      {
+        releaseId: z.string(),
+        assetId: z.string(),
+        version: z.string().optional(),
+        notes: z.string().optional(),
+      },
+      async ({ releaseId, assetId, ...data }, extra) => {
+        requireWrite(extra)
+        const release = await getRelease(releaseId, uid(extra))
+        if (!release) return json({ error: 'Release not found or not accessible' })
+        if (release.status === 'shipped') {
+          return json({ error: 'Shipped releases are read-only — reopen in the UI to correct.' })
+        }
+        return json(await setReleaseAsset(releaseId, assetId, data))
+      },
+    )
+
+    server.tool(
+      'get_asset_history',
+      "An asset's timeline, newest first: releases that stamped versions on it, plans delivered to it (with branch/PR), work items resolved against it, tech-debt movement, and design notes. The asset's story — read this before making changes to understand how it evolved.",
+      { assetId: z.string() },
+      async ({ assetId }, extra) => {
+        const history = await getAssetHistory(assetId, uid(extra))
+        return json(history ?? { error: 'Asset not found or not accessible' })
+      },
+    )
+
+    server.tool(
+      'record_design_note',
+      "Record a design note on an asset's history: what a change meant for its structure and why. After completing a plan, consider recording one note per significantly changed asset — one paragraph on what changed structurally. Anchor it to the plan (codePlanId) so the note carries lineage. Notes are attributed to this API key's user with an agent badge.",
+      {
+        assetId: z.string(),
+        title: z.string(),
+        body: z.string().optional(),
+        releaseId: z.string().optional(),
+        codePlanId: z.string().optional(),
+      },
+      async ({ assetId, ...data }, extra) => {
+        requireWrite(extra)
+        const userId = uid(extra)
+        const asset = await getAssetDetail(assetId, userId)
+        if (!asset) return json({ error: 'Asset not found or not accessible' })
+        return json(await createDesignNote({ assetId, ...data, authorKind: 'agent', authorId: userId }))
       },
     )
   },

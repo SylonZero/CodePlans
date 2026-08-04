@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { authAdapter } from '@/lib/auth'
-import { getAssetDetail, getAssetHistory, getWorkItems } from '@/lib/db/queries'
+import { getAssetDetail, getAssetHistory, getReleases, getWorkItems } from '@/lib/db/queries'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -87,10 +87,12 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
   const asset = await getAssetDetail(id, user.id)
   if (!asset) notFound()
 
-  const [items, history] = await Promise.all([
+  const [items, history, productReleases] = await Promise.all([
     getWorkItems(user.id, { assetId: id }),
     getAssetHistory(id, user.id),
+    getReleases(user.id, { productId: asset.productId }),
   ])
+  const currentVersion = (history ?? []).find((e) => e.kind === 'release_stamp' && e.version)?.version
   const openStatuses: WorkItemStatus[] = ['open', 'planned', 'in_progress']
   const openItems = items.filter((i) => openStatuses.includes(i.status))
   const severityRank: Record<WorkItemSeverity, number> = { critical: 0, high: 1, medium: 2, low: 3 }
@@ -127,6 +129,11 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
               <Badge variant="secondary" className={cn('text-xs capitalize', healthStyles[asset.health])}>
                 {asset.health}
               </Badge>
+              {currentVersion && (
+                <Badge variant="outline" className="text-xs font-mono text-accent">
+                  {currentVersion}
+                </Badge>
+              )}
             </div>
             <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
               {asset.repositoryUrl && (
@@ -379,7 +386,13 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
         </TabsContent>
 
         <TabsContent value="history" className="mt-4">
-          <AssetHistoryTimeline entries={history ?? []} />
+          <AssetHistoryTimeline
+            assetId={asset.id}
+            entries={history ?? []}
+            canEdit
+            releaseOptions={productReleases.map((r) => ({ id: r.id, label: r.name }))}
+            planOptions={asset.plans.map((p) => ({ id: p.planId, label: p.planTitle }))}
+          />
         </TabsContent>
       </Tabs>
     </div>

@@ -405,7 +405,7 @@ yet — flat timeline.)
 (§6); plan-detail release picker; derived work-item rollups + copy-release-notes;
 `sync_log` events; MCP release tools.
 
-### Phase C — Version-structured history + design log `v0.4.2`
+### Phase C — Version-structured history + design log `v0.4.2` ✅ SHIPPED (incl. the Phase-B deferrals: plan-detail release picker + MCP release tools; the plan-completion note prompt remains open)
 Version ladder and segments on the History tab (from Phase B data);
 `asset_design_log` + authoring UX (§7.2); `record_design_note` +
 `get_asset_history` MCP tools; plan-completion note prompt.

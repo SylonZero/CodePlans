@@ -12,6 +12,7 @@ import {
   tasks,
   releases,
   releaseAssets,
+  assetDesignLog,
 } from './schema'
 import { eq, and, ne } from 'drizzle-orm'
 import type { WorkItemType, WorkItemStatus, WorkItemSeverity, ReleaseStatus } from '@/lib/types'
@@ -653,5 +654,46 @@ export async function removeReleaseAsset(releaseId: string, assetId: string) {
     .delete(releaseAssets)
     .where(and(eq(releaseAssets.releaseId, releaseId), eq(releaseAssets.assetId, assetId)))
     .returning({ id: releaseAssets.id })
+  return deleted ?? null
+}
+
+// ---------------------------------------------------------------------------
+// Asset design log (releases-and-asset-history-spec.md, Phase C)
+// ---------------------------------------------------------------------------
+
+type CreateDesignNoteData = {
+  assetId: string
+  title: string
+  body?: string
+  releaseId?: string
+  codePlanId?: string
+  authorKind?: 'user' | 'agent'
+  authorId?: string
+}
+
+export async function createDesignNote(data: CreateDesignNoteData) {
+  const [note] = await db
+    .insert(assetDesignLog)
+    .values({ ...data, authorKind: data.authorKind ?? 'user' })
+    .returning()
+  return note
+}
+
+type UpdateDesignNoteData = Partial<Pick<CreateDesignNoteData, 'title' | 'body' | 'releaseId' | 'codePlanId'>>
+
+export async function updateDesignNote(id: string, data: UpdateDesignNoteData) {
+  const [note] = await db
+    .update(assetDesignLog)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(assetDesignLog.id, id))
+    .returning()
+  return note ?? null
+}
+
+export async function deleteDesignNote(id: string) {
+  const [deleted] = await db
+    .delete(assetDesignLog)
+    .where(eq(assetDesignLog.id, id))
+    .returning({ id: assetDesignLog.id })
   return deleted ?? null
 }
