@@ -16,9 +16,17 @@ import {
   organizationMembers,
   products,
   assets,
+  assetOwners,
+  assetDependencies,
   codePlans,
   codePlanAssets,
   tasks,
+  workItems,
+  workItemCodePlans,
+  releases,
+  releaseAssets,
+  assetDesignLog,
+  syncLog,
 } from './schema'
 import { eq, inArray } from 'drizzle-orm'
 import { authAdapter } from '@/lib/auth'
@@ -512,6 +520,402 @@ async function seed() {
   for (const t of androidTasks) {
     await findOrCreateTask(t.title, androidPlanId, { ...t, codePlanId: androidPlanId, description: '' })
   }
+
+  // ── Asset metadata: repos, owners ─────────────────────────────────────────
+  console.log('\nSetting asset repos and owners...')
+
+  const repoMeta: [string, string, string][] = [
+    [webAppId,     'https://github.com/codeplans/platform', 'apps/web'],
+    [planEngineId, 'https://github.com/codeplans/platform', 'services/plan-engine'],
+    [authSvcId,    'https://github.com/codeplans/platform', 'services/auth'],
+    [uiLibId,      'https://github.com/codeplans/platform', 'packages/ui'],
+    [searchId,     'https://github.com/codeplans/platform', 'services/search'],
+    [apiGatewayId, 'https://github.com/codeplans/api',      'gateway'],
+    [workerSvcId,  'https://github.com/codeplans/api',      'workers'],
+    [bffId,        'https://github.com/codeplans/mobile',   'bff'],
+    [iosId,        'https://github.com/codeplans/mobile',   'ios'],
+    [androidId,    'https://github.com/codeplans/mobile',   'android'],
+  ]
+  for (const [assetId, repositoryUrl, repoPath] of repoMeta) {
+    await db.update(assets).set({ repositoryUrl, repoPath }).where(eq(assets.id, assetId))
+  }
+
+  const ownerData: [string, string][] = [
+    [webAppId, mikeId], [uiLibId, mikeId],
+    [planEngineId, alexId], [authSvcId, alexId], [postgresId, alexId],
+    [apiGatewayId, sarahId], [bffId, sarahId], [notifSvcId, sarahId],
+    [analyticsDbId, lisaId], [androidId, lisaId], [searchId, lisaId],
+  ]
+  for (const [assetId, userId] of ownerData) {
+    const existing = await db.query.assetOwners.findFirst({
+      where: (o, { and, eq }) => and(eq(o.assetId, assetId), eq(o.userId, userId)),
+    })
+    if (!existing) await db.insert(assetOwners).values({ assetId, userId })
+  }
+  console.log(`  set ${repoMeta.length} repos, ${ownerData.length} owners`)
+
+  // ── Asset dependencies ────────────────────────────────────────────────────
+  console.log('\nCreating asset dependencies...')
+
+  const edges: [string, string, 'depends_on' | 'integrates_with' | 'aggregates', string][] = [
+    [webAppId,     planEngineId, 'depends_on',      'All plan CRUD and generation flows'],
+    [webAppId,     authSvcId,    'depends_on',      'Session validation on every request'],
+    [webAppId,     uiLibId,      'depends_on',      'Design-system components'],
+    [planEngineId, postgresId,   'depends_on',      'Primary persistence'],
+    [planEngineId, redisId,      'depends_on',      'Plan draft cache + realtime presence'],
+    [searchId,     postgresId,   'depends_on',      'Indexes plan and task content'],
+    [authSvcId,    postgresId,   'depends_on',      'User and session store'],
+    [webAppId,     stripeId,     'integrates_with', 'Checkout and billing portal'],
+    [apiGatewayId, authSvcId,    'integrates_with', 'Token introspection'],
+    [workerSvcId,  postgresId,   'depends_on',      'Job queue tables'],
+    [notifSvcId,   workerSvcId,  'depends_on',      'Delivery jobs run on the worker'],
+    [bffId,        apiGatewayId, 'depends_on',      'All mobile traffic routes through the gateway'],
+    [iosId,        bffId,        'depends_on',      'Mobile API surface'],
+    [androidId,    bffId,        'depends_on',      'Mobile API surface'],
+  ]
+  for (const [sourceAssetId, targetAssetId, dependencyType, description] of edges) {
+    const existing = await db.query.assetDependencies.findFirst({
+      where: (e, { and, eq }) => and(eq(e.sourceAssetId, sourceAssetId), eq(e.targetAssetId, targetAssetId)),
+    })
+    if (!existing) await db.insert(assetDependencies).values({ sourceAssetId, targetAssetId, dependencyType, description })
+  }
+  console.log(`  ensured ${edges.length} dependency edges`)
+
+  // ── Additional completed plans (history depth) ────────────────────────────
+  console.log('\nCreating completed plans for history...')
+
+  const searchPlanId = await findOrCreatePlan('Search Relevance Tuning', {
+    title: 'Search Relevance Tuning',
+    description: 'Rank plan search results by recency and ownership; add typo tolerance',
+    productId: platformId, type: 'improvement', status: 'completed',
+    tags: ['search', 'relevance'],
+    targetAssetIds: [searchId],
+    startDate: '2026-02-01', endDate: '2026-03-05', deadline: '2026-03-10',
+    creatorId: lisaId,
+    createdAt: new Date('2026-02-01'), updatedAt: new Date('2026-03-05'),
+  })
+
+  const rnUpgradeId = await findOrCreatePlan('React Native 0.75 Upgrade', {
+    title: 'React Native 0.75 Upgrade',
+    description: 'Upgrade both mobile apps and the BFF client libraries to RN 0.75 with the new architecture enabled',
+    productId: mobileId, type: 'refactor', status: 'completed',
+    tags: ['mobile', 'upgrade'],
+    targetAssetIds: [iosId, androidId],
+    startDate: '2026-01-15', endDate: '2026-02-20', deadline: '2026-02-28',
+    creatorId: lisaId,
+    createdAt: new Date('2026-01-15'), updatedAt: new Date('2026-02-20'),
+  })
+
+  // Look up the SSO plan created above so releases/history can reference it.
+  const ssoPlan = await db.query.codePlans.findFirst({
+    where: (p, { eq }) => eq(p.title, 'SSO & OAuth Integration'),
+  })
+  const ssoPlanId = ssoPlan!.id
+
+  // Per-asset delivery context on completed plans (branch/PR chips in history).
+  const planAssetDelivery: [string, string, string, string][] = [
+    [ssoPlanId,    authSvcId, 'feat/sso-saml',        'https://github.com/codeplans/platform/pull/482'],
+    [searchPlanId, searchId,  'feat/search-relevance', 'https://github.com/codeplans/platform/pull/510'],
+    [rnUpgradeId,  iosId,     'chore/rn-075',          'https://github.com/codeplans/mobile/pull/231'],
+    [rnUpgradeId,  androidId, 'chore/rn-075',          'https://github.com/codeplans/mobile/pull/232'],
+  ]
+  for (const [codePlanId, assetId, branch, prUrl] of planAssetDelivery) {
+    const rows = await db.query.codePlanAssets.findMany({
+      where: (cpa, { and, eq }) => and(eq(cpa.codePlanId, codePlanId), eq(cpa.assetId, assetId)),
+    })
+    for (const row of rows) {
+      await db.update(codePlanAssets).set({ branch, prUrl, prStatus: 'merged' }).where(eq(codePlanAssets.id, row.id))
+    }
+  }
+
+  // Tasks for the completed plans so progress reads 100%.
+  const doneTaskSets: [string, { title: string; assetId?: string }[]][] = [
+    [ssoPlanId, [
+      { title: 'Add SAML assertion parsing', assetId: authSvcId },
+      { title: 'Google & GitHub OAuth flows', assetId: authSvcId },
+      { title: 'Enterprise IdP configuration UI', assetId: authSvcId },
+    ]],
+    [searchPlanId, [
+      { title: 'Recency + ownership ranking signals', assetId: searchId },
+      { title: 'Typo-tolerant matching', assetId: searchId },
+    ]],
+    [rnUpgradeId, [
+      { title: 'Upgrade iOS project to RN 0.75', assetId: iosId },
+      { title: 'Upgrade Android project to RN 0.75', assetId: androidId },
+      { title: 'Enable new architecture + regression pass' },
+    ]],
+  ]
+  for (const [planId, ts] of doneTaskSets) {
+    for (const t of ts) {
+      await findOrCreateTask(t.title, planId, {
+        title: t.title, codePlanId: planId, assetId: t.assetId, description: '',
+        status: 'done', priority: 'high', tags: [], estimatedEffort: 5, actualEffort: 5,
+      })
+    }
+  }
+
+  // ── Work items (demand: features, bugs, UX, tech debt) ────────────────────
+  console.log('\nCreating work items...')
+
+  async function findOrCreateWorkItem(
+    title: string,
+    values: typeof workItems.$inferInsert,
+    linkPlanIds: string[] = [],
+  ) {
+    let row = await db.query.workItems.findFirst({ where: (w, { eq }) => eq(w.title, title) })
+    if (!row) {
+      const [created] = await db.insert(workItems).values(values).returning()
+      row = created
+      console.log(`  created work item: ${title}`)
+    }
+    for (const codePlanId of linkPlanIds) {
+      const link = await db.query.workItemCodePlans.findFirst({
+        where: (l, { and, eq }) => and(eq(l.workItemId, row!.id), eq(l.codePlanId, codePlanId)),
+      })
+      if (!link) await db.insert(workItemCodePlans).values({ workItemId: row.id, codePlanId })
+    }
+    return row.id
+  }
+
+  // Resolved demand behind the completed plans (rich asset history).
+  await findOrCreateWorkItem('SSO for enterprise customers', {
+    productId: platformId, assetId: authSvcId, type: 'feature', status: 'resolved',
+    title: 'SSO for enterprise customers', severity: 'high', tags: ['auth', 'enterprise'],
+    reporterId: alexId, ownerId: alexId,
+    description: 'SAML + OAuth sign-in so enterprise workspaces can mandate their IdP.',
+    createdAt: new Date('2026-01-08'), updatedAt: new Date('2026-03-10'),
+  }, [ssoPlanId])
+  await findOrCreateWorkItem('Session fixation on OAuth callback', {
+    productId: platformId, assetId: authSvcId, type: 'bug', status: 'resolved',
+    title: 'Session fixation on OAuth callback', severity: 'critical', tags: ['auth', 'security'],
+    reporterId: sarahId, ownerId: alexId, area: 'oauth/callback',
+    description: 'Session cookie was not rotated after the OAuth callback completed.',
+    createdAt: new Date('2026-02-02'), updatedAt: new Date('2026-03-08'),
+  }, [ssoPlanId])
+  await findOrCreateWorkItem('Search misses recently renamed plans', {
+    productId: platformId, assetId: searchId, type: 'bug', status: 'resolved',
+    title: 'Search misses recently renamed plans', severity: 'medium', tags: ['search'],
+    reporterId: jamesId, ownerId: lisaId, area: 'indexer',
+    description: 'Rename events were not re-indexed until the nightly rebuild.',
+    createdAt: new Date('2026-02-10'), updatedAt: new Date('2026-03-05'),
+  }, [searchPlanId])
+  await findOrCreateWorkItem('Legacy bridge modules slow RN startup', {
+    productId: mobileId, assetId: androidId, type: 'tech_debt', status: 'resolved',
+    title: 'Legacy bridge modules slow RN startup', severity: 'high', tags: ['mobile', 'performance'],
+    reporterId: lisaId, ownerId: lisaId, area: 'native-modules',
+    description: 'Old bridge modules blocked the new-architecture migration and added ~400ms startup.',
+    createdAt: new Date('2026-01-05'), updatedAt: new Date('2026-02-20'),
+  }, [rnUpgradeId])
+
+  // Open demand feeding the active plans.
+  await findOrCreateWorkItem('Generate a plan from a prompt', {
+    productId: platformId, assetId: planEngineId, type: 'feature', status: 'in_progress',
+    title: 'Generate a plan from a prompt', severity: 'high', tags: ['ai'],
+    reporterId: alexId, ownerId: alexId,
+    description: 'Describe a change in natural language; get a draft plan with tasks and target assets.',
+    createdAt: new Date('2026-03-20'), updatedAt: new Date('2026-05-12'),
+  }, [aiPlanId])
+  await findOrCreateWorkItem('Live presence while editing a plan', {
+    productId: platformId, assetId: webAppId, type: 'feature', status: 'in_progress',
+    title: 'Live presence while editing a plan', severity: 'medium', tags: ['realtime'],
+    reporterId: sarahId, ownerId: sarahId,
+    description: 'See who else has the plan open and where they are editing.',
+    createdAt: new Date('2026-04-01'), updatedAt: new Date('2026-05-01'),
+  }, [collabPlanId])
+  await findOrCreateWorkItem('Analytics dashboard times out for large orgs', {
+    productId: apiId, assetId: analyticsDbId, type: 'bug', status: 'in_progress',
+    title: 'Analytics dashboard times out for large orgs', severity: 'critical', tags: ['analytics', 'performance'],
+    reporterId: jamesId, ownerId: lisaId, area: 'queries/velocity',
+    description: 'Velocity queries exceed the 30s gateway timeout for orgs with 10k+ tasks.',
+    createdAt: new Date('2026-04-22'), updatedAt: new Date('2026-05-10'),
+  }, [analyticsPlanId])
+  await findOrCreateWorkItem('Push notifications for @mentions', {
+    productId: mobileId, assetId: bffId, type: 'feature', status: 'in_progress',
+    title: 'Push notifications for @mentions', severity: 'medium', tags: ['mobile', 'notifications'],
+    reporterId: sarahId, ownerId: sarahId,
+    description: 'Mobile push when someone mentions you on a plan or task.',
+    createdAt: new Date('2026-03-28'), updatedAt: new Date('2026-05-02'),
+  }, [pushPlanId])
+
+  // Open tech debt register (drives derived scores + debt views).
+  await findOrCreateWorkItem('Plan Engine: job orchestration is a god-module', {
+    productId: platformId, assetId: planEngineId, type: 'tech_debt', status: 'open',
+    title: 'Plan Engine: job orchestration is a god-module', severity: 'high', tags: ['backend'],
+    reporterId: alexId, ownerId: alexId, area: 'orchestrator.ts',
+    description: '2,400-line orchestrator mixes scheduling, retries, and persistence. Split before adding AI generation load.',
+    createdAt: new Date('2026-03-02'), updatedAt: new Date('2026-03-02'),
+  })
+  await findOrCreateWorkItem('UI library ships two icon systems', {
+    productId: platformId, assetId: uiLibId, type: 'tech_debt', status: 'open',
+    title: 'UI library ships two icon systems', severity: 'medium', tags: ['frontend', 'bundle-size'],
+    reporterId: mikeId, ownerId: mikeId, area: 'icons/',
+    description: 'Both lucide and custom SVG sprites are bundled; consumers pay ~90kb extra.',
+    createdAt: new Date('2026-03-15'), updatedAt: new Date('2026-03-15'),
+  })
+  await findOrCreateWorkItem('ClickHouse schema has no TTLs', {
+    productId: apiId, assetId: analyticsDbId, type: 'tech_debt', status: 'open',
+    title: 'ClickHouse schema has no TTLs', severity: 'critical', tags: ['analytics', 'storage'],
+    reporterId: lisaId, ownerId: lisaId, area: 'events tables',
+    description: 'Raw event tables grow unbounded — 2.1TB and climbing; queries degrade weekly.',
+    createdAt: new Date('2026-04-05'), updatedAt: new Date('2026-04-05'),
+  }, [analyticsPlanId])
+  await findOrCreateWorkItem('Notification templates duplicated per channel', {
+    productId: apiId, assetId: notifSvcId, type: 'tech_debt', status: 'open',
+    title: 'Notification templates duplicated per channel', severity: 'medium', tags: ['notifications'],
+    reporterId: sarahId, ownerId: sarahId, area: 'templates/',
+    description: 'Email, push, and in-app render from three diverging template copies.',
+    createdAt: new Date('2026-02-25'), updatedAt: new Date('2026-02-25'),
+  })
+  await findOrCreateWorkItem('Gateway retries mask upstream 5xx spikes', {
+    productId: apiId, assetId: apiGatewayId, type: 'tech_debt', status: 'open',
+    title: 'Gateway retries mask upstream 5xx spikes', severity: 'medium', tags: ['api', 'observability'],
+    reporterId: sarahId, ownerId: sarahId, area: 'middleware/retry',
+    description: 'Blanket retry policy hides real error rates from dashboards and pages nobody.',
+    createdAt: new Date('2026-04-12'), updatedAt: new Date('2026-04-12'),
+  }, [apiV2PlanId])
+
+  // Untriaged backlog (open, unlinked — populates the Work Items inbox).
+  await findOrCreateWorkItem('Dark mode flashes light theme on load', {
+    productId: platformId, assetId: webAppId, type: 'ux', status: 'open',
+    title: 'Dark mode flashes light theme on load', severity: 'low', tags: ['frontend', 'polish'],
+    reporterId: jamesId, description: 'FOUC on hard refresh when the stored theme is dark.',
+    createdAt: new Date('2026-05-02'), updatedAt: new Date('2026-05-02'),
+  })
+  await findOrCreateWorkItem('Export plans to CSV', {
+    productId: platformId, type: 'feature', status: 'open',
+    title: 'Export plans to CSV', severity: 'low', tags: ['reporting'],
+    reporterId: jamesId, description: 'Requested by two design partners for quarterly reporting.',
+    createdAt: new Date('2026-05-08'), updatedAt: new Date('2026-05-08'),
+  })
+  await findOrCreateWorkItem('iOS widget for active plan progress', {
+    productId: mobileId, assetId: iosId, type: 'feature', status: 'planned',
+    title: 'iOS widget for active plan progress', severity: 'low', tags: ['ios', 'widget'],
+    reporterId: sarahId, description: 'Home-screen widget showing the top active plan and % complete.',
+    createdAt: new Date('2026-04-28'), updatedAt: new Date('2026-04-28'),
+  })
+
+  // ── Releases ──────────────────────────────────────────────────────────────
+  console.log('\nCreating releases...')
+
+  async function findOrCreateRelease(name: string, values: typeof releases.$inferInsert) {
+    const existing = await db.query.releases.findFirst({ where: (r, { eq }) => eq(r.name, name) })
+    if (existing) {
+      console.log(`  release exists: ${name}`)
+      return existing.id
+    }
+    const [r] = await db.insert(releases).values(values).returning()
+    console.log(`  created release: ${name}`)
+    return r.id
+  }
+
+  const platform24Id = await findOrCreateRelease('Platform v2.4.0', {
+    name: 'Platform v2.4.0', productId: platformId, status: 'shipped',
+    description: 'Enterprise sign-in and search quality: SSO/SAML support and relevance-tuned search.',
+    tags: ['quarterly'], creatorId: alexId,
+    shippedAt: new Date('2026-03-12'),
+    createdAt: new Date('2026-02-15'), updatedAt: new Date('2026-03-12'),
+  })
+  const mobile30Id = await findOrCreateRelease('Mobile v3.0.0', {
+    name: 'Mobile v3.0.0', productId: mobileId, status: 'shipped',
+    description: 'React Native 0.75 with the new architecture enabled on both apps.',
+    tags: ['major'], creatorId: lisaId,
+    shippedAt: new Date('2026-02-24'),
+    createdAt: new Date('2026-01-20'), updatedAt: new Date('2026-02-24'),
+  })
+  const platform25Id = await findOrCreateRelease('Platform v2.5.0', {
+    name: 'Platform v2.5.0', productId: platformId, status: 'in_progress',
+    description: 'The AI release: prompt-to-plan generation and real-time collaboration.',
+    tags: ['ai', 'quarterly'], creatorId: alexId,
+    createdAt: new Date('2026-04-05'), updatedAt: new Date('2026-05-10'),
+  })
+
+  const releasePlanLinks: [string, string][] = [
+    [ssoPlanId, platform24Id], [searchPlanId, platform24Id],
+    [rnUpgradeId, mobile30Id],
+    [aiPlanId, platform25Id], [collabPlanId, platform25Id],
+  ]
+  for (const [planId, releaseId] of releasePlanLinks) {
+    await db.update(codePlans).set({ releaseId }).where(eq(codePlans.id, planId))
+  }
+
+  const releaseStamps: [string, string, string, string | null][] = [
+    [platform24Id, authSvcId, 'v1.8.0', 'SAML + OAuth providers'],
+    [platform24Id, webAppId,  'v2.4.0', null],
+    [platform24Id, searchId,  'v1.2.0', 'relevance ranking'],
+    [mobile30Id,   iosId,     'v3.0.0', 'new architecture'],
+    [mobile30Id,   androidId, 'v3.0.0', 'new architecture'],
+    [platform25Id, webAppId,  'v2.5.0', null],
+    [platform25Id, planEngineId, 'v1.5.0', 'AI generation'],
+  ]
+  for (const [releaseId, assetId, version, notes] of releaseStamps) {
+    const existing = await db.query.releaseAssets.findFirst({
+      where: (ra, { and, eq }) => and(eq(ra.releaseId, releaseId), eq(ra.assetId, assetId)),
+    })
+    if (!existing) await db.insert(releaseAssets).values({ releaseId, assetId, version, notes })
+  }
+  console.log('  linked plans and stamped asset versions')
+
+  // ── Design log ────────────────────────────────────────────────────────────
+  console.log('\nCreating design log entries...')
+
+  const designNotes: (typeof assetDesignLog.$inferInsert & { key: string })[] = [
+    {
+      key: 'auth-sso', assetId: authSvcId, releaseId: platform24Id, codePlanId: ssoPlanId,
+      title: 'Auth flows now terminate in a single token exchange',
+      body: 'SSO work consolidated password, OAuth, and SAML flows into one token-exchange endpoint. Session issuance is now the only code path that mints cookies — future providers plug in as strategies, not new flows.',
+      authorKind: 'user', authorId: alexId,
+      createdAt: new Date('2026-03-11'), updatedAt: new Date('2026-03-11'),
+    },
+    {
+      key: 'search-ranking', assetId: searchId, releaseId: platform24Id, codePlanId: searchPlanId,
+      title: 'Ranking moved out of the query into a scoring stage',
+      body: 'Relevance signals (recency, ownership, typo distance) are computed in a separate scoring stage after candidate retrieval. Adding a signal is now a pure function, not a query rewrite.',
+      authorKind: 'user', authorId: lisaId,
+      createdAt: new Date('2026-03-05'), updatedAt: new Date('2026-03-05'),
+    },
+    {
+      key: 'rn-arch', assetId: androidId, releaseId: mobile30Id, codePlanId: rnUpgradeId,
+      title: 'New architecture enabled — bridge modules retired',
+      body: 'All legacy bridge modules were removed during the RN 0.75 upgrade; native features now go through TurboModules. Startup dropped ~400ms on mid-range devices. Any new native capability must ship as a TurboModule.',
+      authorKind: 'agent', authorId: lisaId,
+      createdAt: new Date('2026-02-20'), updatedAt: new Date('2026-02-20'),
+    },
+    {
+      key: 'plan-engine-ai', assetId: planEngineId, releaseId: platform25Id, codePlanId: aiPlanId,
+      title: 'Generation isolated behind a queue boundary',
+      body: 'LLM plan generation runs as queued jobs, never inline in request handlers — the orchestrator only ever sees job results. Streaming reaches the client over the existing realtime channel rather than a second socket.',
+      authorKind: 'agent', authorId: alexId,
+      createdAt: new Date('2026-05-08'), updatedAt: new Date('2026-05-08'),
+    },
+  ]
+  for (const { key: _key, ...note } of designNotes) {
+    const existing = await db.query.assetDesignLog.findFirst({
+      where: (n, { and, eq }) => and(eq(n.assetId, note.assetId), eq(n.title, note.title)),
+    })
+    if (!existing) await db.insert(assetDesignLog).values(note)
+  }
+  console.log(`  ensured ${designNotes.length} design notes`)
+
+  // ── Activity events (sync_log) ────────────────────────────────────────────
+  // History timelines prefer sync_log 'completed' events for plan dates, and
+  // the dashboard activity feed renders these directly.
+  console.log('\nCreating activity events...')
+
+  const events: { entityType: string; entityId: string; event: string; actorId: string; payload: Record<string, unknown>; createdAt: Date }[] = [
+    { entityType: 'code_plan', entityId: rnUpgradeId, event: 'completed', actorId: lisaId,  payload: { title: 'React Native 0.75 Upgrade' }, createdAt: new Date('2026-02-20') },
+    { entityType: 'release',   entityId: mobile30Id, event: 'shipped',   actorId: lisaId,  payload: { name: 'Mobile v3.0.0', status: 'shipped' }, createdAt: new Date('2026-02-24') },
+    { entityType: 'code_plan', entityId: searchPlanId, event: 'completed', actorId: lisaId, payload: { title: 'Search Relevance Tuning' }, createdAt: new Date('2026-03-05') },
+    { entityType: 'code_plan', entityId: ssoPlanId,  event: 'completed', actorId: alexId,  payload: { title: 'SSO & OAuth Integration' }, createdAt: new Date('2026-03-10') },
+    { entityType: 'release',   entityId: platform24Id, event: 'shipped', actorId: alexId,  payload: { name: 'Platform v2.4.0', status: 'shipped' }, createdAt: new Date('2026-03-12') },
+    { entityType: 'release',   entityId: platform25Id, event: 'created', actorId: alexId,  payload: { name: 'Platform v2.5.0' }, createdAt: new Date('2026-04-05') },
+  ]
+  for (const e of events) {
+    const existing = await db.query.syncLog.findFirst({
+      where: (s, { and, eq }) => and(eq(s.entityId, e.entityId), eq(s.event, e.event)),
+    })
+    if (!existing) await db.insert(syncLog).values({ organizationId: orgId, ...e })
+  }
+  console.log(`  ensured ${events.length} activity events`)
 
   console.log('\n✅ Seed complete.\n')
   process.exit(0)
