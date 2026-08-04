@@ -37,6 +37,13 @@ import {
   deleteIntegration,
   linkPlanToExternalScope,
   unlinkPlanFromExternalScope,
+  createRelease,
+  updateRelease,
+  deleteRelease,
+  attachPlanToRelease,
+  detachPlanFromRelease,
+  setReleaseAsset,
+  removeReleaseAsset,
 } from '@/lib/db/mutations'
 import { getAssetOptions } from '@/lib/db/queries'
 import type { UserRole, WorkItemType, WorkItemStatus, WorkItemSeverity } from '@/lib/types'
@@ -75,7 +82,7 @@ async function getUserProfile(userId: string) {
  * logging must not fail the mutation it accompanies.
  */
 async function logActivity(entry: {
-  entityType: 'work_item' | 'task' | 'code_plan' | 'asset' | 'product'
+  entityType: 'work_item' | 'task' | 'code_plan' | 'asset' | 'product' | 'release'
   entityId: string
   event: string
   actorId: string
@@ -982,4 +989,109 @@ export async function updateTaskAssigneeAction(id: string, assigneeId: string | 
   await updateTask(id, { assigneeId })
   revalidatePath('/tasks')
   revalidatePath('/plans/[id]', 'page')
+}
+
+// ---------------------------------------------------------------------------
+// Releases
+// ---------------------------------------------------------------------------
+
+export async function createReleaseAction(formData: FormData) {
+  const authUser = await requireUser()
+  const release = await createRelease(
+    {
+      productId: formData.get('productId') as string,
+      name: formData.get('name') as string,
+      description: (formData.get('description') as string) || '',
+      tags: parseTags(formData.get('tags') as string),
+    },
+    authUser.id,
+  )
+  await logActivity({
+    entityType: 'release',
+    entityId: release.id,
+    event: 'created',
+    actorId: authUser.id,
+    payload: { name: release.name },
+  })
+  revalidatePath('/releases')
+  return release.id
+}
+
+export async function updateReleaseAction(id: string, formData: FormData) {
+  await requireUser()
+  await updateRelease(id, {
+    name: formData.get('name') as string,
+    description: (formData.get('description') as string) || '',
+    tags: parseTags(formData.get('tags') as string),
+  })
+  revalidatePath(`/releases/${id}`)
+  revalidatePath('/releases')
+}
+
+export async function setReleaseStatusAction(id: string, status: 'planned' | 'in_progress' | 'shipped' | 'abandoned') {
+  const authUser = await requireUser()
+  const release = await updateRelease(id, { status })
+  if (release) {
+    await logActivity({
+      entityType: 'release',
+      entityId: id,
+      event: status === 'shipped' ? 'shipped' : 'status_changed',
+      actorId: authUser.id,
+      payload: { name: release.name, status },
+    })
+  }
+  revalidatePath(`/releases/${id}`)
+  revalidatePath('/releases')
+}
+
+export async function deleteReleaseAction(id: string) {
+  await requireUser()
+  await deleteRelease(id)
+  revalidatePath('/releases')
+}
+
+export async function attachPlanToReleaseAction(codePlanId: string, releaseId: string) {
+  const authUser = await requireUser()
+  const plan = await attachPlanToRelease(codePlanId, releaseId)
+  if (plan) {
+    await logActivity({
+      entityType: 'release',
+      entityId: releaseId,
+      event: 'plan_attached',
+      actorId: authUser.id,
+      payload: { planId: codePlanId, planTitle: plan.title },
+    })
+  }
+  revalidatePath(`/releases/${releaseId}`)
+  revalidatePath(`/plans/${codePlanId}`)
+}
+
+export async function detachPlanFromReleaseAction(codePlanId: string, releaseId: string) {
+  await requireUser()
+  await detachPlanFromRelease(codePlanId)
+  revalidatePath(`/releases/${releaseId}`)
+  revalidatePath(`/plans/${codePlanId}`)
+}
+
+export async function setReleaseAssetAction(releaseId: string, assetId: string, formData: FormData) {
+  const authUser = await requireUser()
+  const version = ((formData.get('version') as string) || '').trim()
+  const notes = ((formData.get('notes') as string) || '').trim()
+  await setReleaseAsset(releaseId, assetId, { version: version || null, notes: notes || null })
+  if (version) {
+    await logActivity({
+      entityType: 'release',
+      entityId: releaseId,
+      event: 'asset_versioned',
+      actorId: authUser.id,
+      payload: { assetId, version },
+    })
+  }
+  revalidatePath(`/releases/${releaseId}`)
+}
+
+export async function removeReleaseAssetAction(releaseId: string, assetId: string) {
+  await requireUser()
+  await removeReleaseAsset(releaseId, assetId)
+  revalidatePath(`/releases/${releaseId}`)
 }

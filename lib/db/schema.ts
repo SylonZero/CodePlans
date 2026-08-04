@@ -21,6 +21,8 @@ export const {
   assetDependencies,
   codePlans,
   codePlanAssets,
+  releases,
+  releaseAssets,
   workItems,
   workItemCodePlans,
   tasks,
@@ -42,4 +44,5 @@ export const {
   workItemStatusEnum,
   workItemSeverityEnum,
   prStatusEnum,
+  releaseStatusEnum,
 } = _schema

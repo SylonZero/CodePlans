@@ -394,13 +394,13 @@ accumulated asset documentation.
 Each phase ships migrations for **both** PG and SQLite, seed updates, tests, and
 `docs/app-spec.md` updates.
 
-### Phase A — Derived asset history (no schema change) `v0.4.0`
+### Phase A — Derived asset history (no schema change) `v0.4.0` ✅ SHIPPED
 History tab composing existing data: plans via `code_plan_assets`, resolved work
 items, debt movement, sync-log events. Ships first because it is cheap, immediately
 useful, and validates the timeline UX before any new tables exist. (No version rail
 yet — flat timeline.)
 
-### Phase B — Releases `v0.4.1`
+### Phase B — Releases `v0.4.1` ✅ SHIPPED (core; plan-detail release picker + MCP release tools follow with Phase C)
 `releases` + `release_assets` + `code_plans.releaseId`; releases list/detail UX
 (§6); plan-detail release picker; derived work-item rollups + copy-release-notes;
 `sync_log` events; MCP release tools.
