@@ -317,6 +317,7 @@
     </div>
     <div class="nav-links">
       <a href="#features">Features</a>
+      <a href="#ai">AI Agents</a>
       <a href="#docs">Docs</a>
       <a href="#quickstart">Quickstart</a>
       <a href="#config">Config</a>
@@ -332,7 +333,7 @@
 <!-- ── Hero ── -->
 <section class="hero">
   <div class="container">
-    <div class="badge"><span class="badge-dot"></span>Open Source · Beta Coming Soon</div>
+    <div class="badge"><span class="badge-dot"></span>Open Source · v0.4.3 · Beta Coming Soon</div>
     <h1>Coordinate changes across<br><span>your entire architecture</span></h1>
     <p class="hero-sub">
       CodePlans gives engineering teams a shared view of what's changing, in which components,
@@ -368,6 +369,12 @@
           <div class="h-icon" style="background:rgba(74,222,128,.12)">✅</div>
           <div class="h-label">Tasks</div>
           <div class="h-sub">Units of work</div>
+        </div>
+        <div class="h-arrow">›</div>
+        <div class="h-item">
+          <div class="h-icon" style="background:rgba(74,222,128,.15)">🚀</div>
+          <div class="h-label">Releases</div>
+          <div class="h-sub">What ships together</div>
         </div>
       </div>
     </div>
@@ -412,7 +419,75 @@
         <h3>Pluggable Backend</h3>
         <p>Run locally with SQLite (zero cloud setup) or connect to Supabase + Postgres for production. Auth works with a local password store or Supabase Auth.</p>
       </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(251,146,60,.15)">🧩</div>
+        <h3>Work Items & Tech Debt</h3>
+        <p>Capture demand — features, bugs, UX issues, and tech debt — natively or mirrored from your tracker. A living debt register per asset and area, resolvable by plans.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(74,222,128,.15)">🚀</div>
+        <h3>Releases & Versions</h3>
+        <p>Group the plans that ship together — a version of one asset or a coordinated multi-asset revision. Stamp per-asset versions and get release notes derived from the work items delivered.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(167,139,250,.15)">📜</div>
+        <h3>Asset History & Design Log</h3>
+        <p>Every asset carries a version-structured timeline: releases shipped, plans delivered, debt movement — plus curated design notes authored by your team or your coding agents.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(96,165,250,.15)">🔄</div>
+        <h3>Tracker Integrations</h3>
+        <p>Pull-only mirrors from GitHub, GitLab, Jira, Asana, and Linear into work items — with provenance badges, per-connection status mapping, and narrow write-back on plan completion.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(74,222,128,.12)">🤖</div>
+        <h3>Built for AI Agents</h3>
+        <p>An MCP server with 39 tools lets Claude Code, Cursor, and other agents read plans, log work, record design notes, and manage releases — with optional AI-drafted release notes.</p>
+      </div>
     </div>
+  </div>
+</section>
+
+<!-- ── AI / MCP ── -->
+<section class="section" id="ai">
+  <div class="container">
+    <div class="section-label">AI-Assisted Engineering</div>
+    <h2>The system of record your coding agents read — and write</h2>
+    <p class="section-sub">
+      CodePlans records the reality of your system: what shipped, where, and why. Connect an AI coding
+      agent over MCP and that record builds itself as the work happens.
+    </p>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(96,165,250,.12)">📖</div>
+        <h3>Agents read the map</h3>
+        <p>Before touching an asset, an agent pulls its history, open debt, dependencies, and the active plan — <code>get_asset_history</code> tells the asset's whole story in one call.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(251,146,60,.12)">✍️</div>
+        <h3>Agents write the record</h3>
+        <p>As plans complete, agents mark tasks done, update branch/PR status, file tech debt they discover, and record a design note on each asset they changed — attributed with an agent badge.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(167,139,250,.12)">📝</div>
+        <h3>AI drafts, humans decide</h3>
+        <p>With an Anthropic API key configured, CodePlans drafts release notes from the delivered work and design notes from completed plans — always landing in an editor, never auto-published.</p>
+      </div>
+    </div>
+
+    <div class="code-block" style="margin-top: 28px;">
+      <div><span class="comment"># Connect Claude Code to your CodePlans instance</span></div>
+      <div><span class="cmd">claude mcp add</span> <span class="arg">--transport http codeplans http://localhost:3000/api/mcp \</span></div>
+      <div><span class="arg">&nbsp;&nbsp;--header "Authorization: Bearer cpk_your_key"</span></div>
+    </div>
+    <p style="margin-top: 16px; font-size: 0.875rem; color: var(--muted);">
+      Generate API keys in <strong>Settings → API Keys</strong> — connection snippets included for Claude Code,
+      Claude Desktop, Cursor, Codex CLI, GitHub Copilot, and Antigravity. Keys act as your user, so org access
+      rules and mirrored-field protections apply unchanged.
+      See the <a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/ai-agents.md">AI agents guide</a>
+      for the full 39-tool catalog.
+    </p>
   </div>
 </section>
 
@@ -454,10 +529,46 @@
         <p>Keep specs in git, link them to plans and work items, and render them read-only in-app — including private repos via integration tokens.</p>
         <div class="doc-arrow">Read → </div>
       </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/releases-and-versions.md">
+        <div class="doc-tag">Guide</div>
+        <h3>Releases & Versions</h3>
+        <p>Group plans that ship together, stamp per-asset versions, derive release notes from delivered work, and ship with a trustworthy record.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/asset-history.md">
+        <div class="doc-tag">Guide</div>
+        <h3>Asset History & Design Log</h3>
+        <p>The version-structured timeline every asset builds for itself, and how humans and agents record design notes worth keeping.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/ai-agents.md">
+        <div class="doc-tag">Guide</div>
+        <h3>Working with AI Agents</h3>
+        <p>Connect Claude Code, Cursor, and friends over MCP: the full 39-tool catalog, recommended agent workflows, and the AI drafting flags.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/specs/releases-and-asset-history-spec.md">
+        <div class="doc-tag">Design</div>
+        <h3>Releases & Asset History Spec</h3>
+        <p>The design behind v0.4.x: releases as delivery groupings, derived history, the design log, and feature-flagged AI drafting. All four phases shipped.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/specs/asset-record-spec.md">
+        <div class="doc-tag">Design</div>
+        <h3>Asset Record Spec</h3>
+        <p>What's next (v0.4.4+): a capabilities register per asset, agent-driven reconciliation against code, and round-trip release publishing.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/specs/mcp-server-spec.md">
+        <div class="doc-tag">Design</div>
+        <h3>MCP Server Spec</h3>
+        <p>How the MCP endpoint works: Streamable HTTP inside the app, API-key auth with read/write scopes, and the design of all 39 tools.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
       <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/specs/design-spec-v3.md">
         <div class="doc-tag">Design</div>
         <h3>Design Spec v3</h3>
-        <p>The canonical target design: work items, provenance-based integrations, per-asset PR tracking, and the phased roadmap (Phases 1–5 shipped).</p>
+        <p>The canonical target design: work items, provenance-based integrations, per-asset PR tracking, and the phased roadmap (all phases shipped).</p>
         <div class="doc-arrow">Read → </div>
       </a>
       <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/specs/functional-spec-v2.md">
@@ -635,6 +746,21 @@
             <td class="env-default">CodePlans &lt;noreply@codeplans.ai&gt;</td>
             <td class="env-desc">From address used in outgoing emails.</td>
           </tr>
+          <tr>
+            <td class="env-var">ANTHROPIC_API_KEY</td>
+            <td class="env-default">—</td>
+            <td class="env-desc">Enables AI drafting (release notes, design notes). Without it, all AI features are hidden — the app never requires it.</td>
+          </tr>
+          <tr>
+            <td class="env-var">AI_ENABLED</td>
+            <td class="env-default">true</td>
+            <td class="env-desc">Set <code>false</code> to force AI drafting off even when an API key is configured.</td>
+          </tr>
+          <tr>
+            <td class="env-var">AI_MODEL</td>
+            <td class="env-default">claude-opus-5</td>
+            <td class="env-desc">Claude model used for drafting.</td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -700,7 +826,7 @@
           <tr>
             <td class="layer">Testing</td>
             <td class="tech">Vitest</td>
-            <td class="note">153 tests — queries, mutations, bootstrap, work items, dependencies, sync engine &amp; connectors; in-memory SQLite</td>
+            <td class="note">190 tests — queries, mutations, releases, asset history, design log, sync engine &amp; connectors, AI prompt builders; in-memory SQLite</td>
           </tr>
         </tbody>
       </table>
@@ -741,11 +867,14 @@
           <tr><td>Asset dependency mapping &amp; impact analysis</td><td><span class="status-pill done">Available</span></td></tr>
           <tr><td>Analytics wired to real data</td><td><span class="status-pill done">Available</span></td></tr>
           <tr><td>Activity feed</td><td><span class="status-pill done">Available</span></td></tr>
-          <tr><td>GitHub &amp; GitLab Issues integrations (pull-only)</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>GitHub, GitLab, Jira, Asana &amp; Linear integrations (pull-only)</td><td><span class="status-pill done">Available</span></td></tr>
           <tr><td>Milestone-linked plans &amp; PR auto-linking</td><td><span class="status-pill done">Available</span></td></tr>
           <tr><td>Write-back: plan-completion comments on tracker issues</td><td><span class="status-pill done">Available</span></td></tr>
-          <tr><td>MCP server (Claude Code, Cursor, Codex, Copilot, Antigravity — API-key auth, 28 tools)</td><td><span class="status-pill done">Available</span></td></tr>
-          <tr><td>Jira / Asana / Linear connectors</td><td><span class="status-pill plan">Planned</span></td></tr>
+          <tr><td>MCP server (Claude Code, Cursor, Codex, Copilot, Antigravity — API-key auth, 39 tools)</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Releases — delivery grouping with per-asset version stamps &amp; derived release notes</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Asset history timeline, version ladder &amp; design log (user + agent authored)</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>AI drafting — release notes &amp; design notes (feature-flagged)</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Asset Record — capabilities register &amp; agent reconciliation (v0.4.4+)</td><td><span class="status-pill plan">Planned</span></td></tr>
           <tr><td>AI-assisted effort estimation</td><td><span class="status-pill plan">Planned</span></td></tr>
         </tbody>
       </table>
