@@ -1,11 +1,13 @@
 ## CodePlans App Spec
 
-> **Status:** current implemented state as of **v0.3.1** (2026-07). For the target
-> design and rationale, see `docs/specs/design-spec-v3.md` (all phases shipped).
+> **Status:** current implemented state as of **v0.4.3** (2026-08). For the target
+> design and rationale, see `docs/specs/design-spec-v3.md` (all phases shipped) and
+> `docs/specs/releases-and-asset-history-spec.md` (Phases A–D shipped). The next
+> tranche of work is specified in `docs/specs/asset-record-spec.md` (v0.4.4+).
 
 ### Overview
 
-CodePlans is a **code change coordination tool** for engineering teams. It organizes work around the hierarchy **Products → Assets → Code Plans → Tasks**, with **Work Items** (features, bugs, UX issues, tech debt) as the demand side linked many-to-many to code plans, per-asset **branch/PR tracking** on plans, **asset dependencies** with impact analysis, and pull-only **integrations** that mirror external tracker items into work items. Users track technical debt, coordinate architectural changes, and measure team velocity. Deployed at `codeplans.ai`. Stack: Next.js 16 (App Router), Drizzle ORM, pluggable auth/DB (SQLite local / Supabase+Postgres cloud).
+CodePlans is a **code change coordination tool** for engineering teams. It organizes work around the hierarchy **Products → Assets → Code Plans → Tasks**, with **Work Items** (features, bugs, UX issues, tech debt) as the demand side linked many-to-many to code plans, per-asset **branch/PR tracking** on plans, **releases** grouping the plans that ship together (with per-asset version stamps and derived release notes), a per-asset **history timeline and design log**, **asset dependencies** with impact analysis, pull-only **integrations** that mirror external tracker items into work items, and a 39-tool **MCP server** for AI coding agents. Users track technical debt, coordinate architectural changes, and measure team velocity. Deployed at `codeplans.ai`. Stack: Next.js 16 (App Router), Drizzle ORM, pluggable auth/DB (SQLite local / Supabase+Postgres cloud).
 
 ---
 
@@ -131,12 +133,19 @@ CodePlans is a **code change coordination tool** for engineering teams. It organ
 | `work_items` | Demand side: `type` feature/bug/enhancement/ux/tech_debt, `status` open/planned/in_progress/resolved/wont_do, `severity`, optional `assetId` + free-text `area`, one-level `parentId`, plus provenance columns |
 | `work_item_code_plans` | Many-to-many work item ↔ plan links (unique pair) |
 | `code_plan_assets` | Source of truth for plan targets; per-asset `branch`, `prUrl`, `prStatus` (none/draft/open/merged/closed), `notes` (unique plan+asset) |
-| `code_plan_assignees` | Source of truth for plan assignees (composite PK) |
 | `integrations` | Org-scoped connections: `provider`, credential = `token_encrypted` (AES-256-GCM, key from AUTH_SECRET — preferred) or `authRef` env-var name, `config` (repo, target productId, status/type maps), `status`, `lastSyncAt`, `lastError` |
 | `sync_log` | Item-level events (native mutations + sync runs); drives the activity feed |
 | `api_keys` | MCP access: per-user hashed `cpk_` tokens (`keyHash` sha256, `keyPrefix` for display, `scope` read/write, soft revoke) |
 
-Provenance columns (`source` default `native`, `connectionId`, `externalId/Key/Url`, `externalData`, `externalDeleted`, `syncedAt`) exist on `work_items`, `code_plans`, and `tasks`, with a unique index on `(connection_id, external_id)`. `assets` gained `repo_path` for monorepo folders. The `code_plans.target_asset_ids` / `assignee_ids` arrays were **dropped in v0.3.0** (join tables are authoritative).
+Provenance columns (`source` default `native`, `connectionId`, `externalId/Key/Url`, `externalData`, `externalDeleted`, `syncedAt`) exist on `work_items`, `code_plans`, `tasks`, and `releases`, with a unique index on `(connection_id, external_id)`. `assets` gained `repo_path` for monorepo folders and a freeform `notes` markdown doc. The `code_plans.target_asset_ids` / `assignee_ids` arrays were **dropped in v0.3.0** (join tables are authoritative). `code_plan_assignees` was **dropped in v0.3.22** — plan assignees are derived from `tasks.assigneeId`. Asset owners (routing/visibility, not an ACL) live in `asset_owners` (v0.3.24).
+
+#### v0.4.x tables (see releases-and-asset-history-spec §5 for full field tables)
+
+| Table | Purpose |
+|---|---|
+| `releases` | Delivery grouping above plans: `status` planned/in_progress/shipped/abandoned (explicit — shipping is a human act), `shippedAt`, tags, provenance columns. `code_plans.releaseId` (nullable, set-null) attaches a plan to at most one release |
+| `release_assets` | Per-asset version stamp: `version`, `notes` (unique release+asset). Shipped releases' stamps become version tick marks in asset history |
+| `asset_design_log` | Curated design notes per asset: markdown `body`, optional `releaseId`/`codePlanId` anchors, `authorKind` user/agent + `authorId` |
 
 ---
 
@@ -176,6 +185,11 @@ Provenance columns (`source` default `native`, `connectionId`, `externalId/Key/U
 | `getIntegrations(orgId)` | `IntegrationSummary[]` | Connections + mirrored-item counts |
 | `getOrganization(id)` | `Organization & { memberCount }` \| `null` | memberCount = joined members only |
 | `getTeamMembers(orgId)` | `TeamMember[]` | Joined members only; includes nested `user` object |
+| `getAssetDetail(id, userId)` | `AssetDetail` \| `null` | Org-scope guarded; owners, derived debt score, plans with per-asset PR context, dependency edges both directions |
+| `getAssetHistory(assetId, userId)` | `AssetHistoryEntry[]` \| `null` | Org-scope guarded; composed timeline: release stamps (shipped only), completed plans, resolved items, debt movement, design notes; plan completion time prefers sync_log event |
+| `getReleases(userId, filters?)` | `ReleaseListRow[]` | Org-aware; filters: `productId`, `status`; asset/version chips + plan counts + deduped derived work-item counts |
+| `getRelease(id, userId)` | `ReleaseDetail` \| `null` | Org-scope guarded; assets & versions, attached plans with progress, derived work items, per-asset PR chips |
+| `getSuggestedReleaseAssets(releaseId)` | `ReleaseAssetChip[]` | Assets targeted by attached plans but not yet stamped on the release |
 
 ---
 
@@ -196,6 +210,13 @@ Provenance columns (`source` default `native`, `connectionId`, `externalId/Key/U
 | `updateTask(id, data)` | none | Bumps `updatedAt` |
 | `updateTaskStatus(id, status)` | none | Narrow update, bumps `updatedAt` |
 | `deleteTask(id)` | none | Returns `{ id }` or null |
+| `createRelease(data, userId)` | none | Forces `status='planned'` |
+| `updateRelease(id, data)` | none | Status → `shipped` sets `shippedAt`; any other status clears it |
+| `deleteRelease(id)` | none | Plans are detached (FK set null), never deleted |
+| `attachPlanToRelease` / `detachPlanFromRelease` | none | Sets/clears `code_plans.releaseId` |
+| `setReleaseAsset(releaseId, assetId, data?)` | none | Upserts the per-asset version stamp |
+| `removeReleaseAsset(releaseId, assetId)` | none | Returns `{ id }` or null |
+| `createDesignNote(data)` / `updateDesignNote` / `deleteDesignNote` | none | `authorKind` defaults `user`; MCP sets `agent` |
 
 ---
 
@@ -265,6 +286,17 @@ Two tabs: **Assets** and **Code Plans**.
 
 ---
 
+#### `/assets/[id]` — Asset Detail (v0.3.25)
+Header (type/health badges, current version chip from latest shipped release, repo/docs links, owners), summary cards (tech debt score with derived-vs-manual note, open work items, plan count), auto-save description + notes (ideation doc) cards, and tabs:
+- **Work Items / Tech Debt / Code Plans / Dependencies** — the asset's slices of the existing views (plans with per-asset branch/PR chips)
+- **History** (v0.4.0–v0.4.2) — reverse-chronological timeline projected from existing rows: shipped releases as version tick marks (with a sticky version ladder), completed plans, resolved work items, debt movement, and design-log entries (expandable markdown, agent badge for MCP-authored notes, "via plan" anchor chips). Filter chips per entry kind. "Add design note" side panel with optional release/plan anchors and (flagged) AI draft-from-plan.
+
+#### `/releases` & `/releases/[id]` — Releases (v0.4.1)
+List: status tabs (All / In Progress / Shipped), rows with asset+version chips, plan counts, derived work-item type dots; create side panel. Detail mirrors plan-detail layout:
+- **Assets & Versions** — one row per `release_assets` entry with inline version/note editing, per-asset PR chips rolled up from attached plans, and a suggestion banner for plan-targeted assets missing from the release
+- **Plans** — attach/detach (a "ships in" picker also exists on plan detail); **Work Items** — derived through attached plans, grouped Features / Bugs & UX / Tech Debt (the release-notes structure)
+- **Mark Shipped** confirm lists unversioned assets; shipped/abandoned releases render read-only. "Draft release notes" (flagged AI) opens an editable dialog; saving writes the description explicitly.
+
 #### `/plans` — Code Plans List
 Client component (`PlansClient`) with:
 - Summary stats: Active / Draft / Completed counts
@@ -325,7 +357,7 @@ Client component (`IntegrationsClient`) with:
 - Delete with confirm (mirrored items are kept, stop syncing)
 
 #### `/api/mcp/[transport]` — MCP server (no UI)
-Streamable HTTP MCP endpoint (`mcp-handler`) with 26 tools wrapping the query/mutation layer (task assignees resolved by workspace-member email) — reads, plus management of products/assets/dependencies, plan lifecycle (activate/complete incl. write-back), plan targets, work items, and tasks; record deletes are deliberately excluded (link removals only) — see `docs/specs/mcp-server-spec.md`. Auth: `Authorization: Bearer cpk_…` resolved by `lib/mcp/auth.ts` to a user (scopes: read/write); 401 without a valid key. `proxy.ts` exempts this path from session redirects. Connect: `claude mcp add --transport http codeplans <base>/api/mcp/mcp --header "Authorization: Bearer <key>"`.
+Streamable HTTP MCP endpoint (`mcp-handler`) with 39 tools wrapping the query/mutation layer (task assignees resolved by workspace-member email) — reads, plus management of products/assets/dependencies, plan lifecycle (activate/complete incl. write-back), plan targets, work items, tasks, releases (create/update/attach/version-stamp/ship — shipped releases reject mutation), `get_asset_history`, and `record_design_note` (agent-attributed design-log entries); record deletes are deliberately excluded (link removals only) — see `docs/specs/mcp-server-spec.md`. Auth: `Authorization: Bearer cpk_…` resolved by `lib/mcp/auth.ts` to a user (scopes: read/write); 401 without a valid key. `proxy.ts` exempts this path from session redirects. Connect: `claude mcp add --transport http codeplans <base>/api/mcp/mcp --header "Authorization: Bearer <key>"`.
 
 #### `/team` — Team Management
 - Requires org membership; shows message if no org
@@ -380,6 +412,7 @@ Guarded by `BILLING_ENABLED` env flag (redirects to `/` if false). Shows:
 
 **Feature flags:**
 - `BILLING_ENABLED=false` hides billing nav, billing page, and billing info throughout the shell
+- **AI drafting** (`lib/ai.ts`, official Anthropic SDK): enabled only when `ANTHROPIC_API_KEY` is set and `AI_ENABLED` isn't `false`; model via `AI_MODEL` (default `claude-opus-5`). Powers "Draft release notes" and "Draft design note from plan" — drafts always land in an editor, never auto-published; refusals/empty outputs surface as errors
 
 ---
 
