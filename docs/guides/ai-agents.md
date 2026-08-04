@@ -24,7 +24,7 @@ claude mcp add --transport http codeplans http://localhost:3000/api/mcp \
 Works identically against a local SQLite instance or a hosted deployment —
 the server lives inside the Next.js app.
 
-## The tool catalog (39 tools)
+## The tool catalog (41 tools)
 
 **Read** (any key):
 
@@ -34,6 +34,7 @@ the server lives inside the Next.js app.
 | Demand & debt | `list_work_items` · `get_tech_debt_register` |
 | Plans & tasks | `list_code_plans` · `get_code_plan` |
 | Releases & history | `list_releases` · `get_release` · `get_asset_history` |
+| Asset record | `get_asset_record` |
 
 **Write** (write-scope key):
 
@@ -45,6 +46,7 @@ the server lives inside the Next.js app.
 | Tasks | `create_task` · `update_task` · `update_task_status` |
 | Releases | `create_release` · `update_release` · `attach_plan_to_release` · `detach_plan_from_release` · `set_release_asset` · `ship_release` |
 | History | `record_design_note` |
+| Asset record | `graduate_work_item` |
 
 Guardrails are enforced at the tool layer, not just the UI: mirrored items
 reject writes to tracker-owned fields, shipped releases reject mutation, and
@@ -66,6 +68,13 @@ work lands, `update_plan_asset` to record branch/PR status, `create_work_item`
 `record_design_note` on each significantly changed asset — one paragraph on
 what changed structurally and why, anchored to the plan so the note carries
 lineage. Notes show an agent badge in the UI, attributed to the key's owner.
+
+**Learning what an asset does today** — `get_asset_record` returns the
+capabilities register (each claim carrying its delivery lineage), open known
+issues, the debt register, and graduation candidates. After resolving a
+feature or enhancement, `graduate_work_item` promotes it into the record so
+the asset's current-state picture stays complete — the record only ever
+contains delivered work, never intent.
 
 **At release time** — `create_release`, `attach_plan_to_release`,
 `set_release_asset` to stamp versions, `ship_release` (it warns if assets

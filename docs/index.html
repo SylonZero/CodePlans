@@ -333,7 +333,7 @@
 <!-- ── Hero ── -->
 <section class="hero">
   <div class="container">
-    <div class="badge"><span class="badge-dot"></span>Open Source · v0.4.3 · Beta Coming Soon</div>
+    <div class="badge"><span class="badge-dot"></span>Open Source · v0.4.4 · Beta Coming Soon</div>
     <h1>Coordinate changes across<br><span>your entire architecture</span></h1>
     <p class="hero-sub">
       CodePlans gives engineering teams a shared view of what's changing, in which components,
@@ -435,6 +435,11 @@
         <p>Every asset carries a version-structured timeline: releases shipped, plans delivered, debt movement — plus curated design notes authored by your team or your coding agents.</p>
       </div>
       <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(74,222,128,.12)">🏛️</div>
+        <h3>Asset Record</h3>
+        <p>A capabilities register per asset, built only from delivered work — each claim carries its lineage back to the work item, plan, and release that shipped it. Removals become tombstones, never silence.</p>
+      </div>
+      <div class="feature-card">
         <div class="feature-icon" style="background:rgba(96,165,250,.15)">🔄</div>
         <h3>Tracker Integrations</h3>
         <p>Pull-only mirrors from GitHub, GitLab, Jira, Asana, and Linear into work items — with provenance badges, per-connection status mapping, and narrow write-back on plan completion.</p>
@@ -442,7 +447,7 @@
       <div class="feature-card">
         <div class="feature-icon" style="background:rgba(74,222,128,.12)">🤖</div>
         <h3>Built for AI Agents</h3>
-        <p>An MCP server with 39 tools lets Claude Code, Cursor, and other agents read plans, log work, record design notes, and manage releases — with optional AI-drafted release notes.</p>
+        <p>An MCP server with 41 tools lets Claude Code, Cursor, and other agents read plans, log work, record design notes, and manage releases — with optional AI-drafted release notes.</p>
       </div>
     </div>
   </div>
@@ -486,7 +491,7 @@
       Claude Desktop, Cursor, Codex CLI, GitHub Copilot, and Antigravity. Keys act as your user, so org access
       rules and mirrored-field protections apply unchanged.
       See the <a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/ai-agents.md">AI agents guide</a>
-      for the full 39-tool catalog.
+      for the full 41-tool catalog.
     </p>
   </div>
 </section>
@@ -544,7 +549,7 @@
       <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/ai-agents.md">
         <div class="doc-tag">Guide</div>
         <h3>Working with AI Agents</h3>
-        <p>Connect Claude Code, Cursor, and friends over MCP: the full 39-tool catalog, recommended agent workflows, and the AI drafting flags.</p>
+        <p>Connect Claude Code, Cursor, and friends over MCP: the full 41-tool catalog, recommended agent workflows, and the AI drafting flags.</p>
         <div class="doc-arrow">Read → </div>
       </a>
       <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/specs/releases-and-asset-history-spec.md">
@@ -556,13 +561,13 @@
       <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/specs/asset-record-spec.md">
         <div class="doc-tag">Design</div>
         <h3>Asset Record Spec</h3>
-        <p>What's next (v0.4.4+): a capabilities register per asset, agent-driven reconciliation against code, and round-trip release publishing.</p>
+        <p>The capabilities register per asset shipped in v0.4.4. Next (v0.4.5+): agent-driven reconciliation against code and round-trip release publishing.</p>
         <div class="doc-arrow">Read → </div>
       </a>
       <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/specs/mcp-server-spec.md">
         <div class="doc-tag">Design</div>
         <h3>MCP Server Spec</h3>
-        <p>How the MCP endpoint works: Streamable HTTP inside the app, API-key auth with read/write scopes, and the design of all 39 tools.</p>
+        <p>How the MCP endpoint works: Streamable HTTP inside the app, API-key auth with read/write scopes, and the design of all 41 tools.</p>
         <div class="doc-arrow">Read → </div>
       </a>
       <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/specs/design-spec-v3.md">
@@ -870,11 +875,12 @@
           <tr><td>GitHub, GitLab, Jira, Asana &amp; Linear integrations (pull-only)</td><td><span class="status-pill done">Available</span></td></tr>
           <tr><td>Milestone-linked plans &amp; PR auto-linking</td><td><span class="status-pill done">Available</span></td></tr>
           <tr><td>Write-back: plan-completion comments on tracker issues</td><td><span class="status-pill done">Available</span></td></tr>
-          <tr><td>MCP server (Claude Code, Cursor, Codex, Copilot, Antigravity — API-key auth, 39 tools)</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>MCP server (Claude Code, Cursor, Codex, Copilot, Antigravity — API-key auth, 41 tools)</td><td><span class="status-pill done">Available</span></td></tr>
           <tr><td>Releases — delivery grouping with per-asset version stamps &amp; derived release notes</td><td><span class="status-pill done">Available</span></td></tr>
           <tr><td>Asset history timeline, version ladder &amp; design log (user + agent authored)</td><td><span class="status-pill done">Available</span></td></tr>
           <tr><td>AI drafting — release notes &amp; design notes (feature-flagged)</td><td><span class="status-pill done">Available</span></td></tr>
-          <tr><td>Asset Record — capabilities register &amp; agent reconciliation (v0.4.4+)</td><td><span class="status-pill plan">Planned</span></td></tr>
+          <tr><td>Asset Record — per-asset capabilities register with delivery lineage (v0.4.4)</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Asset Record — agent reconciliation &amp; round-trip publishing (v0.4.5+)</td><td><span class="status-pill plan">Planned</span></td></tr>
           <tr><td>AI-assisted effort estimation</td><td><span class="status-pill plan">Planned</span></td></tr>
         </tbody>
       </table>

@@ -7,6 +7,7 @@ import {
   primaryKey,
   type AnySQLiteColumn,
 } from 'drizzle-orm/sqlite-core'
+import { sql } from 'drizzle-orm'
 
 // ---------------------------------------------------------------------------
 // Type aliases (SQLite has no native enum; TypeScript enforces the union)
@@ -226,6 +227,32 @@ export const releaseAssets = sqliteTable('release_assets', {
 }, (t) => [
   uniqueIndex('release_assets_release_asset_idx').on(t.releaseId, t.assetId),
   index('release_assets_asset_idx').on(t.assetId),
+])
+
+// The asset's current-state record: capability claims with delivery receipts
+// (asset-record-spec.md §5.1). Entries enter only by graduating a resolved work
+// item or by an accepted reconciliation proposal — never as intent.
+export const assetCapabilities = sqliteTable('asset_capabilities', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  assetId: text('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  description: text('description').notNull().default(''),
+  area: text('area'),
+  status: text('status').$type<'active' | 'removed'>().notNull().default('active'),
+  source: text('source').$type<'graduated' | 'reconciled'>().notNull().default('graduated'),
+  originWorkItemId: text('origin_work_item_id').references(() => workItems.id, { onDelete: 'set null' }),
+  originCodePlanId: text('origin_code_plan_id').references(() => codePlans.id, { onDelete: 'set null' }),
+  originReleaseId: text('origin_release_id').references(() => releases.id, { onDelete: 'set null' }),
+  // Captured lineage text — the receipt outlives its source rows.
+  originSummary: text('origin_summary').notNull().default(''),
+  verifiedAt: integer('verified_at', { mode: 'timestamp' }),
+  removedAt: integer('removed_at', { mode: 'timestamp' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('asset_capabilities_asset_idx').on(t.assetId),
+  // A work item graduates at most once.
+  uniqueIndex('asset_capabilities_origin_item_idx').on(t.originWorkItemId).where(sql`${t.originWorkItemId} IS NOT NULL`),
 ])
 
 // Curated, backward-looking record: what a change meant for an asset's design.

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { authAdapter } from '@/lib/auth'
-import { getAssetDetail, getAssetHistory, getReleases, getWorkItems } from '@/lib/db/queries'
+import { getAssetDetail, getAssetHistory, getAssetRecord, getReleases, getWorkItems } from '@/lib/db/queries'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -11,6 +11,7 @@ import type { AssetType, CodePlanStatus, CodePlanType, WorkItemSeverity, WorkIte
 import { cn } from '@/lib/utils'
 import { AssetContentCard } from './asset-content-cards'
 import { AssetHistoryTimeline } from './asset-history'
+import { AssetRecordSection } from './asset-record'
 import { config } from '@/lib/config'
 
 const assetTypeIcons: Record<AssetType, typeof Box> = {
@@ -88,10 +89,11 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
   const asset = await getAssetDetail(id, user.id)
   if (!asset) notFound()
 
-  const [items, history, productReleases] = await Promise.all([
+  const [items, history, productReleases, record] = await Promise.all([
     getWorkItems(user.id, { assetId: id }),
     getAssetHistory(id, user.id),
     getReleases(user.id, { productId: asset.productId }),
+    getAssetRecord(id, user.id),
   ])
   const currentVersion = (history ?? []).find((e) => e.kind === 'release_stamp' && e.version)?.version
   const openStatuses: WorkItemStatus[] = ['open', 'planned', 'in_progress']
@@ -235,6 +237,9 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
           <TabsTrigger value="plans">Code Plans ({asset.plans.length})</TabsTrigger>
           <TabsTrigger value="dependencies">Dependencies ({asset.dependencyEdges.length})</TabsTrigger>
           <TabsTrigger value="history">History ({(history ?? []).length})</TabsTrigger>
+          <TabsTrigger value="record">
+            Record ({(record?.capabilities ?? []).filter((c) => c.status === 'active').length})
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="work-items" className="mt-4">
@@ -395,6 +400,14 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
             planOptions={asset.plans.map((p) => ({ id: p.planId, label: p.planTitle }))}
             aiEnabled={config.ai.enabled}
           />
+        </TabsContent>
+
+        <TabsContent value="record" className="mt-4">
+          {record ? (
+            <AssetRecordSection assetId={asset.id} record={record} canEdit />
+          ) : (
+            <EmptyTab>Record unavailable.</EmptyTab>
+          )}
         </TabsContent>
       </Tabs>
     </div>

@@ -12,6 +12,7 @@ import {
   getReleases,
   getRelease,
   getAssetHistory,
+  getAssetRecord,
 } from '@/lib/db/queries'
 import {
   createProduct,
@@ -40,6 +41,7 @@ import {
   detachPlanFromRelease,
   setReleaseAsset,
   createDesignNote,
+  graduateWorkItem,
 } from '@/lib/db/mutations'
 import { getAssetOptions, getAssetDetail } from '@/lib/db/queries'
 import { resolveAssigneeEmail } from '@/lib/mcp/users'
@@ -705,6 +707,26 @@ const handler = createMcpHandler(
         const asset = await getAssetDetail(assetId, userId)
         if (!asset) return json({ error: 'Asset not found or not accessible' })
         return json(await createDesignNote({ assetId, ...data, authorKind: 'agent', authorId: userId }))
+      },
+    )
+
+    server.tool(
+      'get_asset_record',
+      "An asset's living record of delivered reality: capabilities (graduated claims with delivery lineage), known issues (open bugs/UX items), the debt register (open tech debt), and graduation candidates (resolved feature work not yet in the record). Read this to learn what an asset actually does today — the record never contains intent, only delivered or verified work.",
+      { assetId: z.string() },
+      async ({ assetId }, extra) => {
+        const record = await getAssetRecord(assetId, uid(extra))
+        return json(record ?? { error: 'Asset not found or not accessible' })
+      },
+    )
+
+    server.tool(
+      'graduate_work_item',
+      "Graduate a resolved feature/enhancement work item into its asset's record as a capability, carrying delivery lineage (work item, plan, release). Idempotent — re-graduating returns the existing capability. Fails for unresolved items, bugs/debt, or items without a target asset.",
+      { workItemId: z.string() },
+      async ({ workItemId }, extra) => {
+        requireWrite(extra)
+        return json(await graduateWorkItem(workItemId))
       },
     )
   },

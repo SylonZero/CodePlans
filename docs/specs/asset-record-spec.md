@@ -327,7 +327,7 @@ work items). Every arrow is traversable by an agent over MCP.
 Each phase ships migrations for both PG and SQLite, seed updates, tests, and
 `docs/app-spec.md` updates.
 
-### Phase A — The Record `v0.4.4`
+### Phase A — The Record `v0.4.4` ✅ SHIPPED (resolve-time graduation surfaces as the Record tab's candidates banner rather than a work-item-panel prompt)
 `asset_capabilities` + graduation mutation; Record tab (capabilities + derived
 known issues/debt); resolve-time graduation prompt + backfill checklist;
 `graduate_work_item` + `get_asset_record` MCP tools; sync_log events.

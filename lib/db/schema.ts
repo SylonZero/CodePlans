@@ -24,6 +24,7 @@ export const {
   releases,
   releaseAssets,
   assetDesignLog,
+  assetCapabilities,
   workItems,
   workItemCodePlans,
   tasks,

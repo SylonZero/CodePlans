@@ -13,6 +13,7 @@ import {
   releases,
   releaseAssets,
   assetDesignLog,
+  assetCapabilities,
 } from './schema'
 import { eq, and, ne } from 'drizzle-orm'
 import type { WorkItemType, WorkItemStatus, WorkItemSeverity, ReleaseStatus } from '@/lib/types'
@@ -696,4 +697,92 @@ export async function deleteDesignNote(id: string) {
     .where(eq(assetDesignLog.id, id))
     .returning({ id: assetDesignLog.id })
   return deleted ?? null
+}
+
+// ---------------------------------------------------------------------------
+// Asset capabilities (asset-record-spec.md, Phase A)
+// ---------------------------------------------------------------------------
+
+/**
+ * Graduate a resolved feature/enhancement work item into its asset's record.
+ * Captures the lineage chain (work item → first linked plan → that plan's
+ * release) as FKs plus originSummary text that survives FK nulling. Idempotent
+ * per work item (partial unique index on originWorkItemId).
+ */
+export async function graduateWorkItem(workItemId: string) {
+  const item = await db.query.workItems.findFirst({ where: eq(workItems.id, workItemId) })
+  if (!item) return { error: 'Work item not found' as const }
+  if (item.status !== 'resolved') return { error: 'Only resolved work items graduate' as const }
+  if (item.type !== 'feature' && item.type !== 'enhancement') {
+    return { error: 'Only feature and enhancement items graduate — bugs and debt stay in their registers' as const }
+  }
+  if (!item.assetId) return { error: 'Work item has no asset — set one before graduating' as const }
+
+  const existing = await db.query.assetCapabilities.findFirst({
+    where: eq(assetCapabilities.originWorkItemId, workItemId),
+  })
+  if (existing) return { capability: existing, existed: true as const }
+
+  const link = await db.query.workItemCodePlans.findFirst({
+    where: eq(workItemCodePlans.workItemId, workItemId),
+  })
+  const plan = link
+    ? await db.query.codePlans.findFirst({ where: eq(codePlans.id, link.codePlanId) })
+    : undefined
+  const release = plan?.releaseId
+    ? await db.query.releases.findFirst({ where: eq(releases.id, plan.releaseId) })
+    : undefined
+  const stamp = release && item.assetId
+    ? await db.query.releaseAssets.findFirst({
+        where: and(eq(releaseAssets.releaseId, release.id), eq(releaseAssets.assetId, item.assetId)),
+      })
+    : undefined
+
+  const summaryParts = [`WI: ${item.title}`]
+  if (plan) summaryParts.push(`Plan: ${plan.title}`)
+  if (release) summaryParts.push(stamp?.version ? `${release.name} (${stamp.version})` : release.name)
+
+  const [capability] = await db
+    .insert(assetCapabilities)
+    .values({
+      assetId: item.assetId,
+      title: item.title,
+      description: item.description,
+      area: item.area ?? undefined,
+      source: 'graduated',
+      originWorkItemId: item.id,
+      originCodePlanId: plan?.id,
+      originReleaseId: release?.id,
+      originSummary: summaryParts.join(' · '),
+    })
+    .returning()
+  return { capability, existed: false as const }
+}
+
+type UpdateCapabilityData = Partial<{ title: string; description: string; area: string | null }>
+
+export async function updateCapability(id: string, data: UpdateCapabilityData) {
+  const [row] = await db
+    .update(assetCapabilities)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(assetCapabilities.id, id))
+    .returning()
+  return row ?? null
+}
+
+/** Tombstone, not delete — "used to do X" is record too. */
+export async function removeCapability(id: string, reason?: string) {
+  const existing = await db.query.assetCapabilities.findFirst({ where: eq(assetCapabilities.id, id) })
+  if (!existing) return null
+  const [row] = await db
+    .update(assetCapabilities)
+    .set({
+      status: 'removed',
+      removedAt: new Date(),
+      updatedAt: new Date(),
+      ...(reason ? { description: `${existing.description ? existing.description + '\n\n' : ''}**Removed:** ${reason}` } : {}),
+    })
+    .where(eq(assetCapabilities.id, id))
+    .returning()
+  return row
 }
