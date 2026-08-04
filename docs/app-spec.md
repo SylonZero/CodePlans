@@ -1,13 +1,14 @@
 ## CodePlans App Spec
 
-> **Status:** current implemented state as of **v0.4.3** (2026-08). For the target
-> design and rationale, see `docs/specs/design-spec-v3.md` (all phases shipped) and
-> `docs/specs/releases-and-asset-history-spec.md` (Phases A–D shipped). The next
-> tranche of work is specified in `docs/specs/asset-record-spec.md` (v0.4.4+).
+> **Status:** current implemented state as of **v0.4.4** (2026-08). For the target
+> design and rationale, see `docs/specs/design-spec-v3.md` (all phases shipped),
+> `docs/specs/releases-and-asset-history-spec.md` (Phases A–D shipped), and
+> `docs/specs/asset-record-spec.md` (Phase A shipped; Phases B–C are the next
+> tranche, v0.4.5+).
 
 ### Overview
 
-CodePlans is a **code change coordination tool** for engineering teams. It organizes work around the hierarchy **Products → Assets → Code Plans → Tasks**, with **Work Items** (features, bugs, UX issues, tech debt) as the demand side linked many-to-many to code plans, per-asset **branch/PR tracking** on plans, **releases** grouping the plans that ship together (with per-asset version stamps and derived release notes), a per-asset **history timeline and design log**, **asset dependencies** with impact analysis, pull-only **integrations** that mirror external tracker items into work items, and a 39-tool **MCP server** for AI coding agents. Users track technical debt, coordinate architectural changes, and measure team velocity. Deployed at `codeplans.ai`. Stack: Next.js 16 (App Router), Drizzle ORM, pluggable auth/DB (SQLite local / Supabase+Postgres cloud).
+CodePlans is a **code change coordination tool** for engineering teams. It organizes work around the hierarchy **Products → Assets → Code Plans → Tasks**, with **Work Items** (features, bugs, UX issues, tech debt) as the demand side linked many-to-many to code plans, per-asset **branch/PR tracking** on plans, **releases** grouping the plans that ship together (with per-asset version stamps and derived release notes), a per-asset **history timeline and design log**, a per-asset **record** (capabilities register graduated from delivered work), **asset dependencies** with impact analysis, pull-only **integrations** that mirror external tracker items into work items, and a 41-tool **MCP server** for AI coding agents. Users track technical debt, coordinate architectural changes, and measure team velocity. Deployed at `codeplans.ai`. Stack: Next.js 16 (App Router), Drizzle ORM, pluggable auth/DB (SQLite local / Supabase+Postgres cloud).
 
 ---
 
@@ -146,6 +147,7 @@ Provenance columns (`source` default `native`, `connectionId`, `externalId/Key/U
 | `releases` | Delivery grouping above plans: `status` planned/in_progress/shipped/abandoned (explicit — shipping is a human act), `shippedAt`, tags, provenance columns. `code_plans.releaseId` (nullable, set-null) attaches a plan to at most one release |
 | `release_assets` | Per-asset version stamp: `version`, `notes` (unique release+asset). Shipped releases' stamps become version tick marks in asset history |
 | `asset_design_log` | Curated design notes per asset: markdown `body`, optional `releaseId`/`codePlanId` anchors, `authorKind` user/agent + `authorId` |
+| `asset_capabilities` | (v0.4.4, asset-record-spec §5.1) Capability claims with receipts: `status` active/removed (tombstones, never deletes), `source` graduated/reconciled, origin FKs (work item — partial-unique, plan, release — all set-null) + `originSummary` text that survives FK nulling, `verifiedAt`, `removedAt` |
 
 ---
 
@@ -190,6 +192,7 @@ Provenance columns (`source` default `native`, `connectionId`, `externalId/Key/U
 | `getReleases(userId, filters?)` | `ReleaseListRow[]` | Org-aware; filters: `productId`, `status`; asset/version chips + plan counts + deduped derived work-item counts |
 | `getRelease(id, userId)` | `ReleaseDetail` \| `null` | Org-scope guarded; assets & versions, attached plans with progress, derived work items, per-asset PR chips |
 | `getSuggestedReleaseAssets(releaseId)` | `ReleaseAssetChip[]` | Assets targeted by attached plans but not yet stamped on the release |
+| `getAssetRecord(assetId, userId)` | `AssetRecord` \| `null` | Org-scope guarded; capabilities (incl. tombstones), derived known issues (open bug/ux) & debt register (open tech_debt), graduation candidates (resolved feature/enhancement not yet graduated) |
 
 ---
 
@@ -217,6 +220,9 @@ Provenance columns (`source` default `native`, `connectionId`, `externalId/Key/U
 | `setReleaseAsset(releaseId, assetId, data?)` | none | Upserts the per-asset version stamp |
 | `removeReleaseAsset(releaseId, assetId)` | none | Returns `{ id }` or null |
 | `createDesignNote(data)` / `updateDesignNote` / `deleteDesignNote` | none | `authorKind` defaults `user`; MCP sets `agent` |
+| `graduateWorkItem(workItemId)` | none | Validates resolved + feature/enhancement + has asset; idempotent per work item; composes `originSummary` from item → first linked plan → that plan's release stamp |
+| `updateCapability(id, data)` | none | Edits title/description/area; lineage untouched |
+| `removeCapability(id, reason?)` | none | Tombstone: `status='removed'` + `removedAt`; reason appended to description as `**Removed:**` |
 
 ---
 
@@ -290,6 +296,7 @@ Two tabs: **Assets** and **Code Plans**.
 Header (type/health badges, current version chip from latest shipped release, repo/docs links, owners), summary cards (tech debt score with derived-vs-manual note, open work items, plan count), auto-save description + notes (ideation doc) cards, and tabs:
 - **Work Items / Tech Debt / Code Plans / Dependencies** — the asset's slices of the existing views (plans with per-asset branch/PR chips)
 - **History** (v0.4.0–v0.4.2) — reverse-chronological timeline projected from existing rows: shipped releases as version tick marks (with a sticky version ladder), completed plans, resolved work items, debt movement, and design-log entries (expandable markdown, agent badge for MCP-authored notes, "via plan" anchor chips). Filter chips per entry kind. "Add design note" side panel with optional release/plan anchors and (flagged) AI draft-from-plan.
+- **Record** (v0.4.4) — the asset's current-state register: a candidates banner ("N resolved features can join this asset's record" with one-click graduation), capabilities list (lineage chip from `originSummary`, verification freshness dot, expandable markdown, edit dialog, remove-with-reason dialog), derived **Known issues** (open bug/ux) and **Debt register** (open tech_debt) cards, and a struck-through **Previously** card for tombstoned capabilities.
 
 #### `/releases` & `/releases/[id]` — Releases (v0.4.1)
 List: status tabs (All / In Progress / Shipped), rows with asset+version chips, plan counts, derived work-item type dots; create side panel. Detail mirrors plan-detail layout:
@@ -357,7 +364,7 @@ Client component (`IntegrationsClient`) with:
 - Delete with confirm (mirrored items are kept, stop syncing)
 
 #### `/api/mcp/[transport]` — MCP server (no UI)
-Streamable HTTP MCP endpoint (`mcp-handler`) with 39 tools wrapping the query/mutation layer (task assignees resolved by workspace-member email) — reads, plus management of products/assets/dependencies, plan lifecycle (activate/complete incl. write-back), plan targets, work items, tasks, releases (create/update/attach/version-stamp/ship — shipped releases reject mutation), `get_asset_history`, and `record_design_note` (agent-attributed design-log entries); record deletes are deliberately excluded (link removals only) — see `docs/specs/mcp-server-spec.md`. Auth: `Authorization: Bearer cpk_…` resolved by `lib/mcp/auth.ts` to a user (scopes: read/write); 401 without a valid key. `proxy.ts` exempts this path from session redirects. Connect: `claude mcp add --transport http codeplans <base>/api/mcp/mcp --header "Authorization: Bearer <key>"`.
+Streamable HTTP MCP endpoint (`mcp-handler`) with 41 tools wrapping the query/mutation layer (task assignees resolved by workspace-member email) — reads, plus management of products/assets/dependencies, plan lifecycle (activate/complete incl. write-back), plan targets, work items, tasks, releases (create/update/attach/version-stamp/ship — shipped releases reject mutation), `get_asset_history`, `record_design_note` (agent-attributed design-log entries), `get_asset_record`, and `graduate_work_item`; record deletes are deliberately excluded (link removals only) — see `docs/specs/mcp-server-spec.md`. Auth: `Authorization: Bearer cpk_…` resolved by `lib/mcp/auth.ts` to a user (scopes: read/write); 401 without a valid key. `proxy.ts` exempts this path from session redirects. Connect: `claude mcp add --transport http codeplans <base>/api/mcp/mcp --header "Authorization: Bearer <key>"`.
 
 #### `/team` — Team Management
 - Requires org membership; shows message if no org

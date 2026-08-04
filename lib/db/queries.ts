@@ -17,6 +17,7 @@ import {
   releases,
   releaseAssets,
   assetDesignLog,
+  assetCapabilities,
 } from './schema'
 import { eq, and, sql, desc, or, inArray, gte, isNotNull } from 'drizzle-orm'
 import type {
@@ -1582,6 +1583,8 @@ function activityPresentation(entityType: string, event: string, payload: Record
   }
   if (entityType === 'asset') {
     if (event === 'created') return { type: 'asset_added', title: 'added an asset' }
+    if (event === 'capability_graduated') return { type: 'item_resolved', title: 'graduated a capability into an asset record' }
+    if (event === 'capability_removed') return { type: 'item_updated', title: 'removed a capability from an asset record' }
     return null
   }
   if (entityType === 'product') {
@@ -2031,4 +2034,109 @@ export async function getSuggestedReleaseAssets(releaseId: string): Promise<Rele
     out.push({ assetId: r.assetId, assetName: r.assetName, assetType: r.assetType })
   }
   return out
+}
+
+// ---------------------------------------------------------------------------
+// Asset record (asset-record-spec.md, Phase A)
+// ---------------------------------------------------------------------------
+
+export type AssetCapability = {
+  id: string
+  title: string
+  description: string
+  area?: string
+  status: 'active' | 'removed'
+  source: 'graduated' | 'reconciled'
+  originSummary: string
+  originWorkItemId?: string
+  originCodePlanId?: string
+  originReleaseId?: string
+  verifiedAt?: string
+  removedAt?: string
+  createdAt: string
+}
+
+export type GraduationCandidate = {
+  workItemId: string
+  title: string
+  type: WorkItemType
+  resolvedAt: string
+}
+
+export type AssetRecord = {
+  capabilities: AssetCapability[]
+  /** Derived: the asset's open bug/ux items. */
+  knownIssues: ReleaseWorkItemRow[]
+  /** Derived: the asset's open tech_debt items. */
+  debt: ReleaseWorkItemRow[]
+  /** Resolved feature/enhancement items on this asset not yet graduated. */
+  candidates: GraduationCandidate[]
+}
+
+/** The asset's current-state record: capability claims plus derived registers. */
+export async function getAssetRecord(assetId: string, userId: string): Promise<AssetRecord | null> {
+  const asset = await db.query.assets.findFirst({ where: eq(assets.id, assetId) })
+  if (!asset) return null
+  const product = await db.query.products.findFirst({
+    where: and(eq(products.id, asset.productId), await productAccessWhere(userId)),
+  })
+  if (!product) return null
+
+  const [capRows, itemRows] = await Promise.all([
+    db.query.assetCapabilities.findMany({
+      where: eq(assetCapabilities.assetId, assetId),
+      orderBy: desc(assetCapabilities.createdAt),
+    }),
+    db
+      .select({
+        id: workItems.id,
+        title: workItems.title,
+        type: workItems.type,
+        status: workItems.status,
+        severity: workItems.severity,
+        assetId: workItems.assetId,
+        updatedAt: workItems.updatedAt,
+      })
+      .from(workItems)
+      .where(eq(workItems.assetId, assetId)),
+  ])
+
+  const graduated = new Set(capRows.map((c) => c.originWorkItemId).filter(Boolean))
+  const openStatuses = ['open', 'planned', 'in_progress']
+  const severityRank: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 }
+
+  const toRow = (r: (typeof itemRows)[number]): ReleaseWorkItemRow => ({
+    id: r.id, title: r.title, type: r.type, status: r.status, severity: r.severity,
+    assetId: r.assetId ?? undefined,
+  })
+
+  return {
+    capabilities: capRows.map((c) => ({
+      id: c.id,
+      title: c.title,
+      description: c.description,
+      area: c.area ?? undefined,
+      status: c.status as 'active' | 'removed',
+      source: c.source as 'graduated' | 'reconciled',
+      originSummary: c.originSummary,
+      originWorkItemId: c.originWorkItemId ?? undefined,
+      originCodePlanId: c.originCodePlanId ?? undefined,
+      originReleaseId: c.originReleaseId ?? undefined,
+      verifiedAt: c.verifiedAt?.toISOString(),
+      removedAt: c.removedAt?.toISOString(),
+      createdAt: c.createdAt.toISOString(),
+    })),
+    knownIssues: itemRows
+      .filter((r) => (r.type === 'bug' || r.type === 'ux') && openStatuses.includes(r.status))
+      .sort((a, b) => severityRank[a.severity] - severityRank[b.severity])
+      .map(toRow),
+    debt: itemRows
+      .filter((r) => r.type === 'tech_debt' && openStatuses.includes(r.status))
+      .sort((a, b) => severityRank[a.severity] - severityRank[b.severity])
+      .map(toRow),
+    candidates: itemRows
+      .filter((r) => (r.type === 'feature' || r.type === 'enhancement') && r.status === 'resolved' && !graduated.has(r.id))
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+      .map((r) => ({ workItemId: r.id, title: r.title, type: r.type, resolvedAt: r.updatedAt.toISOString() })),
+  }
 }

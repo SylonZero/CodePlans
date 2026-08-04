@@ -26,10 +26,12 @@ import {
   releases,
   releaseAssets,
   assetDesignLog,
+  assetCapabilities,
   syncLog,
 } from './schema'
 import { eq, inArray } from 'drizzle-orm'
 import { authAdapter } from '@/lib/auth'
+import { graduateWorkItem } from './mutations'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -678,7 +680,7 @@ async function seed() {
   }
 
   // Resolved demand behind the completed plans (rich asset history).
-  await findOrCreateWorkItem('SSO for enterprise customers', {
+  const ssoItemId = await findOrCreateWorkItem('SSO for enterprise customers', {
     productId: platformId, assetId: authSvcId, type: 'feature', status: 'resolved',
     title: 'SSO for enterprise customers', severity: 'high', tags: ['auth', 'enterprise'],
     reporterId: alexId, ownerId: alexId,
@@ -698,6 +700,13 @@ async function seed() {
     reporterId: jamesId, ownerId: lisaId, area: 'indexer',
     description: 'Rename events were not re-indexed until the nightly rebuild.',
     createdAt: new Date('2026-02-10'), updatedAt: new Date('2026-03-05'),
+  }, [searchPlanId])
+  const typoSearchItemId = await findOrCreateWorkItem('Typo-tolerant search matching', {
+    productId: platformId, assetId: searchId, type: 'enhancement', status: 'resolved',
+    title: 'Typo-tolerant search matching', severity: 'medium', tags: ['search'],
+    reporterId: jamesId, ownerId: lisaId, area: 'scoring',
+    description: 'Edit-distance signal in the scoring stage so near-miss queries still rank the right plans.',
+    createdAt: new Date('2026-02-12'), updatedAt: new Date('2026-03-05'),
   }, [searchPlanId])
   await findOrCreateWorkItem('Legacy bridge modules slow RN startup', {
     productId: mobileId, assetId: androidId, type: 'tech_debt', status: 'resolved',
@@ -854,6 +863,32 @@ async function seed() {
     if (!existing) await db.insert(releaseAssets).values({ releaseId, assetId, version, notes })
   }
   console.log('  linked plans and stamped asset versions')
+
+  // ── Asset record (graduated capabilities) ─────────────────────────────────
+  // Graduate the resolved features into their assets' records, then backdate
+  // to the ship dates so the record reads as history. One capability is marked
+  // verified (green freshness dot), one left unverified (gray) for the demo.
+  console.log('\nGraduating capabilities...')
+
+  const graduations: { workItemId: string; createdAt: Date; verifiedAt?: Date }[] = [
+    { workItemId: ssoItemId, createdAt: new Date('2026-03-12'), verifiedAt: new Date('2026-03-14') },
+    { workItemId: typoSearchItemId, createdAt: new Date('2026-03-12') },
+  ]
+  for (const g of graduations) {
+    const result = await graduateWorkItem(g.workItemId)
+    if ('error' in result) {
+      console.log(`  skipped graduation: ${result.error}`)
+      continue
+    }
+    if (!result.existed) {
+      await db.update(assetCapabilities)
+        .set({ createdAt: g.createdAt, updatedAt: g.createdAt, ...(g.verifiedAt ? { verifiedAt: g.verifiedAt } : {}) })
+        .where(eq(assetCapabilities.id, result.capability.id))
+      console.log(`  graduated: ${result.capability.title}`)
+    } else {
+      console.log(`  capability exists: ${result.capability.title}`)
+    }
+  }
 
   // ── Design log ────────────────────────────────────────────────────────────
   console.log('\nCreating design log entries...')

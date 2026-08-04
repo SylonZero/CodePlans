@@ -46,6 +46,9 @@ import {
   removeReleaseAsset,
   createDesignNote,
   deleteDesignNote,
+  graduateWorkItem,
+  updateCapability,
+  removeCapability,
 } from '@/lib/db/mutations'
 import { getAssetOptions } from '@/lib/db/queries'
 import type { UserRole, WorkItemType, WorkItemStatus, WorkItemSeverity } from '@/lib/types'
@@ -1197,4 +1200,50 @@ export async function saveReleaseDescriptionAction(releaseId: string, descriptio
   await requireUser()
   await updateRelease(releaseId, { description })
   revalidatePath(`/releases/${releaseId}`)
+}
+
+// ---------------------------------------------------------------------------
+// Asset record (capabilities)
+// ---------------------------------------------------------------------------
+
+export async function graduateWorkItemAction(workItemId: string, assetId: string) {
+  const authUser = await requireUser()
+  const result = await graduateWorkItem(workItemId)
+  if ('error' in result) throw new Error(result.error)
+  if (!result.existed) {
+    await logActivity({
+      entityType: 'asset',
+      entityId: assetId,
+      event: 'capability_graduated',
+      actorId: authUser.id,
+      payload: { title: result.capability.title },
+    })
+  }
+  revalidatePath(`/assets/${assetId}`)
+  revalidatePath('/work-items')
+}
+
+export async function updateCapabilityAction(id: string, assetId: string, formData: FormData) {
+  await requireUser()
+  await updateCapability(id, {
+    title: formData.get('title') as string,
+    description: (formData.get('description') as string) || '',
+    area: ((formData.get('area') as string) || '').trim() || null,
+  })
+  revalidatePath(`/assets/${assetId}`)
+}
+
+export async function removeCapabilityAction(id: string, assetId: string, reason: string) {
+  const authUser = await requireUser()
+  const removed = await removeCapability(id, reason.trim() || undefined)
+  if (removed) {
+    await logActivity({
+      entityType: 'asset',
+      entityId: assetId,
+      event: 'capability_removed',
+      actorId: authUser.id,
+      payload: { title: removed.title },
+    })
+  }
+  revalidatePath(`/assets/${assetId}`)
 }
