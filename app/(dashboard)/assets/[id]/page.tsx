@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { authAdapter } from '@/lib/auth'
-import { getAssetDetail, getWorkItems } from '@/lib/db/queries'
+import { getAssetDetail, getAssetHistory, getWorkItems } from '@/lib/db/queries'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -10,6 +10,7 @@ import { Box, Server, Library, Database, Globe, ExternalLink, BookOpen, GitBranc
 import type { AssetType, CodePlanStatus, CodePlanType, WorkItemSeverity, WorkItemStatus, WorkItemType, PrStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { AssetContentCard } from './asset-content-cards'
+import { AssetHistoryTimeline } from './asset-history'
 
 const assetTypeIcons: Record<AssetType, typeof Box> = {
   app: Box,
@@ -86,7 +87,10 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
   const asset = await getAssetDetail(id, user.id)
   if (!asset) notFound()
 
-  const items = await getWorkItems(user.id, { assetId: id })
+  const [items, history] = await Promise.all([
+    getWorkItems(user.id, { assetId: id }),
+    getAssetHistory(id, user.id),
+  ])
   const openStatuses: WorkItemStatus[] = ['open', 'planned', 'in_progress']
   const openItems = items.filter((i) => openStatuses.includes(i.status))
   const severityRank: Record<WorkItemSeverity, number> = { critical: 0, high: 1, medium: 2, low: 3 }
@@ -222,6 +226,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
           <TabsTrigger value="debt">Tech Debt ({debtItems.length})</TabsTrigger>
           <TabsTrigger value="plans">Code Plans ({asset.plans.length})</TabsTrigger>
           <TabsTrigger value="dependencies">Dependencies ({asset.dependencyEdges.length})</TabsTrigger>
+          <TabsTrigger value="history">History ({(history ?? []).length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="work-items" className="mt-4">
@@ -371,6 +376,10 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
               />
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="history" className="mt-4">
+          <AssetHistoryTimeline entries={history ?? []} />
         </TabsContent>
       </Tabs>
     </div>

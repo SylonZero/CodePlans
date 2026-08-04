@@ -1043,6 +1043,140 @@ export async function getAssetDetail(id: string, userId: string): Promise<AssetD
 }
 
 // ---------------------------------------------------------------------------
+// Asset history (releases-and-asset-history-spec.md, Phase A — derived only)
+// ---------------------------------------------------------------------------
+
+export type AssetHistoryEntry = {
+  /** Synthetic, stable within a render: `${kind}:${entityId}`. */
+  id: string
+  kind: 'plan_completed' | 'work_item_resolved' | 'debt_opened' | 'debt_resolved'
+  timestamp: string
+  title: string
+  planId?: string
+  planType?: CodePlanType
+  branch?: string
+  prUrl?: string
+  prStatus?: PlanAsset['prStatus']
+  workItemId?: string
+  itemType?: WorkItemType
+  severity?: WorkItemSeverity
+  area?: string
+}
+
+/**
+ * The asset's timeline, projected from existing rows — plans delivered to it
+ * (via code_plan_assets), work items resolved against it, and debt opened on it.
+ * Plan completion times prefer the sync_log `completed` event when one exists;
+ * everything else uses row timestamps as the event-time proxy (resolution is
+ * almost always the last touch on a work item).
+ */
+export async function getAssetHistory(assetId: string, userId: string): Promise<AssetHistoryEntry[] | null> {
+  const asset = await db.query.assets.findFirst({ where: eq(assets.id, assetId) })
+  if (!asset) return null
+
+  // Org-scope guard, same as getAssetDetail.
+  const product = await db.query.products.findFirst({
+    where: and(eq(products.id, asset.productId), await productAccessWhere(userId)),
+  })
+  if (!product) return null
+
+  const [planRows, itemRows] = await Promise.all([
+    db
+      .select({
+        planId: codePlans.id,
+        title: codePlans.title,
+        planType: codePlans.type,
+        updatedAt: codePlans.updatedAt,
+        branch: codePlanAssets.branch,
+        prUrl: codePlanAssets.prUrl,
+        prStatus: codePlanAssets.prStatus,
+      })
+      .from(codePlanAssets)
+      .innerJoin(codePlans, eq(codePlanAssets.codePlanId, codePlans.id))
+      .where(and(eq(codePlanAssets.assetId, assetId), eq(codePlans.status, 'completed'))),
+    db
+      .select({
+        id: workItems.id,
+        title: workItems.title,
+        itemType: workItems.type,
+        status: workItems.status,
+        severity: workItems.severity,
+        area: workItems.area,
+        createdAt: workItems.createdAt,
+        updatedAt: workItems.updatedAt,
+      })
+      .from(workItems)
+      .where(eq(workItems.assetId, assetId)),
+  ])
+
+  const completedAt = new Map<string, Date>()
+  if (planRows.length > 0) {
+    const events = await db
+      .select({ entityId: syncLog.entityId, createdAt: syncLog.createdAt })
+      .from(syncLog)
+      .where(
+        and(
+          eq(syncLog.entityType, 'code_plan'),
+          eq(syncLog.event, 'completed'),
+          inArray(
+            syncLog.entityId,
+            planRows.map((r) => r.planId),
+          ),
+        ),
+      )
+      .orderBy(desc(syncLog.createdAt))
+    // Rows are newest-first; keep the latest completion per plan (re-completes win).
+    for (const e of events) if (!completedAt.has(e.entityId)) completedAt.set(e.entityId, e.createdAt)
+  }
+
+  const entries: AssetHistoryEntry[] = []
+
+  for (const r of planRows) {
+    entries.push({
+      id: `plan_completed:${r.planId}`,
+      kind: 'plan_completed',
+      timestamp: (completedAt.get(r.planId) ?? r.updatedAt).toISOString(),
+      title: r.title,
+      planId: r.planId,
+      planType: r.planType,
+      branch: r.branch ?? undefined,
+      prUrl: r.prUrl ?? undefined,
+      prStatus: r.prStatus,
+    })
+  }
+
+  for (const r of itemRows) {
+    if (r.itemType === 'tech_debt') {
+      entries.push({
+        id: `debt_opened:${r.id}`,
+        kind: 'debt_opened',
+        timestamp: r.createdAt.toISOString(),
+        title: r.title,
+        workItemId: r.id,
+        itemType: r.itemType,
+        severity: r.severity,
+        area: r.area ?? undefined,
+      })
+    }
+    if (r.status === 'resolved') {
+      entries.push({
+        id: `${r.itemType === 'tech_debt' ? 'debt_resolved' : 'work_item_resolved'}:${r.id}`,
+        kind: r.itemType === 'tech_debt' ? 'debt_resolved' : 'work_item_resolved',
+        timestamp: r.updatedAt.toISOString(),
+        title: r.title,
+        workItemId: r.id,
+        itemType: r.itemType,
+        severity: r.severity,
+        area: r.area ?? undefined,
+      })
+    }
+  }
+
+  entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+  return entries
+}
+
+// ---------------------------------------------------------------------------
 // Asset dependencies & impact analysis
 // ---------------------------------------------------------------------------
 
