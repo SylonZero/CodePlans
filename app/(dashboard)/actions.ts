@@ -1155,3 +1155,46 @@ export async function setPlanReleaseAction(codePlanId: string, releaseId: string
   }
   revalidatePath(`/plans/${codePlanId}`)
 }
+
+// ---------------------------------------------------------------------------
+// AI drafting (feature-flagged; drafts are returned for editing, never saved)
+// ---------------------------------------------------------------------------
+
+export async function draftReleaseNotesAction(releaseId: string): Promise<string> {
+  const authUser = await requireUser()
+  const { aiEnabled, draftReleaseNotes } = await import('@/lib/ai')
+  if (!aiEnabled()) throw new Error('AI drafting is not enabled on this install.')
+  const { getRelease } = await import('@/lib/db/queries')
+  const release = await getRelease(releaseId, authUser.id)
+  if (!release) throw new Error('Release not found or not accessible')
+  return draftReleaseNotes(release)
+}
+
+export async function draftDesignNoteAction(
+  assetId: string,
+  codePlanId: string,
+): Promise<{ title: string; body: string }> {
+  const authUser = await requireUser()
+  const { aiEnabled, draftDesignNote } = await import('@/lib/ai')
+  if (!aiEnabled()) throw new Error('AI drafting is not enabled on this install.')
+  const { getAssetDetail, getCodePlan } = await import('@/lib/db/queries')
+  const [asset, plan] = await Promise.all([
+    getAssetDetail(assetId, authUser.id),
+    getCodePlan(codePlanId, authUser.id),
+  ])
+  if (!asset || !plan) throw new Error('Asset or plan not found or not accessible')
+  return draftDesignNote({
+    assetName: asset.name,
+    assetDescription: asset.description || undefined,
+    planTitle: plan.title,
+    planDescription: plan.description || undefined,
+    taskTitles: plan.tasks.filter((t) => t.status === 'done').map((t) => t.title),
+  })
+}
+
+/** Save AI-drafted (then human-edited) release notes into the description. */
+export async function saveReleaseDescriptionAction(releaseId: string, description: string) {
+  await requireUser()
+  await updateRelease(releaseId, { description })
+  revalidatePath(`/releases/${releaseId}`)
+}

@@ -32,9 +32,10 @@ import {
   ChevronDown,
   ChevronUp,
   Trash2,
+  Sparkles,
 } from 'lucide-react'
 import { cn, formatDateShort } from '@/lib/utils'
-import { addDesignNoteAction, deleteDesignNoteAction } from '../../actions'
+import { addDesignNoteAction, deleteDesignNoteAction, draftDesignNoteAction } from '../../actions'
 import type { AssetHistoryEntry } from '@/lib/db/queries'
 import type { CodePlanType, PrStatus, WorkItemSeverity, WorkItemType } from '@/lib/types'
 
@@ -104,12 +105,14 @@ export function AssetHistoryTimeline({
   canEdit,
   releaseOptions,
   planOptions,
+  aiEnabled = false,
 }: {
   assetId: string
   entries: AssetHistoryEntry[]
   canEdit: boolean
   releaseOptions: AnchorOption[]
   planOptions: AnchorOption[]
+  aiEnabled?: boolean
 }) {
   const [filter, setFilter] = useState<FilterKey>('all')
   const [notePanelOpen, setNotePanelOpen] = useState(false)
@@ -206,6 +209,7 @@ export function AssetHistoryTimeline({
         onOpenChange={setNotePanelOpen}
         releaseOptions={releaseOptions}
         planOptions={planOptions}
+        aiEnabled={aiEnabled}
       />
     </div>
   )
@@ -395,17 +399,34 @@ function DesignNotePanel({
   onOpenChange,
   releaseOptions,
   planOptions,
+  aiEnabled,
 }: {
   assetId: string
   open: boolean
   onOpenChange: (open: boolean) => void
   releaseOptions: AnchorOption[]
   planOptions: AnchorOption[]
+  aiEnabled: boolean
 }) {
   const [releaseId, setReleaseId] = useState('none')
   const [codePlanId, setCodePlanId] = useState('none')
+  // Drafts fill the uncontrolled fields by remounting them with new defaults.
+  const [draft, setDraft] = useState<{ title: string; body: string; version: number } | null>(null)
+  const [draftError, setDraftError] = useState<string | null>(null)
+  const [isDrafting, startDrafting] = useTransition()
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
+
+  const generateDraft = () =>
+    startDrafting(async () => {
+      setDraftError(null)
+      try {
+        const result = await draftDesignNoteAction(assetId, codePlanId)
+        setDraft({ ...result, version: (draft?.version ?? 0) + 1 })
+      } catch (err: unknown) {
+        setDraftError(err instanceof Error ? err.message : 'Drafting failed.')
+      }
+    })
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -434,11 +455,27 @@ function DesignNotePanel({
             <Label htmlFor="dn-title">
               Title <span className="text-destructive">*</span>
             </Label>
-            <Input id="dn-title" name="title" required placeholder="Moved retry logic behind the queue" />
+            <Input
+              key={`title-${draft?.version ?? 0}`}
+              id="dn-title"
+              name="title"
+              required
+              defaultValue={draft?.title}
+              placeholder="Moved retry logic behind the queue"
+            />
           </div>
           <div className="space-y-2">
-            <Label>Note</Label>
-            <RichTextField name="body" size="tall" />
+            <div className="flex items-center justify-between">
+              <Label>Note</Label>
+              {aiEnabled && codePlanId !== 'none' && (
+                <Button type="button" size="sm" variant="ghost" onClick={generateDraft} disabled={isDrafting}>
+                  <Sparkles className="mr-1 h-3 w-3" />
+                  {isDrafting ? 'Drafting…' : 'Draft from plan'}
+                </Button>
+              )}
+            </div>
+            <RichTextField key={`body-${draft?.version ?? 0}`} name="body" size="tall" defaultValue={draft?.body} />
+            {draftError && <p className="text-xs text-destructive">{draftError}</p>}
           </div>
           {releaseOptions.length > 0 && (
             <div className="space-y-2">

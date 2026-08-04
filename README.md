@@ -54,6 +54,9 @@ CodePlans sits between your issue tracker and your architecture diagram:
 | MCP server — 39 tools incl. product/asset/dependency management, releases & asset design notes | ✅ Available |
 | Milestone-linked plans with mirrored tasks (mixed mode) | ✅ Available |
 | PR auto-linking (plan-asset PR status refreshed on sync) | ✅ Available |
+| Releases — delivery grouping with per-asset version stamps & derived release notes | ✅ Available |
+| Asset history timeline, version ladder & design log (user + agent authored) | ✅ Available |
+| AI drafting — release notes & design notes (feature-flagged, `ANTHROPIC_API_KEY`) | ✅ Available |
 | AI-assisted effort estimation | 🔜 Planned |
 | Billing / subscription management | 🔜 Planned (optional, feature-flagged) |
 

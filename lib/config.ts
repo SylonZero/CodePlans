@@ -26,5 +26,11 @@ export const config = {
     // Billing is always off in team mode. In saas mode, BILLING_ENABLED controls it.
     enabled: hostMode !== 'team' && process.env.BILLING_ENABLED !== 'false',
   },
+  ai: {
+    // AI drafting (release notes, design notes) — on only when a key is
+    // configured and not explicitly disabled. Never required for core flows.
+    enabled: !!process.env.ANTHROPIC_API_KEY && process.env.AI_ENABLED !== 'false',
+    model: process.env.AI_MODEL ?? 'claude-opus-5',
+  },
   registration: (process.env.REGISTRATION ?? 'open') as RegistrationMode,
 } as const

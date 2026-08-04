@@ -11,6 +11,7 @@ import type { AssetType, CodePlanStatus, CodePlanType, WorkItemSeverity, WorkIte
 import { cn } from '@/lib/utils'
 import { AssetContentCard } from './asset-content-cards'
 import { AssetHistoryTimeline } from './asset-history'
+import { config } from '@/lib/config'
 
 const assetTypeIcons: Record<AssetType, typeof Box> = {
   app: Box,
@@ -392,6 +393,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
             canEdit
             releaseOptions={productReleases.map((r) => ({ id: r.id, label: r.name }))}
             planOptions={asset.plans.map((p) => ({ id: p.planId, label: p.planTitle }))}
+            aiEnabled={config.ai.enabled}
           />
         </TabsContent>
       </Tabs>
