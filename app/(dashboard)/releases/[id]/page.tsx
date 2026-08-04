@@ -10,6 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn, formatDateShort } from '@/lib/utils'
 import { releaseStatusStyles, releaseStatusLabels } from '../releases-client'
 import { ReleaseActions } from './release-actions'
+import { ReleaseNotesDraft } from './release-notes-draft'
+import { config } from '@/lib/config'
 import { ReleaseAssetsSection } from './release-assets-section'
 import { ReleasePlansSection } from './release-plans-section'
 import type { WorkItemType, WorkItemSeverity } from '@/lib/types'
@@ -83,7 +85,10 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
             ))}
           </div>
         </div>
-        <ReleaseActions releaseId={release.id} status={release.status} unversionedAssets={unversioned} />
+        <div className="flex items-center gap-2 flex-wrap">
+          {config.ai.enabled && editable && <ReleaseNotesDraft releaseId={release.id} />}
+          <ReleaseActions releaseId={release.id} status={release.status} unversionedAssets={unversioned} />
+        </div>
       </div>
 
       {release.description && (

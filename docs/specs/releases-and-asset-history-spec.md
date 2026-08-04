@@ -410,7 +410,7 @@ Version ladder and segments on the History tab (from Phase B data);
 `asset_design_log` + authoring UX (§7.2); `record_design_note` +
 `get_asset_history` MCP tools; plan-completion note prompt.
 
-### Phase D — AI drafting (flagged) `v0.4.3`
+### Phase D — AI drafting (flagged) `v0.4.3` ✅ SHIPPED (draft release notes + draft design note from plan; `ANTHROPIC_API_KEY` + `AI_ENABLED` flag, drafts always land in an editor, never auto-published)
 "Draft release notes" and "Draft design note from this plan" actions: AI-generated
 from the derived rollup (plan description, work items, PR titles), inserted as
 *editable draft* content — never auto-published. Feature-flagged (`AI_ENABLED`
