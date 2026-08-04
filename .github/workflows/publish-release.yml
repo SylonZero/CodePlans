@@ -7,8 +7,12 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing tag to publish a release for (e.g. v0.4.0)
+        description: Tag to publish a release for (e.g. v0.4.0)
         required: true
+        type: string
+      target:
+        description: Commit SHA to create the tag at, when it doesn't exist yet
+        required: false
         type: string
       title:
         description: Release title (defaults to the tag)
@@ -33,7 +37,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
+          TARGET: ${{ inputs.target }}
           TITLE: ${{ inputs.title }}
           NOTES: ${{ inputs.notes }}
         run: |
-          gh release create "$TAG" --verify-tag --title "${TITLE:-$TAG}" --notes "$NOTES"
+          if [ -n "$TARGET" ]; then
+            gh release create "$TAG" --target "$TARGET" --title "${TITLE:-$TAG}" --notes "$NOTES"
+          else
+            gh release create "$TAG" --verify-tag --title "${TITLE:-$TAG}" --notes "$NOTES"
+          fi
