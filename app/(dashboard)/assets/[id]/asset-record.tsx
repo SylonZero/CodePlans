@@ -246,8 +246,8 @@ function CapabilityRow({
           </button>
           {capability.area && <span className="text-xs text-muted-foreground">{capability.area}</span>}
           {capability.originSummary && (
-            <Badge variant="outline" className="text-xs max-w-72 truncate" title={capability.originSummary}>
-              {capability.originSummary}
+            <Badge variant="outline" className="text-xs max-w-72" title={capability.originSummary}>
+              <span className="truncate">{capability.originSummary}</span>
             </Badge>
           )}
         </div>
