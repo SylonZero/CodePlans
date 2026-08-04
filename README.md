@@ -397,8 +397,14 @@ Your agent can then read plans/work items/tech debt and (with a write-scope key)
 - [x] **v0.3.1 — MCP server:** API-key auth, 13 tools for Claude Code/Desktop
 - [x] **v0.3.2 — MCP management tools:** products, assets, dependencies, plan lifecycle/targets (25 tools total)
 - [x] **v0.3.4 — Linked design specs:** Spec URL on plans/work items, read-only in-app markdown rendering (private repos via connection tokens)
-- [ ] Jira / Asana / Linear connectors
+- [x] **v0.3.5–v0.3.9 — Agent-driven modeling & spec polish:** modeling guidance in MCP tools + monorepo modeling guide, re-runnable modeling (reconcile + dedup), docs-corpus capture support, spec rendering in work-item panels, paginated list views
+- [x] **v0.3.10–v0.3.16 — Editing & workflow UX:** auto-save panels, inline row editing, quick-add & bulk select, invite emails, My Work view, task scheduling dates, plan-centric task editing; paste-able integration tokens encrypted at rest
+- [x] **v0.3.17 — Jira / Asana / Linear connectors** (pull-only mirror), edit-connection UI, "Me" filters
+- [x] **v0.3.18–v0.3.23 — UI refinement:** agent connect snippets beside API key generation, light/dark/system theme switcher, Code Plan detail redesign, plan assignees derived from task assignment, Work Items filters + reworked Tech Debt Register, persisted view preferences
+- [x] **v0.3.24–v0.3.25 — Asset ownership & detail page:** code owners (routing & visibility), asset detail page with notes/ideation doc
+- [x] **v0.3.26–v0.3.29 — Rich text editing:** TipTap editor (markdown + GFM canonical) and markdown rendering for plan descriptions; MCP connect snippets for Codex, Copilot & Antigravity
 - [ ] AI-assisted effort estimation
+- [ ] Billing / subscription management (hosted tier, optional & feature-flagged)
 
 See [`docs/app-spec.md`](docs/app-spec.md) for the full current state of the app, and [`docs/specs/design-spec-v3.md`](docs/specs/design-spec-v3.md) for the target design and detailed roadmap.
 
