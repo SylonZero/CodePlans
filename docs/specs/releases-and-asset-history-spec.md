@@ -426,10 +426,13 @@ reconciliation.
 
 ## 11. The Next Step (future spec): System of Record & Round-Trip Engineering
 
+> **Now specified:** this signpost became `docs/specs/asset-record-spec.md`
+> (2026-08), which is the authoritative design for everything below.
+
 This spec makes CodePlans *remember* what was delivered. The follow-on capability —
-sketched here as a signpost, to be specified in `asset-record-spec.md` when the
-time comes — makes it *assert* what an asset currently is, and keep that assertion
-honest against the code. Three moves, in order of increasing ambition:
+sketched here as a signpost, now specified in `asset-record-spec.md` — makes it
+*assert* what an asset currently is, and keep that assertion honest against the
+code. Three moves, in order of increasing ambition:
 
 1. **The asset record (capabilities register).** Today a resolved work item exits
    every view; its information dies. Instead, resolving a `feature` work item
