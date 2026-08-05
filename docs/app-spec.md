@@ -1,14 +1,14 @@
 ## CodePlans App Spec
 
-> **Status:** current implemented state as of **v0.4.4** (2026-08). For the target
+> **Status:** current implemented state as of **v0.4.5** (2026-08). For the target
 > design and rationale, see `docs/specs/design-spec-v3.md` (all phases shipped),
 > `docs/specs/releases-and-asset-history-spec.md` (Phases A–D shipped), and
 > `docs/specs/asset-record-spec.md` (Phase A shipped; Phases B–C are the next
-> tranche, v0.4.5+).
+> tranche, v0.4.6+).
 
 ### Overview
 
-CodePlans is a **code change coordination tool** for engineering teams. It organizes work around the hierarchy **Products → Assets → Code Plans → Tasks**, with **Work Items** (features, bugs, UX issues, tech debt) as the demand side linked many-to-many to code plans, per-asset **branch/PR tracking** on plans, **releases** grouping the plans that ship together (with per-asset version stamps and derived release notes), a per-asset **history timeline and design log**, a per-asset **record** (capabilities register graduated from delivered work), **asset dependencies** with impact analysis, pull-only **integrations** that mirror external tracker items into work items, and a 41-tool **MCP server** for AI coding agents. Users track technical debt, coordinate architectural changes, and measure team velocity. Deployed at `codeplans.ai`. Stack: Next.js 16 (App Router), Drizzle ORM, pluggable auth/DB (SQLite local / Supabase+Postgres cloud).
+CodePlans is a **code change coordination tool** for engineering teams. It organizes work around the hierarchy **Products → Assets → Code Plans → Tasks**, with **Work Items** (features, bugs, UX issues, tech debt) as the demand side linked many-to-many to code plans, per-asset **branch/PR tracking** on plans, **releases** grouping the plans that ship together (with per-asset version stamps and derived release notes), a per-asset **history timeline and design log**, a per-asset **record** (capabilities register graduated from delivered work), a top-level **Asset Atlas** (live system map with health/debt/activity lenses, plus grid/table views), **asset dependencies** with impact analysis, pull-only **integrations** that mirror external tracker items into work items, and a 41-tool **MCP server** for AI coding agents. Users track technical debt, coordinate architectural changes, and measure team velocity. Deployed at `codeplans.ai`. Stack: Next.js 16 (App Router), Drizzle ORM, pluggable auth/DB (SQLite local / Supabase+Postgres cloud).
 
 ---
 
@@ -193,6 +193,7 @@ Provenance columns (`source` default `native`, `connectionId`, `externalId/Key/U
 | `getRelease(id, userId)` | `ReleaseDetail` \| `null` | Org-scope guarded; assets & versions, attached plans with progress, derived work items, per-asset PR chips |
 | `getSuggestedReleaseAssets(releaseId)` | `ReleaseAssetChip[]` | Assets targeted by attached plans but not yet stamped on the release |
 | `getAssetRecord(assetId, userId)` | `AssetRecord` \| `null` | Org-scope guarded; capabilities (incl. tombstones), derived known issues (open bug/ux) & debt register (open tech_debt), graduation candidates (resolved feature/enhancement not yet graduated) |
+| `getAssetInventory(userId, filters?)` | `AssetInventory` | Org-aware; optional `productId` scope. Every visible asset with effective debt score, open item/debt counts, active plan targets, capability count, latest shipped version stamp, owners — plus the dependency edges among them (edges leaving the scope are dropped) |
 
 ---
 
@@ -243,7 +244,7 @@ Both redirect to `/` on success.
 #### Dashboard Layout (`/(dashboard)`)
 All routes share `AppShell`: 64px top header + 256px sidebar. Sidebar contains:
 - Product switcher dropdown — **wired**: "All Products" + per-product options; selection persisted in a cookie (`lib/product-scope-cookie.ts`) and scopes Dashboard, Products, Code Plans, Tasks, and Analytics
-- Primary nav: Dashboard, My Work, Products, Work Items, Code Plans, Tasks, Analytics
+- Primary nav: Dashboard, My Work, Products, Assets, Work Items, Code Plans, Releases, Tasks, Analytics
 - Secondary nav: Team, Integrations, Billing (hidden if `BILLING_ENABLED=false`), Settings
 - Org/user footer: org name + billing tier, links to Team/Billing/Settings
 
@@ -291,6 +292,12 @@ Two tabs: **Assets** and **Code Plans**.
 - Adjacency view grouped by source asset with per-edge remove
 
 ---
+
+#### `/assets` — Asset Atlas (v0.4.5)
+Top-level inventory of every visible asset (respects the global product scope + `?product=`), with a stats strip (totals, health breakdown, open debt, active plan targets), search (name/tag), and type/health filters. Three views:
+- **Map** (default) — a system map drawn live from the inventory: products as columns, assets as nodes (type icon, name, shipped-version chip), `asset_dependencies` edges as curves (line style per dependency type: solid depends_on, dashed integrates_with, dotted aggregates, arrowheads at the target). **Lenses** recolor node accents and detail lines by Health, Debt (effective score thresholds 25/50), or Activity (active plan targets). Hovering an asset highlights its edges and neighbors and dims the rest (blast radius); click navigates to the asset. Hand-rolled deterministic layout (barycenter-ordered columns) — HTML nodes over an SVG underlay, no graph library.
+- **Grid** — cards: type icon, product, health dot, version chip, active plans / open debt / capabilities counts, debt-score bar, owners.
+- **Table** — sortable by name/product/debt/active plans/last shipped.
 
 #### `/assets/[id]` — Asset Detail (v0.3.25)
 Header (type/health badges, current version chip from latest shipped release, repo/docs links, owners), summary cards (tech debt score with derived-vs-manual note, open work items, plan count), and tabs (v0.4.4 moved the auto-save description + notes cards into a default **Overview** tab so every tab's content starts above the fold):

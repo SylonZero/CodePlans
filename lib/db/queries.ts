@@ -2140,3 +2140,161 @@ export async function getAssetRecord(assetId: string, userId: string): Promise<A
       .map((r) => ({ workItemId: r.id, title: r.title, type: r.type, resolvedAt: r.updatedAt.toISOString() })),
   }
 }
+
+// ---------------------------------------------------------------------------
+// Asset inventory (the /assets Atlas view)
+// ---------------------------------------------------------------------------
+
+export type AssetInventoryRow = {
+  id: string
+  name: string
+  type: AssetType
+  health: string
+  productId: string
+  productName: string
+  productSlug: string
+  tags: string[]
+  /** Manual override if set, else severity-weighted from open tech debt. */
+  effectiveDebtScore: number
+  debtIsManual: boolean
+  openDebtCount: number
+  /** All open work items on the asset, tech debt included. */
+  openItemCount: number
+  activePlanCount: number
+  capabilityCount: number
+  currentVersion?: string
+  lastShippedAt?: string
+  owners: AssetOwner[]
+}
+
+export type AssetInventory = {
+  assets: AssetInventoryRow[]
+  /** Dependency edges where both endpoints are in `assets`. */
+  edges: DependencyEdge[]
+}
+
+/**
+ * Everything the Assets view needs in one shape: each visible asset with its
+ * delivery/debt/activity stats, plus the dependency edges among them (the
+ * system map). Optionally scoped to one product — edges crossing out of the
+ * scope are dropped so the map always matches the node set.
+ */
+export async function getAssetInventory(
+  userId: string,
+  filters: { productId?: string } = {},
+): Promise<AssetInventory> {
+  const productFilter = await productAccessWhere(userId)
+  const visibleProducts = await db
+    .select({ id: products.id, name: products.name, slug: products.slug })
+    .from(products)
+    .where(filters.productId ? and(productFilter, eq(products.id, filters.productId)) : productFilter)
+  if (visibleProducts.length === 0) return { assets: [], edges: [] }
+  const productById = new Map(visibleProducts.map((p) => [p.id, p]))
+  const productIds = visibleProducts.map((p) => p.id)
+
+  const assetRows = await db.query.assets.findMany({
+    where: inArray(assets.productId, productIds),
+    orderBy: assets.name,
+  })
+  const assetIds = assetRows.map((a) => a.id)
+  if (assetIds.length === 0) return { assets: [], edges: [] }
+
+  const [owners, openItems, activePlans, capabilities, stamps, edgeRows] = await Promise.all([
+    ownersByAsset(assetIds),
+    db
+      .select({ assetId: workItems.assetId, type: workItems.type, severity: workItems.severity })
+      .from(workItems)
+      .where(
+        and(
+          inArray(workItems.assetId, assetIds),
+          inArray(workItems.status, ['open', 'planned', 'in_progress']),
+        ),
+      ),
+    db
+      .select({ assetId: codePlanAssets.assetId, count: sql<number>`CAST(count(*) AS INTEGER)` })
+      .from(codePlanAssets)
+      .innerJoin(codePlans, eq(codePlanAssets.codePlanId, codePlans.id))
+      .where(and(inArray(codePlanAssets.assetId, assetIds), eq(codePlans.status, 'active')))
+      .groupBy(codePlanAssets.assetId),
+    db
+      .select({ assetId: assetCapabilities.assetId, count: sql<number>`CAST(count(*) AS INTEGER)` })
+      .from(assetCapabilities)
+      .where(and(inArray(assetCapabilities.assetId, assetIds), eq(assetCapabilities.status, 'active')))
+      .groupBy(assetCapabilities.assetId),
+    db
+      .select({
+        assetId: releaseAssets.assetId,
+        version: releaseAssets.version,
+        shippedAt: releases.shippedAt,
+      })
+      .from(releaseAssets)
+      .innerJoin(releases, eq(releaseAssets.releaseId, releases.id))
+      .where(and(inArray(releaseAssets.assetId, assetIds), eq(releases.status, 'shipped')))
+      .orderBy(desc(releases.shippedAt)),
+    db
+      .select({
+        id: assetDependencies.id,
+        sourceAssetId: assetDependencies.sourceAssetId,
+        sourceAssetName: assets.name,
+        targetAssetId: assetDependencies.targetAssetId,
+        targetAssetName: sql<string>`(select name from assets a2 where a2.id = ${assetDependencies.targetAssetId})`,
+        dependencyType: assetDependencies.dependencyType,
+        description: assetDependencies.description,
+      })
+      .from(assetDependencies)
+      .innerJoin(assets, eq(assetDependencies.sourceAssetId, assets.id))
+      .where(inArray(assetDependencies.sourceAssetId, assetIds)),
+  ])
+
+  const DEBT_WEIGHT: Record<string, number> = { low: 3, medium: 8, high: 15, critical: 25 }
+  const openByAsset = new Map<string, { total: number; debt: number; debtScore: number }>()
+  for (const r of openItems) {
+    if (!r.assetId) continue
+    const cur = openByAsset.get(r.assetId) ?? { total: 0, debt: 0, debtScore: 0 }
+    cur.total += 1
+    if (r.type === 'tech_debt') {
+      cur.debt += 1
+      cur.debtScore = Math.min(100, cur.debtScore + (DEBT_WEIGHT[r.severity] ?? 8))
+    }
+    openByAsset.set(r.assetId, cur)
+  }
+  const planCountByAsset = new Map(activePlans.map((r) => [r.assetId, r.count]))
+  const capCountByAsset = new Map(capabilities.map((r) => [r.assetId, r.count]))
+  // stamps are ordered newest-shipped first — the first row per asset wins.
+  const latestStamp = new Map<string, { version?: string; shippedAt?: string }>()
+  for (const s of stamps) {
+    if (latestStamp.has(s.assetId)) continue
+    latestStamp.set(s.assetId, {
+      version: s.version ?? undefined,
+      shippedAt: s.shippedAt?.toISOString(),
+    })
+  }
+
+  const idSet = new Set(assetIds)
+  return {
+    assets: assetRows.map((a) => {
+      const open = openByAsset.get(a.id)
+      const product = productById.get(a.productId)!
+      return {
+        id: a.id,
+        name: a.name,
+        type: a.type,
+        health: a.health,
+        productId: a.productId,
+        productName: product.name,
+        productSlug: product.slug,
+        tags: a.tags,
+        effectiveDebtScore: a.techDebtScore ?? open?.debtScore ?? 0,
+        debtIsManual: a.techDebtScore != null,
+        openDebtCount: open?.debt ?? 0,
+        openItemCount: open?.total ?? 0,
+        activePlanCount: planCountByAsset.get(a.id) ?? 0,
+        capabilityCount: capCountByAsset.get(a.id) ?? 0,
+        currentVersion: latestStamp.get(a.id)?.version,
+        lastShippedAt: latestStamp.get(a.id)?.shippedAt,
+        owners: owners.get(a.id) ?? [],
+      }
+    }),
+    edges: edgeRows.filter((e) => idSet.has(e.targetAssetId)),
+  }
+}
