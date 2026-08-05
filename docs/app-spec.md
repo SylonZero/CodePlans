@@ -300,7 +300,7 @@ Header (type/health badges, current version chip from latest shipped release, re
 - **Record** (v0.4.4) — the asset's current-state register: a candidates banner ("N resolved features can join this asset's record" with one-click graduation), capabilities list (lineage chip from `originSummary`, verification freshness dot, expandable markdown, edit dialog, remove-with-reason dialog), derived **Known issues** (open bug/ux) and **Debt register** (open tech_debt) cards, and a struck-through **Previously** card for tombstoned capabilities.
 
 #### `/releases` & `/releases/[id]` — Releases (v0.4.1)
-List: status tabs (All / In Progress / Shipped), rows with asset+version chips, plan counts, derived work-item type dots; create side panel. Detail mirrors plan-detail layout:
+List: status tabs (All / In Progress / Shipped), rows with asset+version chips, plan counts, derived work-item type dots; create side panel. Detail mirrors plan-detail layout (v0.4.4: description moved into a default **Overview** tab — it is the release notes; empty state points at Draft release notes when AI is enabled):
 - **Assets & Versions** — one row per `release_assets` entry with inline version/note editing, per-asset PR chips rolled up from attached plans, and a suggestion banner for plan-targeted assets missing from the release
 - **Plans** — attach/detach (a "ships in" picker also exists on plan detail); **Work Items** — derived through attached plans, grouped Features / Bugs & UX / Tech Debt (the release-notes structure)
 - **Mark Shipped** confirm lists unversioned assets; shipped/abandoned releases render read-only. "Draft release notes" (flagged AI) opens an editable dialog; saving writes the description explicitly.
@@ -322,6 +322,7 @@ Client component (`PlansClient`) with:
 - **Link Milestone** (`plan-sync-dialog.tsx`): binds the plan to a GitHub milestone via an org connection; milestone issues mirror as read-only plan tasks (mixed with native tasks); Unlink converts mirrored tasks to native. Sync also refreshes `code_plan_assets.prStatus` for PR URLs in the connection's repo
 - Stats row: Overall Progress (% + progress bar + task count), Target Assets (count + names), Assignees (avatars)
 - Tags row
+- Tabs (v0.4.4: the long-form description + linked spec moved into a default **Overview** tab — the spec anchors the work, and every tab's content starts above the fold): **Overview** (clamped markdown description via `plan-description-card.tsx`, linked design spec via `SpecCard`, empty-state prompt when neither exists) / Tasks / Assets & PRs / Impact / Work Items
 - **Target Assets & PRs** (`plan-assets-section.tsx`): per-asset rows with branch, PR link, PR status badge; inline edit form; add/remove target assets → plan-asset actions
 - **Impact Analysis**: assets depending on the plan's targets (via `asset_dependencies`), with dependency path and health badges
 - **Linked Work Items**: items linked via `work_item_code_plans` with type/status badges
