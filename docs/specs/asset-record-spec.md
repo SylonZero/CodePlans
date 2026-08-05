@@ -334,14 +334,14 @@ known issues/debt); resolve-time graduation prompt + backfill checklist;
 *Exit criteria: a team can build and browse a receipted capabilities register
 with zero agent involvement.*
 
-### Phase B — Reconciliation `v0.4.6`
+### Phase B — Reconciliation `v0.4.7`
 `record_proposals` + review queue UI; `propose_record_change`,
 `list_record_proposals`, `resolve_record_proposal` MCP tools; the reconcile
 guide; AI-drafted capability descriptions on graduation (flagged, Phase D
 plumbing). *Exit criteria: an agent-run reconcile pass on this repo files
 sensible proposals end-to-end.*
 
-### Phase C — Round-trip `v0.4.7`
+### Phase C — Round-trip `v0.4.8`
 Publish-to-GitHub-Releases action on shipped releases; spec-audit section in the
 reconcile guide; Record freshness surfaced on the asset header (oldest
 `verifiedAt` drives a "record last verified" hint). *Exit criteria: the litmus

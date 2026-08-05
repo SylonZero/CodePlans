@@ -178,6 +178,11 @@ shows humans. Write flows stay on the existing `create_code_plan` /
 
 Phases B–D are deliberately unversioned: they slot into the 4.x line as
 capacity allows, interleaved with the asset-record reconciliation work
-(`v0.4.6+`), which remains the strategic priority. B is small and can ride
+(`v0.4.7+`), which remains the strategic priority. B is small and can ride
 along with any release; C unlocks D and should precede it; D touches the
 plan-create flow and deserves its own release.
+
+The Atlas's second grouping axis — **layer columns** for single-product
+systems — is specced separately in `layers-and-boundaries-spec.md`
+(`v0.4.6`) together with the boundary guidance and `move_asset` it belongs
+with.
