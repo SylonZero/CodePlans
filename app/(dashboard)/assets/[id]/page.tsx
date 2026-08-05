@@ -227,11 +227,9 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
         </Card>
       </div>
 
-      <AssetContentCard assetId={asset.id} productSlug={asset.productSlug} field="description" value={asset.description} />
-      <AssetContentCard assetId={asset.id} productSlug={asset.productSlug} field="notes" value={asset.notes ?? ''} />
-
-      <Tabs defaultValue="work-items">
+      <Tabs defaultValue="overview">
         <TabsList className="bg-muted">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="work-items">Work Items ({items.length})</TabsTrigger>
           <TabsTrigger value="debt">Tech Debt ({debtItems.length})</TabsTrigger>
           <TabsTrigger value="plans">Code Plans ({asset.plans.length})</TabsTrigger>
@@ -241,6 +239,11 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
             Record ({(record?.capabilities ?? []).filter((c) => c.status === 'active').length})
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="overview" className="mt-4 space-y-6">
+          <AssetContentCard assetId={asset.id} productSlug={asset.productSlug} field="description" value={asset.description} />
+          <AssetContentCard assetId={asset.id} productSlug={asset.productSlug} field="notes" value={asset.notes ?? ''} />
+        </TabsContent>
 
         <TabsContent value="work-items" className="mt-4">
           {items.length === 0 ? (
