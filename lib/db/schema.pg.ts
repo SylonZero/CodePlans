@@ -120,6 +120,7 @@ export const assets = pgTable('assets', {
   repositoryUrl: text('repository_url'),
   // Path within the repository for monorepo assets (e.g. apps/web, packages/ui).
   repoPath: text('repo_path'),
+  layer: text('layer'),
   documentationUrl: text('documentation_url'),
   metadata: jsonb('metadata').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

@@ -84,11 +84,33 @@ export interface Asset {
   owners?: AssetOwner[]
   /** Freeform ideation/notes doc (markdown). */
   notes?: string
+  /** Where the asset sits inside its product (layers-and-boundaries-spec §3). */
+  layer?: string
   repositoryUrl?: string
   repoPath?: string
   documentationUrl?: string
   dependencies: string[]
   createdAt: string
+}
+
+/**
+ * Conventional layer taxonomy, in dependency-flow order (edge → shared).
+ * `layer` is free text — this is the promoted vocabulary, not an enum.
+ */
+export const LAYER_TAXONOMY = ['edge', 'frontend', 'backend', 'domain', 'data', 'infra', 'shared'] as const
+
+/** Display-time layer default by asset type — never written to rows. */
+export const DEFAULT_LAYER_BY_TYPE: Record<AssetType, string> = {
+  app: 'frontend',
+  service: 'backend',
+  datastore: 'data',
+  platform: 'infra',
+  library: 'shared',
+}
+
+/** Explicit layer wins; otherwise the type default. */
+export function effectiveLayer(type: AssetType, layer?: string | null): string {
+  return layer?.trim() || DEFAULT_LAYER_BY_TYPE[type]
 }
 
 export type PrStatus = 'none' | 'draft' | 'open' | 'merged' | 'closed'

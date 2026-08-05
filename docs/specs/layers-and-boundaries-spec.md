@@ -1,6 +1,8 @@
 # Layers & Model Boundaries — Design Spec
 
-> **Status: PROPOSED** (2026-08), targeting `v0.4.6`. Companion to
+> **Status: SHIPPED `v0.4.6`** (2026-08; the §5 "Move to product…" UI action
+> ships in a later pass — `move_asset` over MCP is the primary interface and
+> is live). Companion to
 > `asset-atlas-spec.md` (this supplies the Atlas's second grouping axis) and
 > the concepts guide (`docs/guides/concepts.md`, which states the boundary
 > rule this spec operationalizes). Shifts asset-record reconciliation to
@@ -117,8 +119,8 @@ write scope). Not an `update_asset` side effect: the guardrails need a home.
    (dependency edges are asset-to-asset and product-agnostic).
 
 UI: a "Move to product…" action in the asset edit dialog exposing the same
-mutation and surfacing blocking plans. MCP is the primary interface — model
-refactoring is agent work.
+mutation and surfacing blocking plans (follow-up pass). MCP is the primary
+interface — model refactoring is agent work.
 
 ## 6. MCP changes
 

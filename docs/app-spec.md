@@ -1,6 +1,6 @@
 ## CodePlans App Spec
 
-> **Status:** current implemented state as of **v0.4.5** (2026-08). For the target
+> **Status:** current implemented state as of **v0.4.6** (2026-08). For the target
 > design and rationale, see `docs/specs/design-spec-v3.md` (all phases shipped),
 > `docs/specs/releases-and-asset-history-spec.md` (Phases A–D shipped), and
 > `docs/specs/asset-record-spec.md` (Phase A shipped; Phases B–C are the next
@@ -8,7 +8,7 @@
 
 ### Overview
 
-CodePlans is a **code change coordination tool** for engineering teams. It organizes work around the hierarchy **Products → Assets → Code Plans → Tasks**, with **Work Items** (features, bugs, UX issues, tech debt) as the demand side linked many-to-many to code plans, per-asset **branch/PR tracking** on plans, **releases** grouping the plans that ship together (with per-asset version stamps and derived release notes), a per-asset **history timeline and design log**, a per-asset **record** (capabilities register graduated from delivered work), a top-level **Asset Atlas** (live system map with health/debt/activity lenses, plus grid/table views), **asset dependencies** with impact analysis, pull-only **integrations** that mirror external tracker items into work items, and a 41-tool **MCP server** for AI coding agents. Users track technical debt, coordinate architectural changes, and measure team velocity. Deployed at `codeplans.ai`. Stack: Next.js 16 (App Router), Drizzle ORM, pluggable auth/DB (SQLite local / Supabase+Postgres cloud).
+CodePlans is a **code change coordination tool** for engineering teams. It organizes work around the hierarchy **Products → Assets → Code Plans → Tasks**, with **Work Items** (features, bugs, UX issues, tech debt) as the demand side linked many-to-many to code plans, per-asset **branch/PR tracking** on plans, **releases** grouping the plans that ship together (with per-asset version stamps and derived release notes), a per-asset **history timeline and design log**, a per-asset **record** (capabilities register graduated from delivered work), a top-level **Asset Atlas** (live system map with health/debt/activity lenses, plus grid/table views), **asset dependencies** with impact analysis, pull-only **integrations** that mirror external tracker items into work items, and a 42-tool **MCP server** for AI coding agents. Users track technical debt, coordinate architectural changes, and measure team velocity. Deployed at `codeplans.ai`. Stack: Next.js 16 (App Router), Drizzle ORM, pluggable auth/DB (SQLite local / Supabase+Postgres cloud).
 
 ---
 
@@ -77,6 +77,7 @@ CodePlans is a **code change coordination tool** for engineering teams. It organ
 | status | `active\|deprecated\|planned` | default `active` |
 | techDebtScore | integer? | 0–100 scale |
 | repositoryUrl | text? | |
+| layer | text? | v0.4.6 — where the asset sits inside its product; free text, taxonomy edge/frontend/backend/domain/data/infra/shared; display default derived from type |
 | documentationUrl | text? | |
 | metadata | JSON object | extensible |
 | createdAt / updatedAt | timestamp | |
@@ -222,6 +223,7 @@ Provenance columns (`source` default `native`, `connectionId`, `externalId/Key/U
 | `removeReleaseAsset(releaseId, assetId)` | none | Returns `{ id }` or null |
 | `createDesignNote(data)` / `updateDesignNote` / `deleteDesignNote` | none | `authorKind` defaults `user`; MCP sets `agent` |
 | `graduateWorkItem(workItemId)` | none | Validates resolved + feature/enhancement + has asset; idempotent per work item; composes `originSummary` from item → first linked plan → that plan's release stamp |
+| `moveAsset(assetId, targetProductId)` | at caller layer (both products) | (v0.4.6) Blocked while draft/active plans target the asset (returns `blockingPlans`); work items follow the asset; history (stamps, completed-plan links, capabilities, design log) untouched; no-op if already there |
 | `updateCapability(id, data)` | none | Edits title/description/area; lineage untouched |
 | `removeCapability(id, reason?)` | none | Tombstone: `status='removed'` + `removedAt`; reason appended to description as `**Removed:**` |
 
@@ -295,7 +297,7 @@ Two tabs: **Assets** and **Code Plans**.
 
 #### `/assets` — Asset Atlas (v0.4.5; future phases in `docs/specs/asset-atlas-spec.md`)
 Top-level inventory of every visible asset (respects the global product scope + `?product=`), with a stats strip (totals, health breakdown, open debt, active plan targets), search (name/tag), and type/health filters. Three views:
-- **Map** (default) — a system map drawn live from the inventory: products as columns, assets as nodes (type icon, name, shipped-version chip), `asset_dependencies` edges as curves (line style per dependency type: solid depends_on, dashed integrates_with, dotted aggregates, arrowheads at the target). **Lenses** recolor node accents and detail lines by Health, Debt (effective score thresholds 25/50), or Activity (active plan targets). Hovering an asset highlights its edges and neighbors and dims the rest (blast radius); click navigates to the asset. Hand-rolled deterministic layout (barycenter-ordered columns) — HTML nodes over an SVG underlay, no graph library.
+- **Map** (default) — a system map drawn live from the inventory: columns are **products or layers** (v0.4.6 toggle; auto-defaults to Layer columns when a single product is in scope, since the product axis degenerates to one column), assets as nodes (type icon, name, shipped-version chip), `asset_dependencies` edges as curves (line style per dependency type: solid depends_on, dashed integrates_with, dotted aggregates, arrowheads at the target). Layer columns order by the taxonomy (edge → frontend → backend → domain → data → infra → shared, unknown layers appended); in Layer mode with multi-product scope, node sublabels show the product. **Lenses** recolor node accents and detail lines by Health, Debt (effective score thresholds 25/50), or Activity (active plan targets). Hovering an asset highlights its edges and neighbors and dims the rest (blast radius); click navigates to the asset. Hand-rolled deterministic layout (barycenter-ordered columns) — HTML nodes over an SVG underlay, no graph library.
 - **Grid** — cards: type icon, product, health dot, version chip, active plans / open debt / capabilities counts, debt-score bar, owners.
 - **Table** — sortable by name/product/debt/active plans/last shipped.
 
@@ -373,7 +375,7 @@ Client component (`IntegrationsClient`) with:
 - Delete with confirm (mirrored items are kept, stop syncing)
 
 #### `/api/mcp/[transport]` — MCP server (no UI)
-Streamable HTTP MCP endpoint (`mcp-handler`) with 41 tools wrapping the query/mutation layer (task assignees resolved by workspace-member email) — reads, plus management of products/assets/dependencies, plan lifecycle (activate/complete incl. write-back), plan targets, work items, tasks, releases (create/update/attach/version-stamp/ship — shipped releases reject mutation), `get_asset_history`, `record_design_note` (agent-attributed design-log entries), `get_asset_record`, and `graduate_work_item`; record deletes are deliberately excluded (link removals only) — see `docs/specs/mcp-server-spec.md`. Auth: `Authorization: Bearer cpk_…` resolved by `lib/mcp/auth.ts` to a user (scopes: read/write); 401 without a valid key. `proxy.ts` exempts this path from session redirects. Connect: `claude mcp add --transport http codeplans <base>/api/mcp/mcp --header "Authorization: Bearer <key>"`.
+Streamable HTTP MCP endpoint (`mcp-handler`) with 42 tools wrapping the query/mutation layer (task assignees resolved by workspace-member email) — reads, plus management of products/assets/dependencies (incl. `move_asset` model refactoring and asset `layer`), plan lifecycle (activate/complete incl. write-back), plan targets, work items, tasks, releases (create/update/attach/version-stamp/ship — shipped releases reject mutation), `get_asset_history`, `record_design_note` (agent-attributed design-log entries), `get_asset_record`, and `graduate_work_item`; `get_modeling_guide` carries the boundary rule and layer taxonomy; record deletes are deliberately excluded (link removals only) — see `docs/specs/mcp-server-spec.md`. Auth: `Authorization: Bearer cpk_…` resolved by `lib/mcp/auth.ts` to a user (scopes: read/write); 401 without a valid key. `proxy.ts` exempts this path from session redirects. Connect: `claude mcp add --transport http codeplans <base>/api/mcp/mcp --header "Authorization: Bearer <key>"`.
 
 #### `/team` — Team Management
 - Requires org membership; shows message if no org

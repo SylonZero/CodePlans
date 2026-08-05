@@ -392,9 +392,19 @@ function AssetEditor({
             <Input id="ae-path" name="repoPath" defaultValue={asset.repoPath ?? ''} placeholder="apps/web" />
           </div>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="ae-docs" className="text-xs">Documentation URL</Label>
-          <Input id="ae-docs" name="documentationUrl" type="url" defaultValue={asset.documentationUrl ?? ''} />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="ae-docs" className="text-xs">Documentation URL</Label>
+            <Input id="ae-docs" name="documentationUrl" type="url" defaultValue={asset.documentationUrl ?? ''} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ae-layer" className="text-xs">Layer (blank = default from type)</Label>
+            <Input id="ae-layer" name="layer" defaultValue={asset.layer ?? ''} list="asset-layer-taxonomy" placeholder="backend" />
+            <datalist id="asset-layer-taxonomy">
+              <option value="edge" /><option value="frontend" /><option value="backend" />
+              <option value="domain" /><option value="data" /><option value="infra" /><option value="shared" />
+            </datalist>
+          </div>
         </div>
         <p className="text-xs text-muted-foreground">{isPending ? 'Saving…' : 'Changes save automatically'}</p>
       </form>

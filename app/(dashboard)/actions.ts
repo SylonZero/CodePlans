@@ -212,6 +212,7 @@ export async function updateAssetAction(id: string, productSlug: string, formDat
   const repositoryUrl = (formData.get('repositoryUrl') as string) || undefined
   const repoPath = (formData.get('repoPath') as string) || undefined
   const documentationUrl = (formData.get('documentationUrl') as string) || undefined
+  const layerRaw = formData.get('layer')
 
   await updateAsset(id, {
     name,
@@ -223,6 +224,8 @@ export async function updateAssetAction(id: string, productSlug: string, formDat
     repositoryUrl,
     repoPath,
     documentationUrl,
+    // Absent field = form without the input (no change); blank = clear.
+    ...(layerRaw !== null ? { layer: (layerRaw as string).trim() || null } : {}),
   })
 
   revalidatePath(`/products/${productSlug}`)

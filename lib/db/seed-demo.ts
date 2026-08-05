@@ -880,6 +880,20 @@ async function seed() {
   }
   console.log('  linked plans and stamped asset versions')
 
+  // ── Layers (layers-and-boundaries-spec §3) ────────────────────────────────
+  // Explicit layers only where the type default is wrong; the rest demo the
+  // display-time defaults (app→frontend, service→backend, datastore→data, …).
+  const layerAssignments: [string, string][] = [
+    [apiGatewayId, 'edge'],
+    [bffId, 'edge'],
+    [planEngineId, 'domain'],
+    [uiLibId, 'frontend'],
+  ]
+  for (const [assetId, layer] of layerAssignments) {
+    await db.update(assets).set({ layer }).where(eq(assets.id, assetId))
+  }
+  console.log(`  assigned ${layerAssignments.length} explicit layers`)
+
   // ── Asset record (graduated capabilities) ─────────────────────────────────
   // Graduate the resolved features into their assets' records, then backdate
   // to the ship dates so the record reads as history. One capability is marked
