@@ -350,7 +350,7 @@
 <!-- ── Hero ── -->
 <section class="hero">
   <div class="container">
-    <div class="badge"><span class="badge-dot"></span>Open Source · v0.4.4 · Beta Coming Soon</div>
+    <div class="badge"><span class="badge-dot"></span>Open Source · v0.4.5 · Beta Coming Soon</div>
     <h1>Coordinate changes across<br><span>your entire architecture</span></h1>
     <p class="hero-sub">
       CodePlans gives engineering teams a shared view of what's changing, in which components,
@@ -407,6 +407,7 @@
 
     <div class="tour-tabs" role="tablist">
       <button class="tour-tab active" data-img="screenshots/dashboard.png" data-caption="The dashboard — team velocity, active plans, and a live activity feed across your products.">Dashboard</button>
+      <button class="tour-tab" data-img="screenshots/asset-map.png" data-caption="The Asset Atlas — a system map drawn live from your inventory and dependency edges, with health, debt, and activity lenses. Hover an asset to see its blast radius.">Asset Map</button>
       <button class="tour-tab" data-img="screenshots/asset-record.png" data-caption="The Record tab — capabilities graduated from delivered work items, each claim carrying its delivery lineage, beside derived known-issues and debt registers.">Asset Record</button>
       <button class="tour-tab" data-img="screenshots/asset-history.png" data-caption="Asset history — a version ladder of shipped releases, delivered plans, resolved work items, and design notes (user- or agent-authored).">Asset History</button>
       <button class="tour-tab" data-img="screenshots/releases.png" data-caption="Releases — group the plans that ship together, stamp per-asset versions, and track the ship lifecycle.">Releases</button>
@@ -475,6 +476,11 @@
         <div class="feature-icon" style="background:rgba(167,139,250,.15)">📜</div>
         <h3>Asset History & Design Log</h3>
         <p>Every asset carries a version-structured timeline: releases shipped, plans delivered, debt movement — plus curated design notes authored by your team or your coding agents.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(96,165,250,.15)">🗺️</div>
+        <h3>Asset Atlas</h3>
+        <p>A system map drawn live from your inventory: products as columns, dependency edges between assets, and lenses that recolor the map by health, debt, or delivery activity. Hover to see any asset's blast radius.</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon" style="background:rgba(74,222,128,.12)">🏛️</div>
@@ -603,7 +609,7 @@
       <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/specs/asset-record-spec.md">
         <div class="doc-tag">Design</div>
         <h3>Asset Record Spec</h3>
-        <p>The capabilities register per asset shipped in v0.4.4. Next (v0.4.5+): agent-driven reconciliation against code and round-trip release publishing.</p>
+        <p>The capabilities register per asset shipped in v0.4.4. Next (v0.4.6+): agent-driven reconciliation against code and round-trip release publishing.</p>
         <div class="doc-arrow">Read → </div>
       </a>
       <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/specs/mcp-server-spec.md">
@@ -922,7 +928,8 @@
           <tr><td>Asset history timeline, version ladder &amp; design log (user + agent authored)</td><td><span class="status-pill done">Available</span></td></tr>
           <tr><td>AI drafting — release notes &amp; design notes (feature-flagged)</td><td><span class="status-pill done">Available</span></td></tr>
           <tr><td>Asset Record — per-asset capabilities register with delivery lineage (v0.4.4)</td><td><span class="status-pill done">Available</span></td></tr>
-          <tr><td>Asset Record — agent reconciliation &amp; round-trip publishing (v0.4.5+)</td><td><span class="status-pill plan">Planned</span></td></tr>
+          <tr><td>Asset Atlas — live system map with health/debt/activity lenses (v0.4.5)</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Asset Record — agent reconciliation &amp; round-trip publishing (v0.4.6+)</td><td><span class="status-pill plan">Planned</span></td></tr>
           <tr><td>AI-assisted effort estimation</td><td><span class="status-pill plan">Planned</span></td></tr>
         </tbody>
       </table>
