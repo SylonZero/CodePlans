@@ -4,7 +4,7 @@
 > design and rationale, see `docs/specs/design-spec-v3.md` (all phases shipped),
 > `docs/specs/releases-and-asset-history-spec.md` (Phases A–D shipped), and
 > `docs/specs/asset-record-spec.md` (Phase A shipped; Phases B–C are the next
-> tranche, v0.4.6+).
+> tranche, v0.4.7+).
 
 ### Overview
 
