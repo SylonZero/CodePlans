@@ -197,21 +197,13 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
         </div>
       )}
 
-      {/* Long-form description, clamped with an expander */}
-      {plan.description && <PlanDescriptionCard description={plan.description} />}
-
-      {/* Linked design spec, rendered read-only from its source */}
-      {plan.specUrl && (
-        <SpecCard
-          specUrl={plan.specUrl}
-          markdown={await fetchSpecMarkdown(plan.specUrl, profile?.organizationId ?? null)}
-        />
-      )}
-
-      {/* Tasks front and center; delivery/impact/demand context one click away */}
-      <Tabs defaultValue="tasks">
+      {/* The spec is the work's anchor: description + linked design spec live in
+          a default Overview tab so they read properly and every tab's content
+          starts above the fold. */}
+      <Tabs defaultValue="overview">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <TabsList className="bg-muted">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="tasks">Tasks ({plan.taskCount})</TabsTrigger>
             <TabsTrigger value="assets">Assets &amp; PRs ({plan.planAssets.length})</TabsTrigger>
             <TabsTrigger value="impact">Impact ({impactedAssets.length})</TabsTrigger>
@@ -219,6 +211,27 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
           </TabsList>
           <AddTaskDialog plan={plan} teamMembers={teamMembers} />
         </div>
+
+        <TabsContent value="overview" className="mt-4 space-y-6">
+          {/* Long-form description, clamped with an expander */}
+          {plan.description && <PlanDescriptionCard description={plan.description} />}
+
+          {/* Linked design spec, rendered read-only from its source */}
+          {plan.specUrl && (
+            <SpecCard
+              specUrl={plan.specUrl}
+              markdown={await fetchSpecMarkdown(plan.specUrl, profile?.organizationId ?? null)}
+            />
+          )}
+
+          {!plan.description && !plan.specUrl && (
+            <Card className="bg-card border-border">
+              <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                No description or linked spec yet — add one with Edit so the plan carries its own specification.
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
 
         <TabsContent value="tasks" className="mt-4">
           <PlanTasksSection

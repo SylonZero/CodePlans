@@ -91,23 +91,35 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
         </div>
       </div>
 
-      {release.description && (
-        <Card className="bg-card border-border">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Description</CardTitle>
-          </CardHeader>
-          <CardContent className="prose prose-sm dark:prose-invert max-w-none">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{release.description}</ReactMarkdown>
-          </CardContent>
-        </Card>
-      )}
-
-      <Tabs defaultValue="assets">
+      {/* The description (the release notes) lives in a default Overview tab so
+          it reads properly and every tab's content starts above the fold. */}
+      <Tabs defaultValue="overview">
         <TabsList className="bg-muted">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="assets">Assets &amp; Versions ({release.assets.length})</TabsTrigger>
           <TabsTrigger value="plans">Plans ({release.plans.length})</TabsTrigger>
           <TabsTrigger value="work-items">Work Items ({release.workItems.length})</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="overview" className="mt-4">
+          {release.description ? (
+            <Card className="bg-card border-border">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Description</CardTitle>
+              </CardHeader>
+              <CardContent className="prose prose-sm dark:prose-invert max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{release.description}</ReactMarkdown>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="bg-card border-border">
+              <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                No description yet — it becomes the release notes. Write one, or derive it from the
+                delivered work items{config.ai.enabled && editable ? ' with Draft release notes' : ''}.
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
 
         <TabsContent value="assets" className="mt-4">
           <ReleaseAssetsSection
