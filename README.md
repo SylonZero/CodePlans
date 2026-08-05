@@ -412,7 +412,7 @@ Your agent can then read plans/work items/tech debt and (with a write-scope key)
 - [x] **v0.4.2 — Version-structured history & design log:** version ladder on asset history, user/agent-authored design notes, plan-side release picker, 10 new MCP tools (39 total)
 - [x] **v0.4.3 — AI drafting (feature-flagged):** release notes & design notes drafted from delivered work, always landing in an editor
 - [x] **v0.4.4 — Asset Record (Phase A):** per-asset capabilities register with delivery lineage, graduation from resolved work items, derived known-issues/debt sections, tombstoned removals, `get_asset_record` + `graduate_work_item` MCP tools (41 total)
-- [x] **v0.4.5 — Asset Atlas:** top-level Assets view — a live system map (products as columns, dependency edges, health/debt/activity lenses, blast-radius hover) plus grid and sortable table views
+- [x] **v0.4.5 — Asset Atlas** (see [`docs/specs/asset-atlas-spec.md`](docs/specs/asset-atlas-spec.md)): top-level Assets view — a live system map (products as columns, dependency edges, health/debt/activity lenses, blast-radius hover) plus grid and sortable table views
 - [ ] **v0.4.6+ — Reconciliation & round-trip engineering** (see [`docs/specs/asset-record-spec.md`](docs/specs/asset-record-spec.md)): agent reconciliation proposals, release publishing
 - [ ] AI-assisted effort estimation
 - [ ] Billing / subscription management (hosted tier, optional & feature-flagged)
