@@ -293,7 +293,7 @@ Two tabs: **Assets** and **Code Plans**.
 
 ---
 
-#### `/assets` — Asset Atlas (v0.4.5)
+#### `/assets` — Asset Atlas (v0.4.5; future phases in `docs/specs/asset-atlas-spec.md`)
 Top-level inventory of every visible asset (respects the global product scope + `?product=`), with a stats strip (totals, health breakdown, open debt, active plan targets), search (name/tag), and type/health filters. Three views:
 - **Map** (default) — a system map drawn live from the inventory: products as columns, assets as nodes (type icon, name, shipped-version chip), `asset_dependencies` edges as curves (line style per dependency type: solid depends_on, dashed integrates_with, dotted aggregates, arrowheads at the target). **Lenses** recolor node accents and detail lines by Health, Debt (effective score thresholds 25/50), or Activity (active plan targets). Hovering an asset highlights its edges and neighbors and dims the rest (blast radius); click navigates to the asset. Hand-rolled deterministic layout (barycenter-ordered columns) — HTML nodes over an SVG underlay, no graph library.
 - **Grid** — cards: type icon, product, health dot, version chip, active plans / open debt / capabilities counts, debt-score bar, owners.
