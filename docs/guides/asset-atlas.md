@@ -16,7 +16,16 @@ updates. It cannot rot, because it is not a document.
 
 ## The Map
 
-Products render as columns, assets as nodes. Each node carries its type icon,
+Columns are **products or layers** — a toggle in the toolbar. With several
+products in scope the map defaults to product columns; when the scope is a
+single product (the global product filter, or an org with one product) it
+automatically switches to **layer columns**, since one product would be one
+column. Layers order edge → frontend → backend → domain → data → infra →
+shared, which matches typical dependency flow. An asset's layer is set on
+the asset (or over MCP); unset layers default sensibly from the asset type —
+see the [concepts guide](concepts.md) for the boundary thinking.
+
+Assets render as nodes. Each node carries its type icon,
 name, and the version stamped by the latest shipped release. Dependency edges
 draw as curves between nodes, with the line style telling you the
 relationship:

@@ -42,6 +42,7 @@ import type {
   ReleaseStatus,
   AssetType,
 } from '@/lib/types'
+import { effectiveLayer } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
 // Access control
@@ -287,6 +288,7 @@ export async function getProduct(slug: string, userId: string): Promise<(Product
       techDebtScore: a.techDebtScore ?? undefined,
       derivedTechDebtScore: derivedByAsset.get(a.id)?.score,
       openDebtCount: derivedByAsset.get(a.id)?.count ?? 0,
+      layer: a.layer ?? undefined,
       owners: owners.get(a.id) ?? [],
       repositoryUrl: a.repositoryUrl ?? undefined,
       repoPath: a.repoPath ?? undefined,
@@ -1030,6 +1032,7 @@ export async function getAssetDetail(id: string, userId: string): Promise<AssetD
     derivedTechDebtScore: derivedScore,
     openDebtCount: debtRows.length,
     notes: asset.notes ?? undefined,
+    layer: asset.layer ?? undefined,
     owners: owners.get(id) ?? [],
     repositoryUrl: asset.repositoryUrl ?? undefined,
     repoPath: asset.repoPath ?? undefined,
@@ -2154,6 +2157,10 @@ export type AssetInventoryRow = {
   productName: string
   productSlug: string
   tags: string[]
+  /** Explicit layer if set (layers-and-boundaries-spec §3). */
+  layer?: string
+  /** Explicit layer, or the display-time default from asset type. */
+  effectiveLayer: string
   /** Manual override if set, else severity-weighted from open tech debt. */
   effectiveDebtScore: number
   debtIsManual: boolean
@@ -2284,6 +2291,8 @@ export async function getAssetInventory(
         productName: product.name,
         productSlug: product.slug,
         tags: a.tags,
+        layer: a.layer ?? undefined,
+        effectiveLayer: effectiveLayer(a.type, a.layer),
         effectiveDebtScore: a.techDebtScore ?? open?.debtScore ?? 0,
         debtIsManual: a.techDebtScore != null,
         openDebtCount: open?.debt ?? 0,

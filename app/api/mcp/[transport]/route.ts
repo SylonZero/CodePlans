@@ -42,6 +42,7 @@ import {
   setReleaseAsset,
   createDesignNote,
   graduateWorkItem,
+  moveAsset,
 } from '@/lib/db/mutations'
 import { getAssetOptions, getAssetDetail } from '@/lib/db/queries'
 import { resolveAssigneeEmail } from '@/lib/mcp/users'
@@ -158,6 +159,21 @@ const handler = createMcpHandler(
       'How to break a codebase (especially a monorepo) into CodePlans products, assets, and dependency edges. Read this before bulk-creating assets.',
       {},
       async () => json({
+        boundaries: {
+          rule: 'A product is something you SHIP, VERSION, and GRANT ACCESS TO as a unit. An asset is something you CHANGE. When in doubt, prefer fewer products with more assets — assets are movable (move_asset); products are commitments (access control, plans, and releases all scope by product, and releases exist to coordinate a revision ACROSS assets — products drawn too small make coordinated releases impossible to express).',
+          examples: [
+            'Single SaaS (one app + API + shared libs + datastores): ONE product, many assets — even at 30-40 assets. Use layers for internal structure.',
+            'Portfolio (web platform + mobile apps on app-store trains + public API with its own versioning contract): several products — each genuinely ships on its own cadence to its own audience.',
+            'Monorepo: orthogonal — model the shipping boundary, not the folder structure (repoPath maps folders).',
+            'Internal platform consumed by other teams on its own version contract: a product — that is an audience.',
+          ],
+          refining: 'Audit the Atlas → assign explicit layers (update_asset) → move_asset where a boundary was drawn wrong (blocked while draft/active plans target the asset; work items follow; history is preserved) → re-check the map.',
+        },
+        layers: {
+          purpose: 'A layer describes where an asset sits INSIDE its product — structure, not boundary. Layers drive the Atlas map columns for single-product systems. Free text; prefer the taxonomy.',
+          taxonomy: ['edge', 'frontend', 'backend', 'domain', 'data', 'infra', 'shared'],
+          defaults: 'Unset layers display a default from asset type (app→frontend, service→backend, datastore→data, platform→infra, library→shared). Set explicit layers where the default is wrong — e.g. a library that is really domain logic gets layer "domain".',
+        },
         product: 'A planning boundary, not a repo boundary. One product can span repos; a monorepo can host several products. Shared platform libraries serving multiple products go in a dedicated Platform product — cross-product dependency edges and impact analysis work.',
         assetTest: 'Model something as an asset only if: (a) code plans will target it, (b) tech debt will be registered against it, or (c) it must appear in blast-radius reports. Assets are coordination units, not folders.',
         tiers: [
@@ -174,7 +190,7 @@ const handler = createMcpHandler(
     )
     server.tool(
       'create_product',
-      'Create a product in your workspace. A product is a PLANNING boundary, not a repo boundary — one product may span several repos, and shared platform libraries serving multiple products belong in their own "Platform" product (cross-product dependency edges work).',
+      'Create a product in your workspace. Create a product ONLY for something shipped, versioned, and access-controlled as a unit — subsystems of one shippable system are assets (with layers), not products. A product is a PLANNING boundary, not a repo boundary — one product may span several repos, and shared platform libraries serving multiple products belong in their own "Platform" product (cross-product dependency edges work).',
       { name: z.string(), description: z.string().default(''), tags: z.array(z.string()).default([]), slug: z.string().optional() },
       async ({ name, slug, ...rest }, extra) => {
         requireWrite(extra)
@@ -204,7 +220,7 @@ const handler = createMcpHandler(
 
     server.tool(
       'create_asset',
-      'Add an asset to a product. Assets are COORDINATION units, not a folder inventory — model something only if plans will target it, debt will be registered against it, or it belongs in blast-radius reports. Apps and services: always. Libraries: only high-fanout/high-churn ones individually; cluster the long tail into domain-group assets (work items use their `area` field for lib-level precision inside a cluster). Use repoPath for monorepo folders. Call get_modeling_guide for the full heuristic.',
+      'Add an asset to a product. Assets are COORDINATION units, not a folder inventory — model something only if plans will target it, debt will be registered against it, or it belongs in blast-radius reports. Apps and services: always. Libraries: only high-fanout/high-churn ones individually; cluster the long tail into domain-group assets (work items use their `area` field for lib-level precision inside a cluster). Use repoPath for monorepo folders, and `layer` (edge/frontend/backend/domain/data/infra/shared) for where the asset sits inside the product — subsystems are assets with layers, not new products. Call get_modeling_guide for the full heuristic.',
       {
         productId: z.string(),
         name: z.string(),
@@ -214,6 +230,7 @@ const handler = createMcpHandler(
         repositoryUrl: z.string().optional(),
         repoPath: z.string().optional(),
         documentationUrl: z.string().optional(),
+        layer: z.string().optional(),
         ownerEmails: z.array(z.string()).optional(),
       },
       async ({ ownerEmails, ...args }, extra) => {
@@ -230,7 +247,7 @@ const handler = createMcpHandler(
 
     server.tool(
       'update_asset',
-      'Update an asset: description, notes (freeform ideation doc, markdown), tags, health, manual tech-debt score, repo details, owners (ownerEmails replaces the full owner set; [] clears it).',
+      'Update an asset: description, notes (freeform ideation doc, markdown), tags, health, manual tech-debt score, repo details, layer (edge/frontend/backend/domain/data/infra/shared — where it sits inside the product), owners (ownerEmails replaces the full owner set; [] clears it).',
       {
         id: z.string(),
         name: z.string().optional(),
@@ -242,6 +259,7 @@ const handler = createMcpHandler(
         repositoryUrl: z.string().optional(),
         repoPath: z.string().optional(),
         documentationUrl: z.string().optional(),
+        layer: z.string().optional(),
         ownerEmails: z.array(z.string()).optional(),
       },
       async ({ id, ownerEmails, ...data }, extra) => {
@@ -253,6 +271,20 @@ const handler = createMcpHandler(
           await setAssetOwners(id, ownerIds)
         }
         return json(await updateAsset(id, data))
+      },
+    )
+
+    server.tool(
+      'move_asset',
+      'Move an asset to another product — model refactoring for when a boundary was drawn wrong. Blocked while draft/active plans target the asset (the error lists them; retarget or complete first). Work items follow the asset; history (release stamps, completed-plan links, capabilities, design log) is preserved untouched.',
+      { assetId: z.string(), targetProductId: z.string() },
+      async ({ assetId, targetProductId }, extra) => {
+        requireWrite(extra)
+        const userId = uid(extra)
+        const options = await getAssetOptions(userId)
+        if (!options.some((a) => a.id === assetId)) return json({ error: 'Asset not found or not accessible' })
+        await assertProductAccess(userId, targetProductId)
+        return json(await moveAsset(assetId, targetProductId))
       },
     )
 

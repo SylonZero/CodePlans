@@ -24,7 +24,7 @@ claude mcp add --transport http codeplans http://localhost:3000/api/mcp \
 Works identically against a local SQLite instance or a hosted deployment —
 the server lives inside the Next.js app.
 
-## The tool catalog (41 tools)
+## The tool catalog (42 tools)
 
 **Read** (any key):
 
@@ -40,7 +40,7 @@ the server lives inside the Next.js app.
 
 | Area | Tools |
 |---|---|
-| Model the graph | `create_product` · `update_product` · `create_asset` · `update_asset` · `add_asset_dependency` · `remove_asset_dependency` |
+| Model the graph | `create_product` · `update_product` · `create_asset` · `update_asset` · `move_asset` · `add_asset_dependency` · `remove_asset_dependency` |
 | Demand | `create_work_item` · `update_work_item` · `update_work_item_status` · `link_work_item_to_plan` · `unlink_work_item_from_plan` |
 | Plans | `create_code_plan` · `update_code_plan` · `activate_plan` · `complete_plan` · `add_plan_asset` · `remove_plan_asset` · `update_plan_asset` |
 | Tasks | `create_task` · `update_task` · `update_task_status` |
@@ -49,9 +49,17 @@ the server lives inside the Next.js app.
 | Asset record | `graduate_work_item` |
 
 Guardrails are enforced at the tool layer, not just the UI: mirrored items
-reject writes to tracker-owned fields, shipped releases reject mutation, and
-`create_asset` / `create_task` are idempotent so agent re-runs can't
-duplicate records.
+reject writes to tracker-owned fields, shipped releases reject mutation,
+`move_asset` is blocked while open plans target the asset (the error lists
+them), and `create_asset` / `create_task` are idempotent so agent re-runs
+can't duplicate records.
+
+**Modeling boundaries** — before bulk-creating anything, call
+`get_modeling_guide`: it carries the boundary rule (*products ship, assets
+change*), the layer taxonomy (`edge / frontend / backend / domain / data /
+infra / shared`), and a refining recipe (assign layers with `update_asset`,
+relocate mis-homed assets with `move_asset` — work items follow, history is
+preserved).
 
 ## Recommended agent workflows
 

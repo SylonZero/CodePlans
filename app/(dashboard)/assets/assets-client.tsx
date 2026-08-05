@@ -241,7 +241,16 @@ function AssetGrid({ assets }: { assets: AssetInventoryRow[] }) {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <Badge variant="secondary" className="text-xs">{assetTypeLabels[a.type]}</Badge>
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="secondary" className="text-xs">{assetTypeLabels[a.type]}</Badge>
+                    <Badge
+                      variant="outline"
+                      className={cn('text-xs capitalize', !a.layer && 'opacity-60')}
+                      title={a.layer ? 'layer' : 'layer (default from type)'}
+                    >
+                      {a.effectiveLayer}
+                    </Badge>
+                  </div>
                   <OwnerAvatars owners={a.owners} />
                 </div>
               </CardContent>
@@ -253,7 +262,7 @@ function AssetGrid({ assets }: { assets: AssetInventoryRow[] }) {
   )
 }
 
-type SortKey = 'name' | 'product' | 'debt' | 'plans' | 'shipped'
+type SortKey = 'name' | 'product' | 'layer' | 'debt' | 'plans' | 'shipped'
 
 function AssetTable({ assets }: { assets: AssetInventoryRow[] }) {
   const [sort, setSort] = useState<SortKey>('name')
@@ -265,6 +274,7 @@ function AssetTable({ assets }: { assets: AssetInventoryRow[] }) {
     rows.sort((a, b) => {
       switch (sort) {
         case 'product': return dir * (a.productName.localeCompare(b.productName) || a.name.localeCompare(b.name))
+        case 'layer': return dir * (a.effectiveLayer.localeCompare(b.effectiveLayer) || a.name.localeCompare(b.name))
         case 'debt': return dir * (a.effectiveDebtScore - b.effectiveDebtScore)
         case 'plans': return dir * (a.activePlanCount - b.activePlanCount)
         case 'shipped': return dir * (a.lastShippedAt ?? '').localeCompare(b.lastShippedAt ?? '')
@@ -294,6 +304,7 @@ function AssetTable({ assets }: { assets: AssetInventoryRow[] }) {
             <tr className="border-b border-border text-xs text-muted-foreground">
               {header('name', 'Asset')}
               {header('product', 'Product')}
+              {header('layer', 'Layer')}
               <th className="px-4 py-2.5 text-left font-medium">Health</th>
               <th className="px-4 py-2.5 text-left font-medium">Version</th>
               {header('debt', 'Debt', 'text-right')}
@@ -314,6 +325,9 @@ function AssetTable({ assets }: { assets: AssetInventoryRow[] }) {
                     </Link>
                   </td>
                   <td className="px-4 py-2.5 text-muted-foreground">{a.productName}</td>
+                  <td className={cn('px-4 py-2.5 capitalize', a.layer ? 'text-foreground' : 'text-muted-foreground')}>
+                    {a.effectiveLayer}
+                  </td>
                   <td className="px-4 py-2.5">
                     <Badge variant="secondary" className={cn('text-xs capitalize', healthStyles[a.health])}>
                       {a.health}

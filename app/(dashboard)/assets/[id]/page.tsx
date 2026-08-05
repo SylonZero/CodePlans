@@ -129,6 +129,9 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
             <div className="flex items-center gap-3 flex-wrap mb-1">
               <h1 className="text-2xl font-bold tracking-tight">{asset.name}</h1>
               <Badge variant="secondary" className="text-xs">{assetTypeLabels[asset.type]}</Badge>
+              {asset.layer && (
+                <Badge variant="outline" className="text-xs capitalize">{asset.layer}</Badge>
+              )}
               <Badge variant="secondary" className={cn('text-xs capitalize', healthStyles[asset.health])}>
                 {asset.health}
               </Badge>

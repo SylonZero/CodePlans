@@ -3,9 +3,10 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
-import { HeartPulse, Wrench, Activity } from 'lucide-react'
+import { HeartPulse, Wrench, Activity, Package, Rows3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { AssetInventoryRow, DependencyEdge } from '@/lib/db/queries'
+import { LAYER_TAXONOMY } from '@/lib/types'
 import { assetTypeIcons } from './assets-client'
 
 /**
@@ -54,22 +55,45 @@ const edgeDash: Record<DependencyEdge['dependencyType'], string | undefined> = {
 }
 
 type LaidOutNode = { asset: AssetInventoryRow; x: number; y: number }
+type GroupBy = 'product' | 'layer'
+
+/** Taxonomy layers in dependency-flow order, unknown layers appended alphabetically. */
+function layerOrder(layers: Set<string>): string[] {
+  const known = LAYER_TAXONOMY.filter((l) => layers.has(l))
+  const unknown = [...layers].filter((l) => !(LAYER_TAXONOMY as readonly string[]).includes(l)).sort()
+  return [...known, ...unknown]
+}
 
 export function AssetMap({ assets, edges }: { assets: AssetInventoryRow[]; edges: DependencyEdge[] }) {
   const [lens, setLens] = useState<Lens>('health')
   const [hoverId, setHoverId] = useState<string | null>(null)
+  const productCount = useMemo(() => new Set(assets.map((a) => a.productId)).size, [assets])
+  // Single-product scope: the product axis degenerates to one column, so
+  // default to layer columns (layers-and-boundaries-spec §4). Toggle overrides.
+  const [groupByChoice, setGroupByChoice] = useState<GroupBy | null>(null)
+  const groupBy: GroupBy = groupByChoice ?? (productCount <= 1 ? 'layer' : 'product')
 
   const layout = useMemo(() => {
-    // Column per product, in first-seen order.
+    // One column per group, in first-seen (product) or taxonomy (layer) order.
+    const byGroup = new Map<string, AssetInventoryRow[]>()
     const productOrder: { id: string; name: string }[] = []
-    const byProduct = new Map<string, AssetInventoryRow[]>()
-    for (const a of assets) {
-      if (!byProduct.has(a.productId)) {
-        byProduct.set(a.productId, [])
-        productOrder.push({ id: a.productId, name: a.productName })
+    if (groupBy === 'product') {
+      for (const a of assets) {
+        if (!byGroup.has(a.productId)) {
+          byGroup.set(a.productId, [])
+          productOrder.push({ id: a.productId, name: a.productName })
+        }
+        byGroup.get(a.productId)!.push(a)
       }
-      byProduct.get(a.productId)!.push(a)
+    } else {
+      for (const a of assets) {
+        byGroup.set(a.effectiveLayer, [...(byGroup.get(a.effectiveLayer) ?? []), a])
+      }
+      for (const l of layerOrder(new Set(byGroup.keys()))) {
+        productOrder.push({ id: l, name: l })
+      }
     }
+    const byProduct = byGroup
 
     // Two barycenter sweeps: order nodes within a column by the average row
     // of their neighbors, so cross-column edges stay short and legible.
@@ -114,7 +138,7 @@ export function AssetMap({ assets, edges }: { assets: AssetInventoryRow[]; edges
       width: PAD * 2 + productOrder.length * COL_W + (productOrder.length - 1) * COL_GAP + 90,
       height: PAD * 2 + HEADER_H + maxRows * (NODE_H + NODE_GAP) - NODE_GAP,
     }
-  }, [assets, edges])
+  }, [assets, edges, groupBy])
 
   const neighborsOfHover = useMemo(() => {
     if (!hoverId) return null
@@ -149,8 +173,30 @@ export function AssetMap({ assets, edges }: { assets: AssetInventoryRow[]; edges
     <div className="space-y-3">
       {/* Lens picker + edge legend */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-muted-foreground mr-1">Lens</span>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-muted-foreground mr-1">Columns</span>
+          {(
+            [
+              { key: 'product' as GroupBy, label: 'Product', icon: Package },
+              { key: 'layer' as GroupBy, label: 'Layer', icon: Rows3 },
+            ]
+          ).map(({ key, label, icon: GIcon }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setGroupByChoice(key)}
+              className={cn(
+                'flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors',
+                groupBy === key
+                  ? 'border-accent/40 bg-accent/15 text-accent'
+                  : 'border-border text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <GIcon className="h-3 w-3" />
+              {label}
+            </button>
+          ))}
+          <span className="text-xs text-muted-foreground mx-1">Lens</span>
           {lensOptions.map(({ key, label, icon: LIcon }) => (
             <button
               key={key}
@@ -257,7 +303,9 @@ export function AssetMap({ assets, edges }: { assets: AssetInventoryRow[]; edges
                     </Badge>
                   )}
                 </span>
-                <span className="truncate text-xs text-muted-foreground capitalize">{lensDetail(lens, a)}</span>
+                <span className="truncate text-xs text-muted-foreground capitalize">
+                  {groupBy === 'layer' && productCount > 1 ? a.productName : lensDetail(lens, a)}
+                </span>
               </Link>
             )
           })}

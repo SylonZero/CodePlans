@@ -15,7 +15,7 @@ import {
   assetDesignLog,
   assetCapabilities,
 } from './schema'
-import { eq, and, ne } from 'drizzle-orm'
+import { eq, and, ne, inArray } from 'drizzle-orm'
 import type { WorkItemType, WorkItemStatus, WorkItemSeverity, ReleaseStatus } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
@@ -73,6 +73,8 @@ type CreateAssetData = {
   repositoryUrl?: string
   repoPath?: string
   documentationUrl?: string
+  /** Free text; conventional taxonomy in layers-and-boundaries-spec §3. */
+  layer?: string
 }
 
 export async function createAsset(data: CreateAssetData) {
@@ -85,11 +87,13 @@ export async function createAsset(data: CreateAssetData) {
   return asset
 }
 
-type UpdateAssetData = Partial<Omit<CreateAssetData, 'productId'> & {
+type UpdateAssetData = Partial<Omit<CreateAssetData, 'productId' | 'layer'> & {
   health: 'healthy' | 'warning' | 'critical'
   status: 'active' | 'deprecated' | 'planned'
   techDebtScore: number
   notes: string
+  /** null clears the explicit layer (the type default takes over). */
+  layer: string | null
 }>
 
 export async function updateAsset(id: string, data: UpdateAssetData) {
@@ -116,6 +120,41 @@ export async function setAssetOwners(assetId: string, userIds: string[]) {
   if (unique.length > 0) {
     await db.insert(assetOwners).values(unique.map((userId) => ({ assetId, userId })))
   }
+}
+
+/**
+ * Move an asset to another product (layers-and-boundaries-spec §5).
+ * Blocked while draft/active plans target the asset (a silent move would
+ * falsify them — retarget or complete first). Work items follow the asset;
+ * history (release stamps, completed-plan links, capabilities, design log)
+ * is deliberately left untouched. Access is validated at the caller layer.
+ */
+export async function moveAsset(assetId: string, targetProductId: string) {
+  const asset = await db.query.assets.findFirst({ where: eq(assets.id, assetId) })
+  if (!asset) return { error: 'Asset not found' as const }
+  if (asset.productId === targetProductId) return { asset, moved: false as const }
+  const target = await db.query.products.findFirst({ where: eq(products.id, targetProductId) })
+  if (!target) return { error: 'Target product not found' as const }
+
+  const blockingPlans = await db
+    .select({ id: codePlans.id, title: codePlans.title, status: codePlans.status })
+    .from(codePlanAssets)
+    .innerJoin(codePlans, eq(codePlanAssets.codePlanId, codePlans.id))
+    .where(and(eq(codePlanAssets.assetId, assetId), inArray(codePlans.status, ['draft', 'active'])))
+  if (blockingPlans.length > 0) {
+    return {
+      error: 'Blocked by open plans targeting this asset — retarget or complete them, then retry' as const,
+      blockingPlans,
+    }
+  }
+
+  const [moved] = await db
+    .update(assets)
+    .set({ productId: targetProductId, updatedAt: new Date() })
+    .where(eq(assets.id, assetId))
+    .returning()
+  await db.update(workItems).set({ productId: targetProductId }).where(eq(workItems.assetId, assetId))
+  return { asset: moved, moved: true as const }
 }
 
 // ---------------------------------------------------------------------------
