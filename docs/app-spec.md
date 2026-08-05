@@ -293,7 +293,8 @@ Two tabs: **Assets** and **Code Plans**.
 ---
 
 #### `/assets/[id]` — Asset Detail (v0.3.25)
-Header (type/health badges, current version chip from latest shipped release, repo/docs links, owners), summary cards (tech debt score with derived-vs-manual note, open work items, plan count), auto-save description + notes (ideation doc) cards, and tabs:
+Header (type/health badges, current version chip from latest shipped release, repo/docs links, owners), summary cards (tech debt score with derived-vs-manual note, open work items, plan count), and tabs (v0.4.4 moved the auto-save description + notes cards into a default **Overview** tab so every tab's content starts above the fold):
+- **Overview** (default) — auto-save description + notes (ideation doc) cards
 - **Work Items / Tech Debt / Code Plans / Dependencies** — the asset's slices of the existing views (plans with per-asset branch/PR chips)
 - **History** (v0.4.0–v0.4.2) — reverse-chronological timeline projected from existing rows: shipped releases as version tick marks (with a sticky version ladder), completed plans, resolved work items, debt movement, and design-log entries (expandable markdown, agent badge for MCP-authored notes, "via plan" anchor chips). Filter chips per entry kind. "Add design note" side panel with optional release/plan anchors and (flagged) AI draft-from-plan.
 - **Record** (v0.4.4) — the asset's current-state register: a candidates banner ("N resolved features can join this asset's record" with one-click graduation), capabilities list (lineage chip from `originSummary`, verification freshness dot, expandable markdown, edit dialog, remove-with-reason dialog), derived **Known issues** (open bug/ux) and **Debt register** (open tech_debt) cards, and a struck-through **Previously** card for tombstoned capabilities.
