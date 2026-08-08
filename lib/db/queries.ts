@@ -531,6 +531,7 @@ type TaskFilters = {
 
 export type TaskWithContext = Task & {
   planTitle: string
+  planStatus: CodePlanStatus
   assetName: string | null
   assigneeName: string | null
 }
@@ -571,6 +572,7 @@ export async function getTasks(userId: string, filters: TaskFilters = {}): Promi
       createdAt: tasks.createdAt,
       updatedAt: tasks.updatedAt,
       planTitle: codePlans.title,
+      planStatus: codePlans.status,
       assetName: assets.name,
       assigneeName: users.name,
     })
@@ -602,6 +604,7 @@ export async function getTasks(userId: string, filters: TaskFilters = {}): Promi
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
     planTitle: r.planTitle,
+    planStatus: r.planStatus,
     assetName: r.assetName,
     assigneeName: r.assigneeName,
   }))
