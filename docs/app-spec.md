@@ -177,7 +177,7 @@ Provenance columns (`source` default `native`, `connectionId`, `externalId/Key/U
 | `getProduct(slug, userId)` | `Product & { assets }` \| `null` | Org-aware; assets ordered by createdAt desc; `dependencies` always `[]` |
 | `getCodePlans(userId, filters?)` | `CodePlan[]` | Org-aware; filters: `productId`, `status`, `type`; includes `taskCount`, `completedTaskCount`, `progress`, `productName` |
 | `getCodePlan(id, userId)` | `CodePlanDetail` \| `null` | Org-scope guarded; includes full `tasks[]`, `assignees[]`, `targetAssets[]`, `planAssets[]` (per-asset branch/PR); `progress` = % done |
-| `getTasks(userId, filters?)` | `TaskWithContext[]` | Org-aware; filters: `planId`, `assigneeId`, `status`; includes `planTitle`, `assetName`, `assigneeName` |
+| `getTasks(userId, filters?)` | `TaskWithContext[]` | Org-aware; filters: `planId`, `assigneeId`, `status`; includes `planTitle`, `planStatus`, `assetName`, `assigneeName` |
 | `getWorkItems(userId, filters?)` | `WorkItemWithContext[]` | Org-aware; filters: `productId`, `assetId`, `type`, `status`, `planId`; includes product/asset names + `linkedPlans[]` |
 | `getWorkItem(id, userId)` | `WorkItemWithContext` \| `null` | Org-scope guarded |
 | `getAssetOptions(userId)` | `{id,name,productId}[]` | Flat asset list across accessible products (dropdowns) |
@@ -266,7 +266,7 @@ All routes share `AppShell`: 64px top header + 256px sidebar. Sidebar contains:
 ---
 
 #### `/my-work` — My Work
-Personal execution view (the Tasks page remains the comprehensive review surface): open tasks assigned to me sorted by end date (overdue in red), plans I own with progress bars, and open work items I own — all respecting the product scope switcher.
+Personal execution view (the Tasks page remains the comprehensive review surface): open tasks assigned to me sorted by end date (overdue in red), plans I own with progress bars, and open work items I own — all respecting the product scope switcher. "My Open Tasks" additionally filters to tasks on **active** plans only (via `TaskWithContext.planStatus`) — a task on a draft plan hasn't started, and one on a completed/cancelled plan is a stale artifact, so neither belongs in a personal to-do list.
 
 #### `/products` — Products List
 - Grid of product cards with name, description (truncated), tags (max 3 shown), asset count, active plan count

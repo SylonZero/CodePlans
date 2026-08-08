@@ -331,12 +331,20 @@ describe('getTasks', () => {
     expect(bobTasks[0].id).toBe(F.task1)
   })
 
-  it('includes planTitle, assetName, and assigneeName', async () => {
+  it('includes planTitle, planStatus, assetName, and assigneeName', async () => {
     const taskList = await getTasks(F.alice)
     const t1 = taskList.find((t) => t.id === F.task1)!
     expect(t1.planTitle).toBe('Active Plan')
+    expect(t1.planStatus).toBe('active')
     expect(t1.assigneeName).toBe('Bob')
     expect(t1.assetName).toBeNull()  // task1 has no assetId
+  })
+
+  it('reports planStatus: completed for a task on the completed plan', async () => {
+    // task4 sits on planCompleted in the shared fixtures — the other status
+    // besides 'active' already present, so this needs no extra seed data.
+    const completedTasks = await getTasks(F.alice, { planId: F.planCompleted })
+    expect(completedTasks[0].planStatus).toBe('completed')
   })
 })
 

@@ -28,7 +28,9 @@ export default async function MyWorkPage() {
   ])
 
   const myTasks = allMyTasks
-    .filter((t) => t.status !== 'done')
+    // Only active plans are live work — draft plans haven't started, and
+    // completed/cancelled plans shouldn't nag with stale open tasks.
+    .filter((t) => t.status !== 'done' && t.planStatus === 'active')
     .sort((a, b) => (a.endDate ?? '9999') < (b.endDate ?? '9999') ? -1 : 1)
   const myPlans = plans.filter((p) => p.ownerId === user.id && p.status !== 'completed' && p.status !== 'cancelled')
   const myItems = items.filter(
