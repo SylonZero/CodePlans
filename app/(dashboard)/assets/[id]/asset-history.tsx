@@ -17,8 +17,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import { MarkdownContent } from '@/components/markdown-content'
 import {
   ClipboardCheck,
   CheckCircle2,
@@ -39,7 +38,7 @@ import { addDesignNoteAction, deleteDesignNoteAction, draftDesignNoteAction } fr
 import type { AssetHistoryEntry } from '@/lib/db/queries'
 import type { CodePlanType, PrStatus, WorkItemSeverity, WorkItemType } from '@/lib/types'
 
-type FilterKey = 'all' | 'releases' | 'plans' | 'work_items' | 'debt' | 'notes'
+type FilterKey = 'all' | 'releases' | 'plans' | 'work_items' | 'debt' | 'notes' | 'specs'
 
 const filterLabels: Record<FilterKey, string> = {
   all: 'All',
@@ -48,6 +47,7 @@ const filterLabels: Record<FilterKey, string> = {
   work_items: 'Work Items',
   debt: 'Tech Debt',
   notes: 'Design Notes',
+  specs: 'Specs',
 }
 
 const filterKinds: Record<Exclude<FilterKey, 'all'>, AssetHistoryEntry['kind'][]> = {
@@ -56,6 +56,7 @@ const filterKinds: Record<Exclude<FilterKey, 'all'>, AssetHistoryEntry['kind'][]
   work_items: ['work_item_resolved'],
   debt: ['debt_opened', 'debt_resolved'],
   notes: ['design_note'],
+  specs: ['spec_linked', 'spec_updated'],
 }
 
 const kindMeta: Record<AssetHistoryEntry['kind'], { icon: typeof ClipboardCheck; iconClass: string; label: string }> = {
@@ -64,6 +65,8 @@ const kindMeta: Record<AssetHistoryEntry['kind'], { icon: typeof ClipboardCheck;
   work_item_resolved: { icon: CheckCircle2, iconClass: 'text-accent', label: 'Resolved' },
   debt_opened: { icon: ArrowUpCircle, iconClass: 'text-warning', label: 'Debt opened' },
   debt_resolved: { icon: ArrowDownCircle, iconClass: 'text-accent', label: 'Debt resolved' },
+  spec_linked: { icon: NotebookPen, iconClass: 'text-chart-4', label: 'Spec linked' },
+  spec_updated: { icon: NotebookPen, iconClass: 'text-chart-4', label: 'Spec revised' },
   design_note: { icon: NotebookPen, iconClass: 'text-chart-4', label: 'Design note' },
 }
 
@@ -258,9 +261,19 @@ function TimelineEntry({
     )
   }
 
+  if (entry.kind === 'spec_linked' || entry.kind === 'spec_updated') {
+    return <li id={entry.id} className="space-y-1 pb-5 text-sm">
+      <span className="text-muted-foreground">{meta.label} · </span><Link className="font-medium underline" href={`/specs/${entry.specId}`}>{entry.title}</Link>
+      <p className="text-xs text-muted-foreground">{entry.specType} · {entry.fromVersion ? `v${entry.fromVersion} → ` : ''}v{entry.toVersion} · {formatDateShort(entry.timestamp)}</p>
+      {entry.planId && <Link className="mr-3 text-xs underline" href={`/plans/${entry.planId}`}>Via plan</Link>}
+      {entry.workItemId && <Link className="mr-3 text-xs underline" href={`/work-items?item=${entry.workItemId}`}>Via work item</Link>}
+      {entry.noteId && <a className="text-xs underline" href={`#design_note:${entry.noteId}`}>Related design note</a>}
+    </li>
+  }
+
   if (entry.kind === 'design_note') {
     return (
-      <li className="relative flex gap-3 pb-5 last:pb-0">
+      <li id={entry.id} className="relative flex gap-3 pb-5 last:pb-0">
         {!isLast && <span aria-hidden className="absolute left-[9px] top-6 bottom-0 w-px bg-border" />}
         <Icon className={cn('relative h-5 w-5 shrink-0 mt-0.5 bg-card', meta.iconClass)} />
         <div className="min-w-0 flex-1">
@@ -274,6 +287,7 @@ function TimelineEntry({
               >
                 {entry.title}
               </button>
+              {entry.specEventId && <a className="text-xs underline" href={`#spec_event:${entry.specEventId}`}>Spec revision</a>}
               {entry.authorKind === 'agent' && (
                 <Badge variant="secondary" className="text-xs gap-1">
                   <Bot className="h-3 w-3" />
@@ -303,7 +317,7 @@ function TimelineEntry({
           {expanded && (
             <div className="mt-2 rounded-md border border-border bg-muted/30 px-3 py-2">
               <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{entry.body ?? ''}</ReactMarkdown>
+                <MarkdownContent>{entry.body ?? ''}</MarkdownContent>
               </div>
               {canEdit && entry.noteId && (
                 <div className="flex justify-end mt-1">

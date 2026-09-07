@@ -1,5 +1,6 @@
 'use client'
 
+import { listSpecsAction } from '@/app/(dashboard)/specs/actions'
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -17,8 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import { MarkdownContent } from '@/components/markdown-content'
 import { BadgeCheck, GraduationCap, ChevronDown, ChevronUp, Pencil, Archive } from 'lucide-react'
 import { cn, formatDateShort } from '@/lib/utils'
 import { graduateWorkItemAction, updateCapabilityAction, removeCapabilityAction } from '../../actions'
@@ -43,18 +43,30 @@ export function AssetRecordSection({
 }) {
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
+  const [error, setError] = useState('')
+  const [choices, setChoices] = useState<{ workItemId: string; specs: { id: string; title: string; version: number }[] } | null>(null)
+  const [selectedSpec, setSelectedSpec] = useState('')
 
   const active = record.capabilities.filter((c) => c.status === 'active')
   const removed = record.capabilities.filter((c) => c.status === 'removed')
 
-  const graduate = (workItemId: string) =>
+  const graduate = (workItemId: string, sourceSpecId?: string) =>
     startTransition(async () => {
-      await graduateWorkItemAction(workItemId, assetId)
-      router.refresh()
+      setError('')
+      try {
+        const linked = sourceSpecId ? [] : await listSpecsAction('', 'work_item', workItemId)
+        if (linked.length > 1) { setChoices({ workItemId, specs: linked }); setSelectedSpec(''); return }
+        await graduateWorkItemAction(workItemId, assetId, sourceSpecId)
+        setChoices(null); router.refresh()
+      } catch (e) { setError(e instanceof Error ? e.message : 'Graduation failed') }
     })
 
   return (
     <div className="space-y-4">
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+      {choices && <div className="space-y-2 rounded-lg border p-4"><p className="text-sm">Choose the spec this capability confirms:</p><select aria-label="Delivered spec" className="w-full rounded border bg-background p-2" value={selectedSpec} onChange={(e) => setSelectedSpec(e.target.value)}><option value="">Choose a spec</option>{choices.specs.map((s) => <option key={s.id} value={s.id}>{s.title} · v{s.version}</option>)}</select><Button disabled={!selectedSpec || isPending} onClick={() => graduate(choices.workItemId, selectedSpec)}>Confirm delivery</Button><Button variant="ghost" onClick={() => setChoices(null)}>Cancel</Button></div>}
+      {record.activeSpecs.length > 0 && <Card><CardHeader><CardTitle className="text-sm">Spec intent and delivery coverage</CardTitle></CardHeader><CardContent><ul className="space-y-3">{record.activeSpecs.map((s) => <li key={s.specId} className="text-sm"><Link href={`/specs/${s.specId}`} className="font-medium hover:underline">{s.specTitle}</Link><p className="text-xs text-muted-foreground">{s.specType}{s.area ? ` · ${s.area}` : ''} · {s.status} · current v{s.currentVersion} · {s.deliveredThroughVersion === null ? 'no delivery confirmed' : `delivery confirmed through v${s.deliveredThroughVersion}`}</p></li>)}</ul></CardContent></Card>}
+
       {canEdit && record.candidates.length > 0 && (
         <Card className="bg-card border-accent/40">
           <CardHeader className="pb-2">
@@ -245,6 +257,7 @@ function CapabilityRow({
             {capability.title}
           </button>
           {capability.area && <span className="text-xs text-muted-foreground">{capability.area}</span>}
+          {capability.sourceSpecId && <Link className="text-xs underline" href={`/specs/${capability.sourceSpecId}`}>Spec delivery: v{capability.sourceSpecVersion}</Link>}
           {capability.originSummary && (
             <Badge variant="outline" className="text-xs max-w-72" title={capability.originSummary}>
               <span className="truncate">{capability.originSummary}</span>
@@ -277,7 +290,7 @@ function CapabilityRow({
       </div>
       {expanded && capability.description && (
         <div className="mt-2 rounded-md border border-border bg-muted/30 px-3 py-2 prose prose-sm dark:prose-invert max-w-none">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{capability.description}</ReactMarkdown>
+          <MarkdownContent>{capability.description}</MarkdownContent>
         </div>
       )}
 

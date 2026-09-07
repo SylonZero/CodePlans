@@ -1,5 +1,6 @@
 'use client'
 
+import { SpecPicker } from '@/components/native-specs'
 import { useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -125,13 +126,7 @@ export function PlanCreatePanel({
               <Input id="np-deadline" name="deadline" type="date" />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="np-spec">
-                Spec URL
-                <span className="ml-2 text-xs text-muted-foreground">(markdown in your repo, optional)</span>
-              </Label>
-              <Input id="np-spec" name="specUrl" type="url" placeholder="https://github.com/org/repo/blob/main/docs/specs/my-plan.md" />
-            </div>
+            <SpecPicker key={productId} productId={productId} />
 
             <div className="space-y-2">
               <Label htmlFor="np-tags">

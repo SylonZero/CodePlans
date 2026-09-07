@@ -1,4 +1,5 @@
 import { db } from './index'
+import { requireSpec, reviseSpec, specAssetAnchors, refreshSpecAssetLinks } from './specs'
 import {
   products,
   assets,
@@ -14,8 +15,10 @@ import {
   releaseAssets,
   assetDesignLog,
   assetCapabilities,
+  specs,
+  specLinks,
 } from './schema'
-import { eq, and, ne, inArray } from 'drizzle-orm'
+import { eq, and, ne, inArray, or } from 'drizzle-orm'
 import type { WorkItemType, WorkItemStatus, WorkItemSeverity, ReleaseStatus } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
@@ -110,6 +113,7 @@ export async function deleteAsset(id: string) {
     .delete(assets)
     .where(eq(assets.id, id))
     .returning({ id: assets.id })
+  if (deleted) await db.delete(specLinks).where(and(eq(specLinks.targetType, 'asset'), eq(specLinks.targetId, id)))
   return deleted ?? null
 }
 
@@ -148,6 +152,13 @@ export async function moveAsset(assetId: string, targetProductId: string) {
     }
   }
 
+  const itemIds = (await db.select({ id: workItems.id }).from(workItems).where(eq(workItems.assetId, assetId))).map((r) => r.id)
+  const linkedSpecs = await db.select({ id: specLinks.id }).from(specLinks).where(or(
+    and(eq(specLinks.targetType, 'asset'), eq(specLinks.targetId, assetId)),
+    itemIds.length ? and(eq(specLinks.targetType, 'work_item'), inArray(specLinks.targetId, itemIds)) : undefined,
+  ))
+  if (linkedSpecs.length) return { error: 'Unlink specs from this asset and its work items before moving products' as const }
+
   const [moved] = await db
     .update(assets)
     .set({ productId: targetProductId, updatedAt: new Date() })
@@ -171,7 +182,6 @@ type CreateCodePlanData = {
   startDate?: string
   endDate?: string
   deadline?: string
-  specUrl?: string
   ownerId?: string | null
 }
 
@@ -228,7 +238,10 @@ export async function updateCodePlan(id: string, data: UpdateCodePlanData) {
     .where(eq(codePlans.id, id))
     .returning()
   if (!plan) return null
-  if (targetAssetIds !== undefined) await syncPlanAssets(id, targetAssetIds)
+  if (targetAssetIds !== undefined) {
+    await syncPlanAssets(id, targetAssetIds)
+    await refreshSpecAssetLinks('code_plan', id)
+  }
   return plan
 }
 
@@ -237,6 +250,7 @@ export async function deleteCodePlan(id: string, userId: string) {
     .delete(codePlans)
     .where(and(eq(codePlans.id, id), eq(codePlans.creatorId, userId)))
     .returning({ id: codePlans.id })
+  if (deleted) await db.delete(specLinks).where(and(eq(specLinks.targetType, 'code_plan'), eq(specLinks.targetId, id)))
   return deleted ?? null
 }
 
@@ -395,7 +409,6 @@ type CreateWorkItemData = {
   title: string
   description: string
   severity: WorkItemSeverity
-  specUrl?: string
   ownerId?: string | null
   tags: string[]
 }
@@ -424,7 +437,7 @@ export async function updateWorkItem(id: string, data: UpdateWorkItemData) {
   // Only the native annotation fields may be edited locally.
   const patch: UpdateWorkItemData =
     existing.source !== 'native'
-      ? { assetId: data.assetId, area: data.area, severity: data.severity, specUrl: data.specUrl, ownerId: data.ownerId }
+      ? { assetId: data.assetId, area: data.area, severity: data.severity, ownerId: data.ownerId }
       : data
 
   const [item] = await db
@@ -432,6 +445,7 @@ export async function updateWorkItem(id: string, data: UpdateWorkItemData) {
     .set({ ...patch, updatedAt: new Date() })
     .where(eq(workItems.id, id))
     .returning()
+  if (item && patch.assetId !== undefined) await refreshSpecAssetLinks('work_item', id)
   return item ?? null
 }
 
@@ -454,6 +468,7 @@ export async function deleteWorkItem(id: string) {
     .delete(workItems)
     .where(eq(workItems.id, id))
     .returning({ id: workItems.id })
+  if (deleted) await db.delete(specLinks).where(and(eq(specLinks.targetType, 'work_item'), eq(specLinks.targetId, id)))
   return deleted ?? null
 }
 
@@ -469,6 +484,7 @@ export async function addPlanAsset(codePlanId: string, assetId: string) {
   })
   if (existing) return existing
   const [row] = await db.insert(codePlanAssets).values({ codePlanId, assetId }).returning()
+  await refreshSpecAssetLinks('code_plan', codePlanId)
   return row
 }
 
@@ -508,6 +524,7 @@ export async function linkWorkItemToPlan(workItemId: string, codePlanId: string)
     .insert(workItemCodePlans)
     .values({ workItemId, codePlanId })
     .returning()
+  await refreshSpecAssetLinks('work_item', workItemId)
   return link
 }
 
@@ -707,16 +724,28 @@ type CreateDesignNoteData = {
   body?: string
   releaseId?: string
   codePlanId?: string
+  revisesSpecId?: string
+  revisedSpecBody?: string
+  expectedSpecVersion?: number
   authorKind?: 'user' | 'agent'
   authorId?: string
 }
 
 export async function createDesignNote(data: CreateDesignNoteData) {
-  const [note] = await db
-    .insert(assetDesignLog)
-    .values({ ...data, authorKind: data.authorKind ?? 'user' })
-    .returning()
-  return note
+  const { revisesSpecId, revisedSpecBody, expectedSpecVersion, ...noteData } = data
+  if (!!revisesSpecId !== (revisedSpecBody !== undefined)) throw new Error('A spec revision requires revisesSpecId and revisedSpecBody')
+  return db.transaction(async (tx) => {
+    if (revisesSpecId) {
+      const spec = await requireSpec(revisesSpecId, tx)
+      const links = await tx.select().from(specLinks).where(eq(specLinks.specId, spec.id))
+      if (!(await specAssetAnchors(spec, links, tx)).some((a) => a.assetId === data.assetId)) {
+        throw new Error('The revised spec must be linked to this asset')
+      }
+    }
+    const [note] = await tx.insert(assetDesignLog).values({ ...noteData, authorKind: data.authorKind ?? 'user' }).returning()
+    const revision = revisesSpecId ? await reviseSpec(tx, revisesSpecId, { body: revisedSpecBody!, expectedVersion: expectedSpecVersion }, note.id) : undefined
+    return { ...note, specEventId: revision?.events.find((e) => e.assetId === note.assetId)?.id }
+  })
 }
 
 type UpdateDesignNoteData = Partial<Pick<CreateDesignNoteData, 'title' | 'body' | 'releaseId' | 'codePlanId'>>
@@ -748,54 +777,71 @@ export async function deleteDesignNote(id: string) {
  * release) as FKs plus originSummary text that survives FK nulling. Idempotent
  * per work item (partial unique index on originWorkItemId).
  */
-export async function graduateWorkItem(workItemId: string) {
-  const item = await db.query.workItems.findFirst({ where: eq(workItems.id, workItemId) })
-  if (!item) return { error: 'Work item not found' as const }
-  if (item.status !== 'resolved') return { error: 'Only resolved work items graduate' as const }
-  if (item.type !== 'feature' && item.type !== 'enhancement') {
-    return { error: 'Only feature and enhancement items graduate — bugs and debt stay in their registers' as const }
-  }
-  if (!item.assetId) return { error: 'Work item has no asset — set one before graduating' as const }
+export async function graduateWorkItem(workItemId: string, sourceSpecId?: string) {
+  return db.transaction(async (tx) => {
+    const item = await tx.query.workItems.findFirst({ where: eq(workItems.id, workItemId) })
+    if (!item) return { error: 'Work item not found' as const }
+    if (item.status !== 'resolved') return { error: 'Only resolved work items graduate' as const }
+    if (item.type !== 'feature' && item.type !== 'enhancement') {
+      return { error: 'Only feature and enhancement items graduate — bugs and debt stay in their registers' as const }
+    }
+    if (!item.assetId) return { error: 'Work item has no asset — set one before graduating' as const }
 
-  const existing = await db.query.assetCapabilities.findFirst({
-    where: eq(assetCapabilities.originWorkItemId, workItemId),
-  })
-  if (existing) return { capability: existing, existed: true as const }
-
-  const link = await db.query.workItemCodePlans.findFirst({
-    where: eq(workItemCodePlans.workItemId, workItemId),
-  })
-  const plan = link
-    ? await db.query.codePlans.findFirst({ where: eq(codePlans.id, link.codePlanId) })
-    : undefined
-  const release = plan?.releaseId
-    ? await db.query.releases.findFirst({ where: eq(releases.id, plan.releaseId) })
-    : undefined
-  const stamp = release && item.assetId
-    ? await db.query.releaseAssets.findFirst({
-        where: and(eq(releaseAssets.releaseId, release.id), eq(releaseAssets.assetId, item.assetId)),
-      })
-    : undefined
-
-  const summaryParts = [`WI: ${item.title}`]
-  if (plan) summaryParts.push(`Plan: ${plan.title}`)
-  if (release) summaryParts.push(stamp?.version ? `${release.name} (${stamp.version})` : release.name)
-
-  const [capability] = await db
-    .insert(assetCapabilities)
-    .values({
-      assetId: item.assetId,
-      title: item.title,
-      description: item.description,
-      area: item.area ?? undefined,
-      source: 'graduated',
-      originWorkItemId: item.id,
-      originCodePlanId: plan?.id,
-      originReleaseId: release?.id,
-      originSummary: summaryParts.join(' · '),
+    const existing = await tx.query.assetCapabilities.findFirst({
+      where: eq(assetCapabilities.originWorkItemId, workItemId),
     })
-    .returning()
-  return { capability, existed: false as const }
+    if (existing) return { capability: existing, existed: true as const }
+
+    const linkedSpecs = await tx.select({ spec: specs }).from(specLinks)
+      .innerJoin(specs, eq(specLinks.specId, specs.id))
+      .where(and(eq(specLinks.targetType, 'work_item'), eq(specLinks.targetId, workItemId), eq(specs.productId, item.productId)))
+    if (!sourceSpecId && linkedSpecs.length > 1) return { error: 'Multiple specs are linked; choose sourceSpecId explicitly' as const }
+    const sourceSpec = sourceSpecId ? linkedSpecs.find((r) => r.spec.id === sourceSpecId)?.spec : linkedSpecs[0]?.spec
+    if (sourceSpecId && !sourceSpec) return { error: 'sourceSpecId must be linked to this work item in its product' as const }
+
+    const link = await tx.query.workItemCodePlans.findFirst({
+      where: eq(workItemCodePlans.workItemId, workItemId),
+    })
+    const plan = link
+      ? await tx.query.codePlans.findFirst({ where: eq(codePlans.id, link.codePlanId) })
+      : undefined
+    const release = plan?.releaseId
+      ? await tx.query.releases.findFirst({ where: eq(releases.id, plan.releaseId) })
+      : undefined
+    const stamp = release && item.assetId
+      ? await tx.query.releaseAssets.findFirst({
+          where: and(eq(releaseAssets.releaseId, release.id), eq(releaseAssets.assetId, item.assetId)),
+        })
+      : undefined
+
+    const summaryParts = [`WI: ${item.title}`]
+    if (plan) summaryParts.push(`Plan: ${plan.title}`)
+    if (release) summaryParts.push(stamp?.version ? `${release.name} (${stamp.version})` : release.name)
+
+    const [capability] = await tx
+      .insert(assetCapabilities)
+      .values({
+        assetId: item.assetId,
+        title: item.title,
+        description: item.description,
+        area: item.area ?? undefined,
+        source: 'graduated',
+        sourceSpecId: sourceSpec?.id,
+        sourceSpecVersion: sourceSpec?.version,
+        originWorkItemId: item.id,
+        originCodePlanId: plan?.id,
+        originReleaseId: release?.id,
+        originSummary: summaryParts.join(' · '),
+      })
+      .onConflictDoNothing()
+      .returning()
+    if (!capability) {
+      const existing = await tx.query.assetCapabilities.findFirst({ where: eq(assetCapabilities.originWorkItemId, workItemId) })
+      if (!existing) throw new Error('Graduation conflicted; retry')
+      return { capability: existing, existed: true as const }
+    }
+    return { capability, existed: false as const }
+  })
 }
 
 type UpdateCapabilityData = Partial<{ title: string; description: string; area: string | null }>

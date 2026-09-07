@@ -1,65 +1,115 @@
-# Linking Design Specs to Plans & Work Items
+# Native, versioned specs
 
-CodePlans deliberately does **not** include a spec editor. Specs live in git,
-next to the code they describe, and CodePlans links to and renders them
-read-only. This gives you version history, PR review of spec changes alongside
-implementation, and specs that agents (via MCP) can read in-repo — while
-CodePlans stays the map, not the wiki.
+Specs are product-owned design documents, authored in CodePlans with the same
+TipTap editor as descriptions and notes. The stored body is GFM Markdown.
+Git is an import source: `sourceUrl` remains a citation, while the imported body
+is independent of future branch changes.
 
-## The three-layer model
+## Linking and editing
 
-| Layer | Lives in | Owned by |
-|---|---|---|
-| **Summary** — problem, approach, out-of-scope, in 2–5 paragraphs | Plan / work item *description* | CodePlans |
-| **Spec** — the full design doc | `docs/specs/<slug>.md` in the asset's repo | git (reviewed via PRs) |
-| **Link + rendering** — `Spec URL` field | Plan / work item | CodePlans displays, never edits |
+Use the **Specs** tab on an asset, the Specs panel on a plan or work item, or the
+picker/creator in new-plan and new-work-item forms. A spec may be linked to many
+assets, work items, and plans in the same product. Plan links declare `creates`,
+`revises`, or `references`; asset and work-item links are plain associations.
+The picker defaults a plan association to `references`.
 
-## Recommended convention
+`specType` is an open string. Suggested values are `feature`, `ux`, `test`,
+`workflow`, `schema`, `api`, `architecture`, `integration`, and `ops`. Optional
+`area` identifies a narrower scope, such as “chat file resource model.”
 
-1. Keep specs in your repository at `docs/specs/`, one markdown file per plan-sized
-   design (this repo does exactly that — see its own `docs/specs/`).
-2. Author and evolve the spec through pull requests, ideally the same PR as the
-   code change it describes.
-3. Paste the file's **blob URL** into the plan or work item's *Spec URL* field:
-   - GitHub: `https://github.com/org/repo/blob/main/docs/specs/my-feature.md`
-   - GitLab: `https://gitlab.com/group/project/-/blob/main/docs/specs/my-feature.md`
+New specs start as draft at v1. Every `update_spec` increments the version;
+`expectedVersion` rejects stale edits. Title, specType, area and needsReview
+can also be updated (and versioned), so imported classifications can be
+reviewed and the review flag cleared. Supported statuses are draft, active,
+and archived. Use `supersede_spec` when the approach changes: it creates a new
+draft at v1, retains provenance and associations, links both documents, and
+marks the old one superseded/read-only. Existing delivery receipts stay on the
+old spec. V1 stores the current body and version number; historical body
+snapshots and character-level diffs are outside its scope.
 
-## In-app rendering
+## Delivery and history
 
-Plan detail pages render the linked markdown in a read-only **Design Spec** card:
+`graduate_work_item` captures the version of the work item's linked spec as a
+permanent delivery receipt. If multiple specs are linked, supply
+`sourceSpecId` explicitly (the UI prompts for a choice). Re-graduation returns
+the existing receipt. Graduation does not change spec status.
 
-- **Public GitHub** files render automatically.
-- **Private repos** render when an [integration connection](../index.html#integrations)
-  covers the repo — the connection's token (pasted on the connection, or via its env var) fetches the file (GitHub and GitLab,
-  including self-hosted GitLab). Nothing is stored; the file is fetched fresh
-  from the default branch (or the ref in the URL) on each view.
-- Anything else — Notion, Confluence, Google Docs — works as a plain link-out.
-  The field takes any URL.
+Asset Record keeps `activeSpecs` structurally separate from `capabilities`.
+The former includes draft and active intent, with `currentVersion` and
+`deliveredThroughVersion`. A null delivery version means no capability has
+confirmed this spec; a lower version identifies an unconfirmed revision.
+The highest pinned version includes historical/tombstoned capabilities as a
+record of delivery, not a claim that a removed feature still exists.
 
-Work item panels render the linked markdown too (collapsible, read-only,
-fetched through the same rules). A connection created **only** for spec
-rendering is fine — nothing syncs until you press &ldquo;Sync now&rdquo;, and its card
-shows &ldquo;serving as docs credential&rdquo; until it first syncs.
+History includes `spec_linked` and `spec_updated` snapshots with version and
+plan/work-item anchors. Unlinking does not erase those events. To revise a spec
+while recording a design note, supply both `revisesSpecId` and
+`revisedSpecBody`, optionally `expectedSpecVersion`. The note remains
+retrospective prose. The note and spec change commit together and appear as two
+separate events carrying each other's IDs.
 
-## Setting the spec from an agent (MCP)
+## MCP flow
 
-The MCP tools accept `specUrl` on `create_code_plan`, `update_code_plan`,
-`create_work_item`, and `update_work_item`, and `get_code_plan` returns it.
-A typical Claude Code flow:
+1. `create_spec(productId, title, body, specType, area?)`.
+2. `link_spec(specId, targetType, targetId, relationshipType?)` for each association.
+3. `get_spec(id)` or `list_specs(productId?, targetType?, targetId?, specType?)`
+   to inspect; target filters must be supplied together.
+4. `update_spec(id, body?, status?, expectedVersion?)` for edits, or
+   `supersede_spec(oldId, newBody, title?)` for a replacement approach.
+5. Resolve the work item, then `graduate_work_item(workItemId, sourceSpecId?)`
+   after checking what was delivered.
 
+Read tools use the caller's product visibility. Mutations require an MCP write
+key and enforce the same product boundary. Native forms and MCP no longer
+write `specUrl`; existing values remain readable as legacy citations.
+
+## Markdown rendering
+
+All existing Markdown readers (plans, specs, work-item side panels, asset
+content, design notes, capabilities, and release descriptions) share one GFM
+renderer. It preserves paragraphs and soft line breaks, supports tables,
+task lists, strikethrough, and fenced code, and scrolls wide tables/code inside
+narrow panels. TipTap uses the same document typography and break handling.
+Raw HTML execution is disabled.
+
+## Migrating existing URLs
+
+Apply the normal Drizzle migrations for the configured database first:
+
+```sh
+pnpm db:migrate
+pnpm specs:migrate --product=<product-id> --dry-run
 ```
-Write the design to docs/specs/goal-b-routing.md and open a PR for it. Then use
-codeplans MCP: create a plan "Goal B: declarative routing" targeting the server
-asset, and set specUrl to the file's blob URL on the feature branch.
+
+Review the JSON report, then apply explicitly:
+
+```sh
+pnpm specs:migrate --product=<product-id> --apply
 ```
 
-The agent that writes the spec registers it — and any agent later assigned work
-on the plan gets the spec's location from `get_code_plan` and reads it in-repo.
+The script loads `.env.local` like the existing seed scripts. Dry-run is the
+default and writes no rows. It reports source counts, unique URLs, duplicate
+collapse, inferred types, targets, and placeholders. It tries the existing git
+fetcher; inaccessible, malformed, or unsupported URLs become placeholder specs
+and never block import. The fetcher supports branch names containing slashes and keeps the full
+original URL as provenance.
 
-## Why not descriptions or a built-in editor?
+URLs deduplicate within a product, never across products. Every import is
+flagged `needsReview`; the original URL is preserved. Re-runs reuse specs and
+existing associations without replacing curated bodies or delivery receipts.
+The script leaves original `specUrl` columns intact.
 
-Long specs in description fields can't be diffed, reviewed, or versioned, and
-for items mirrored from external trackers the description is tracker-owned
-(sync would overwrite it). A built-in editor would duplicate what git + your
-docs tool already do better — see the scope fence in
-[design-spec-v3](../specs/design-spec-v3.md) §4.6.
+The migrations are additive `0017_native_specs` entries under both
+`lib/db/migrations/sqlite` and `lib/db/migrations/postgres`. Both schema files
+and the runtime barrel include the new tables. PostgreSQL uses UUIDs,
+timestamptz, booleans and foreign keys; SQLite uses its existing text/integer
+conventions. To verify Postgres against an **empty disposable** database:
+
+```sh
+SPEC_TEST_DATABASE_URL=postgres://localhost/codeplans_spec_test \
+  pnpm exec tsx scripts/verify-specs-postgres.ts
+```
+
+The verifier refuses a database with existing public tables, runs the complete
+Drizzle migration chain twice, and checks concurrent edits, note rollback,
+version pinning, supersession, import idempotency, and foreign-key cleanup.

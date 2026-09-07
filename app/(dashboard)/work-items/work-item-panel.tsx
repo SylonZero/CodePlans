@@ -1,5 +1,6 @@
 'use client'
 
+import { NativeSpecsPanel, SpecPicker } from '@/components/native-specs'
 import { useEffect, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -28,8 +29,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Trash2, ArrowUpRight, Link2, Unlink, ExternalLink, FileText } from 'lucide-react'
 import { toast } from 'sonner'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import { MarkdownContent } from '@/components/markdown-content'
 import { RichTextField } from '@/components/rich-text-field'
 import type { WorkItemStatus } from '@/lib/types'
 import type { WorkItemWithContext } from '@/lib/db/queries'
@@ -262,7 +262,7 @@ function WorkItemEditor({
         <Input name="title" defaultValue={item.title} disabled={isMirrored} className="font-medium" aria-label="Title" />
         {isMirrored ? (
           <div className="prose prose-sm prose-invert max-w-none rounded-md border border-border px-3 py-2 [&_table]:text-xs">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.description}</ReactMarkdown>
+            <MarkdownContent>{item.description}</MarkdownContent>
           </div>
         ) : (
           <RichTextField name="description" defaultValue={item.description} />
@@ -293,10 +293,7 @@ function WorkItemEditor({
             <Input id="wie-area" name="area" defaultValue={item.area} placeholder="e.g. billing/invoices" />
           </div>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="wie-spec" className="text-xs">Spec URL</Label>
-          <Input id="wie-spec" name="specUrl" type="url" defaultValue={item.specUrl} placeholder="https://…/docs/specs/item.md" />
-        </div>
+
         <div className="space-y-1.5">
           <Label htmlFor="wie-tags" className="text-xs">Tags (comma-separated)</Label>
           <Input id="wie-tags" name="tags" defaultValue={item.tags.join(', ')} disabled={isMirrored} />
@@ -305,6 +302,7 @@ function WorkItemEditor({
       </form>
 
       <div className="space-y-5 px-4">
+        <NativeSpecsPanel key={item.id} productId={item.productId} targetType="work_item" targetId={item.id} />
         {item.specUrl && <SpecSection specUrl={item.specUrl} />}
 
         {/* Linked code plans */}
@@ -412,7 +410,7 @@ function SpecSection({ specUrl }: { specUrl: string }) {
       </p>
       {markdown ? (
         <div className="prose prose-sm prose-invert max-w-none max-h-64 overflow-y-auto rounded-md border border-border p-3 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_pre]:bg-muted [&_pre]:p-2 [&_pre]:rounded [&_code]:text-xs [&_table]:text-xs">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
+          <MarkdownContent>{markdown}</MarkdownContent>
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">
@@ -567,13 +565,7 @@ function WorkItemForm({
         <Input id="wi-area" name="area" defaultValue={item?.area} placeholder="e.g. billing/invoices" />
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="wi-spec">
-          Spec URL
-          <span className="ml-1 text-xs text-muted-foreground">(optional)</span>
-        </Label>
-        <Input id="wi-spec" name="specUrl" type="url" defaultValue={item?.specUrl} placeholder="https://github.com/org/repo/blob/main/docs/specs/item.md" />
-      </div>
+      {!isEdit && <SpecPicker key={productId} productId={productId} />}
 
       <div className="space-y-2">
         <Label htmlFor="wi-tags">

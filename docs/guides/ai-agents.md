@@ -1,7 +1,7 @@
 # Working with AI Agents
 
 CodePlans ships an MCP (Model Context Protocol) server inside the app —
-`/api/mcp` — so AI coding agents can read and update your planning record
+`/api/mcp/mcp` — so AI coding agents can read and update your planning record
 directly: pull the active plan while coding, mark tasks done, file tech debt
 as they find it, record design notes, and manage releases end to end.
 
@@ -17,14 +17,14 @@ Desktop, Cursor, Codex CLI, GitHub Copilot (CLI + VS Code), and Antigravity.
 For Claude Code:
 
 ```sh
-claude mcp add --transport http codeplans http://localhost:3000/api/mcp \
+claude mcp add --transport http codeplans http://localhost:3000/api/mcp/mcp \
   --header "Authorization: Bearer cpk_your_key"
 ```
 
 Works identically against a local SQLite instance or a hosted deployment —
 the server lives inside the Next.js app.
 
-## The tool catalog (42 tools)
+## The tool catalog (49 tools)
 
 **Read** (any key):
 
@@ -35,6 +35,7 @@ the server lives inside the Next.js app.
 | Plans & tasks | `list_code_plans` · `get_code_plan` |
 | Releases & history | `list_releases` · `get_release` · `get_asset_history` |
 | Asset record | `get_asset_record` |
+| Specs | `get_spec` · `list_specs` |
 
 **Write** (write-scope key):
 
@@ -47,6 +48,7 @@ the server lives inside the Next.js app.
 | Releases | `create_release` · `update_release` · `attach_plan_to_release` · `detach_plan_from_release` · `set_release_asset` · `ship_release` |
 | History | `record_design_note` |
 | Asset record | `graduate_work_item` |
+| Specs | `create_spec` · `update_spec` · `supersede_spec` · `link_spec` · `unlink_spec` |
 
 Guardrails are enforced at the tool layer, not just the UI: mirrored items
 reject writes to tracker-owned fields, shipped releases reject mutation,
@@ -65,8 +67,15 @@ preserved).
 
 **Before changing an asset** — read its story:
 `get_asset` → `get_asset_history` (releases, delivered plans, debt movement,
-design notes) → `get_tech_debt_register` for what's known-rotten. The agent
+design notes, spec arrivals and revisions) → `get_tech_debt_register` for what's known-rotten. The agent
 starts with the context a senior teammate would have.
+
+**Before implementing a spec** — use `list_specs` / `get_spec` to read the
+current document and associations. `create_spec` stores a new document;
+`link_spec` connects it to assets, work items, and plans within the product.
+For a plan, declare `creates`, `revises`, or `references`. Use `update_spec`
+with `expectedVersion` for an edit, or `supersede_spec` for a new approach.
+Imported git URLs are provenance; never replace native edits on a capture rerun.
 
 **While delivering a plan** — keep the record live: `update_task_status` as
 work lands, `update_plan_asset` to record branch/PR status, `create_work_item`
@@ -75,14 +84,22 @@ work lands, `update_plan_asset` to record branch/PR status, `create_work_item`
 **After completing a plan** — close the loop: `complete_plan`, then
 `record_design_note` on each significantly changed asset — one paragraph on
 what changed structurally and why, anchored to the plan so the note carries
-lineage. Notes show an agent badge in the UI, attributed to the key's owner.
+lineage. To revise a linked spec at the same time, provide `revisesSpecId`,
+`revisedSpecBody`, and optionally `expectedSpecVersion`; the note and revision
+commit together with cross-linked History events. Notes show an agent badge
+in the UI, attributed to the key's owner.
 
 **Learning what an asset does today** — `get_asset_record` returns the
 capabilities register (each claim carrying its delivery lineage), open known
-issues, the debt register, and graduation candidates. After resolving a
-feature or enhancement, `graduate_work_item` promotes it into the record so
-the asset's current-state picture stays complete — the record only ever
-contains delivered work, never intent.
+issues, the debt register, graduation candidates, and a separate `activeSpecs`
+collection. After resolving a feature or enhancement, `graduate_work_item`
+promotes it into the capabilities register and pins its linked spec's current
+version. Supply `sourceSpecId` when several specs are linked. Re-graduation
+returns the original receipt. Compare each active spec's `currentVersion`
+with `deliveredThroughVersion` to see revisions not yet confirmed by delivery;
+null means no delivery receipt exists. Specs remain design intent and never
+become capabilities merely because they were linked. See the
+[native specs guide](using-specs.md).
 
 **At release time** — `create_release`, `attach_plan_to_release`,
 `set_release_asset` to stamp versions, `ship_release` (it warns if assets

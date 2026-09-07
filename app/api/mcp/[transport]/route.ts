@@ -1,3 +1,4 @@
+import { createSpec, updateSpec, supersedeSpec, linkSpec, unlinkSpec, getSpec, listSpecs, specInput, specUpdateInput, specUpdateFields, specTargetType, specRelationshipType } from '@/lib/db/specs'
 import { createMcpHandler, withMcpAuth } from 'mcp-handler'
 import { z } from 'zod'
 import { verifyApiKey } from '@/lib/mcp/auth'
@@ -74,6 +75,25 @@ function json(data: unknown) {
 
 const handler = createMcpHandler(
   (server) => {
+    server.tool('create_spec', 'Create a native, product-owned GFM spec (draft, version 1). Git is an import source; supply sourceUrl for git_import.', specInput.shape,
+      async (data, extra) => { requireWrite(extra); return json(await createSpec(data, uid(extra), 'agent')) })
+    server.tool('update_spec', 'Revise body, status, title, taxonomy or needsReview and increment version. Use expectedVersion to reject stale edits. Superseded specs are read-only; use supersede_spec for a changed approach.', {
+      id: z.string(), ...specUpdateFields,
+    }, async ({ id, ...data }, extra) => { requireWrite(extra); return json(await updateSpec(id, specUpdateInput.parse(data), uid(extra))) })
+    server.tool('supersede_spec', 'Replace an approach: create a new draft at v1, preserve provenance and associations, and mark the old spec superseded. Delivery receipts stay on the old spec.', {
+      oldId: z.string(), newBody: z.string().max(500_000), title: z.string().optional(),
+    }, async ({ oldId, newBody, title }, extra) => { requireWrite(extra); return json(await supersedeSpec(oldId, newBody, title, uid(extra), 'agent')) })
+    server.tool('link_spec', 'Associate a spec with an asset, work item, or plan in the same product. Plans use creates/revises/references (default references). Other targets have no relationshipType.', {
+      specId: z.string(), targetType: specTargetType, targetId: z.string(), relationshipType: specRelationshipType.optional(),
+    }, async ({ specId, targetType, targetId, relationshipType }, extra) => { requireWrite(extra); return json(await linkSpec(specId, targetType, targetId, relationshipType, uid(extra))) })
+    server.tool('unlink_spec', 'Remove a spec association; historical events and delivery receipts remain.', { specLinkId: z.string() },
+      async ({ specLinkId }, extra) => { requireWrite(extra); return json(await unlinkSpec(specLinkId, uid(extra))) })
+    server.tool('get_spec', 'Read a spec body, current version, provenance, supersession pointers, and all associations.', { id: z.string() },
+      async ({ id }, extra) => json(await getSpec(id, uid(extra))))
+    server.tool('list_specs', 'List visible specs, optionally filtered by product, exact target association, or open specType taxonomy. targetType and targetId must be supplied together.', {
+      productId: z.string().optional(), targetType: specTargetType.optional(), targetId: z.string().optional(), specType: z.string().optional(),
+    }, async (filters, extra) => json(await listSpecs(uid(extra), filters)))
+
     // ── Read tools ─────────────────────────────────────────────────────────
     server.tool(
       'list_products',
@@ -174,6 +194,7 @@ const handler = createMcpHandler(
           taxonomy: ['edge', 'frontend', 'backend', 'domain', 'data', 'infra', 'shared'],
           defaults: 'Unset layers display a default from asset type (app→frontend, service→backend, datastore→data, platform→infra, library→shared). Set explicit layers where the default is wrong — e.g. a library that is really domain logic gets layer "domain".',
         },
+        specs: 'Native GFM documents owned by one product. Recommended specType values: feature, ux, test, workflow, schema, api, architecture, integration, ops; custom strings and area are supported. Use create_spec/link_spec; specUrl is deprecated and read-only. Use update_spec for edits and supersede_spec for changed approaches.',
         product: 'A planning boundary, not a repo boundary. One product can span repos; a monorepo can host several products. Shared platform libraries serving multiple products go in a dedicated Platform product — cross-product dependency edges and impact analysis work.',
         assetTest: 'Model something as an asset only if: (a) code plans will target it, (b) tech debt will be registered against it, or (c) it must appear in blast-radius reports. Assets are coordination units, not folders.',
         tiers: [
@@ -333,7 +354,7 @@ const handler = createMcpHandler(
     // ── Plan lifecycle & targets ───────────────────────────────────────────
     server.tool(
       'update_code_plan',
-      'Edit a plan: title, description, type, tags, deadline, or specUrl (link the design spec markdown).',
+      'Edit a plan: title, description, type, tags, deadline, or owner (use create_spec/link_spec for specs).',
       {
         id: z.string(),
         title: z.string().optional(),
@@ -341,7 +362,6 @@ const handler = createMcpHandler(
         type: z.enum(['refactor', 'feature', 'improvement', 'bugfix']).optional(),
         tags: z.array(z.string()).optional(),
         deadline: z.string().optional(),
-        specUrl: z.string().optional(),
         ownerEmail: z.string().nullable().optional(),
       },
       async ({ id, ownerEmail, ...data }, extra) => {
@@ -413,7 +433,6 @@ const handler = createMcpHandler(
         severity: z.enum(['low', 'medium', 'high', 'critical']).optional(),
         assetId: z.string().nullable().optional(),
         area: z.string().nullable().optional(),
-        specUrl: z.string().optional(),
         ownerEmail: z.string().nullable().optional(),
         tags: z.array(z.string()).optional(),
       },
@@ -449,7 +468,6 @@ const handler = createMcpHandler(
         severity: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
         assetId: z.string().optional(),
         area: z.string().optional(),
-        specUrl: z.string().optional(),
         ownerEmail: z.string().optional(),
         tags: z.array(z.string()).default([]),
       },
@@ -492,7 +510,6 @@ const handler = createMcpHandler(
         tags: z.array(z.string()).default([]),
         targetAssetIds: z.array(z.string()).default([]),
         deadline: z.string().optional(),
-        specUrl: z.string().optional(),
         ownerEmail: z.string().optional(),
         workItemIds: z.array(z.string()).default([]),
       },
@@ -725,11 +742,14 @@ const handler = createMcpHandler(
 
     server.tool(
       'record_design_note',
-      "Record a design note on an asset's history: what a change meant for its structure and why. After completing a plan, consider recording one note per significantly changed asset — one paragraph on what changed structurally. Anchor it to the plan (codePlanId) so the note carries lineage. Notes are attributed to this API key's user with an agent badge.",
+      "Record a design note on an asset's history: what a change meant for its structure and why. After completing a plan, consider recording one note per significantly changed asset — one paragraph on what changed structurally. Anchor it to the plan (codePlanId) so the note carries lineage. To revise an associated spec, provide revisesSpecId and revisedSpecBody; this emits a separate cross-linked spec_updated event. Notes are attributed to this API key's user with an agent badge.",
       {
         assetId: z.string(),
         title: z.string(),
         body: z.string().optional(),
+        revisesSpecId: z.string().optional(),
+        revisedSpecBody: z.string().max(500_000).optional(),
+        expectedSpecVersion: z.number().int().positive().optional(),
         releaseId: z.string().optional(),
         codePlanId: z.string().optional(),
       },
@@ -744,7 +764,7 @@ const handler = createMcpHandler(
 
     server.tool(
       'get_asset_record',
-      "An asset's living record of delivered reality: capabilities (graduated claims with delivery lineage), known issues (open bugs/UX items), the debt register (open tech debt), and graduation candidates (resolved feature work not yet in the record). Read this to learn what an asset actually does today — the record never contains intent, only delivered or verified work.",
+      "An asset's living record of delivered reality: capabilities (graduated claims with delivery lineage), known issues (open bugs/UX items), the debt register (open tech debt), and graduation candidates (resolved feature work not yet in the record). Read this to learn what an asset actually does today — capabilities contain delivered or verified work. activeSpecs is a separate intent section with currentVersion and deliveredThroughVersion (null means no confirmed delivery).",
       { assetId: z.string() },
       async ({ assetId }, extra) => {
         const record = await getAssetRecord(assetId, uid(extra))
@@ -754,11 +774,13 @@ const handler = createMcpHandler(
 
     server.tool(
       'graduate_work_item',
-      "Graduate a resolved feature/enhancement work item into its asset's record as a capability, carrying delivery lineage (work item, plan, release). Idempotent — re-graduating returns the existing capability. Fails for unresolved items, bugs/debt, or items without a target asset.",
-      { workItemId: z.string() },
-      async ({ workItemId }, extra) => {
+      "Graduate a resolved feature/enhancement work item into its asset's record as a capability, carrying delivery lineage (work item, plan, release). Idempotent — re-graduating returns the existing capability. Pins the linked spec version at graduation; when several specs are linked, sourceSpecId is required. Fails for unresolved items, bugs/debt, or items without a target asset.",
+      { workItemId: z.string(), sourceSpecId: z.string().optional() },
+      async ({ workItemId, sourceSpecId }, extra) => {
         requireWrite(extra)
-        return json(await graduateWorkItem(workItemId))
+        const { getWorkItem } = await import('@/lib/db/queries')
+        if (!await getWorkItem(workItemId, uid(extra))) return json({ error: 'Work item not found or not accessible' })
+        return json(await graduateWorkItem(workItemId, sourceSpecId))
       },
     )
   },

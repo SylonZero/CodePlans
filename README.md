@@ -52,11 +52,13 @@ CodePlans sits between your issue tracker and your architecture diagram:
 | Analytics wired to real data (velocity, effort accuracy, debt by product) | ✅ Available |
 | Activity feed | ✅ Available |
 | GitHub, GitLab, Jira, Asana & Linear integrations (pull-only mirror into work items) | ✅ Available |
-| MCP server — 42 tools incl. product/asset/dependency management, model refactoring (move_asset), releases, asset design notes & the asset record | ✅ Available |
+| MCP server — 49 tools incl. native specs, product/asset/dependency management, model refactoring (move_asset), releases, design notes & the asset record | ✅ Available |
 | Milestone-linked plans with mirrored tasks (mixed mode) | ✅ Available |
 | PR auto-linking (plan-asset PR status refreshed on sync) | ✅ Available |
 | Releases — delivery grouping with per-asset version stamps & derived release notes | ✅ Available |
 | Asset history timeline, version ladder & design log (user + agent authored) | ✅ Available |
+| Native specs — versioned editing, supersession, asset/plan/work-item links & pinned delivery receipts | ✅ Available |
+| Shared GFM Markdown — paragraphs, line breaks, tables & task lists across pages and side panels | ✅ Available |
 | AI drafting — release notes & design notes (feature-flagged, `ANTHROPIC_API_KEY`) | ✅ Available |
 | AI-assisted effort estimation | 🔜 Planned |
 | Billing / subscription management | 🔜 Planned (optional, feature-flagged) |
@@ -322,7 +324,11 @@ Please keep PRs focused. Bug fixes, test coverage improvements, and documentatio
 
 ## Design Specs
 
-Specs live in git (`docs/specs/*.md` by convention), not in CodePlans. Link a spec's blob URL to any plan or work item via the **Spec URL** field: plan pages render the markdown read-only (private repos render through your GitHub/GitLab connection tokens; anything else is a link-out). See the [specs guide](https://sylonzero.github.io/CodePlans/guides/using-specs.md), and the [monorepo modeling guide](https://sylonzero.github.io/CodePlans/guides/modeling-monorepos.md) for breaking large codebases into assets (Claude can do it for you via MCP).
+Specs are native, product-owned documents stored as GFM Markdown. Create or link one from an asset's **Specs** tab or the plan/work-item panels, edit with version checks, and supersede a document when the approach changes. Graduation pins the linked spec version to the delivered capability; Asset Record shows current intent and delivery coverage separately.
+
+Existing git URLs remain readable citations. Apply `pnpm db:migrate`, then preview their import with `pnpm specs:migrate --product=<product-id> --dry-run`; review the report before using `--apply`. Both SQLite and PostgreSQL have additive Drizzle migrations. Imports preserve source URLs, deduplicate within each product, and never overwrite later native edits on reruns.
+
+See the [specs guide](docs/guides/using-specs.md) for editing, MCP, and migration details, or the [monorepo modeling guide](docs/guides/modeling-monorepos.md) for choosing asset boundaries.
 
 ---
 
@@ -381,7 +387,7 @@ In VS Code's Copilot Chat instead, add the same URL/header under a `"servers"` e
 }
 ```
 
-Your agent can then read plans/work items/tech debt and (with a write-scope key) model products, assets, and dependencies, manage plans end-to-end (create, target assets, activate/complete), file work items, manage tasks, and record branch/PR status on plan assets. Keys act as your user, so org access rules and mirrored-field protections apply unchanged. See [`docs/specs/mcp-server-spec.md`](docs/specs/mcp-server-spec.md).
+Your agent can then read specs, plans, work items, and tech debt and (with a write-scope key) create, revise, supersede, and link specs, model products, assets, and dependencies, manage plans end-to-end (create, target assets, activate/complete), file work items, manage tasks, and record branch/PR status on plan assets. Keys act as your user, so org access rules and mirrored-field protections apply unchanged. See [`docs/specs/mcp-server-spec.md`](docs/specs/mcp-server-spec.md).
 
 ---
 

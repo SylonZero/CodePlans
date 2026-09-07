@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import { MarkdownContent } from '@/components/markdown-content'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { RichTextEditor } from '@/components/rich-text-editor'
@@ -78,7 +77,7 @@ export function AssetContentCard({ assetId, productSlug, field, value }: Editabl
           </div>
         ) : value ? (
           <div className="prose prose-sm prose-invert max-w-none [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_pre]:bg-muted [&_pre]:p-2 [&_pre]:rounded [&_code]:text-xs [&_table]:text-xs [&_ul.contains-task-list]:list-none [&_ul.contains-task-list]:pl-1">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{value}</ReactMarkdown>
+            <MarkdownContent>{value}</MarkdownContent>
           </div>
         ) : (
           <p className="text-sm text-muted-foreground italic">{meta.empty}</p>

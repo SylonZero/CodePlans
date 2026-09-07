@@ -30,7 +30,7 @@ open PR/MR). Then:
 2. Find or create the code plan: list_code_plans first — update an existing
    matching plan rather than duplicating. For a new plan: type that fits the
    change, description = 2-5 paragraph summary (problem, approach, out of
-   scope), targetAssetIds for every asset the change touches, and specUrl if
+   scope), targetAssetIds for every asset the change touches, and create_spec/link_spec if
    a spec markdown exists in the repo (blob URL).
 3. Record delivery: update_plan_asset per targeted asset with branch, PR/MR
    URL, prStatus, and a short note. activate_plan if work is underway.

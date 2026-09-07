@@ -99,3 +99,12 @@ different cadence: reconcile the model occasionally, log work constantly.
 
 The proposal step (3) is the important one — you approve the model before the
 agent writes anything.
+
+## Specs as asset aspects
+
+An asset can have multiple product-owned specs. Use an open `specType`
+(`feature`, `ux`, `test`, `workflow`, `schema`, `api`, `architecture`,
+`integration`, `ops`, or your own label) and optional `area` for finer scope.
+Link a shared spec to every applicable asset, work item, and plan; do not copy
+its body into plan descriptions. Plan links declare creates/revises/references.
+See [native specs](using-specs.md) for versioning and delivery receipts.
