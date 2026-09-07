@@ -163,6 +163,7 @@ export const codePlans = pgTable('code_plans', {
   // Steers the plan; distinct from creator and assignees.
   ownerId: uuid('owner_id').references(() => users.id, { onDelete: 'set null' }),
   // Link to the design spec (markdown in the repo, or any doc URL).
+  // Deprecated, read-only legacy citation. New associations live in spec_links.
   specUrl: text('spec_url'),
   // A plan ships in at most one release; detaching a release never touches its plans.
   releaseId: uuid('release_id').references((): AnyPgColumn => releases.id, { onDelete: 'set null' }),
@@ -252,6 +253,8 @@ export const assetCapabilities = pgTable('asset_capabilities', {
   originCodePlanId: uuid('origin_code_plan_id').references(() => codePlans.id, { onDelete: 'set null' }),
   originReleaseId: uuid('origin_release_id').references(() => releases.id, { onDelete: 'set null' }),
   // Captured lineage text — the receipt outlives its source rows.
+  sourceSpecId: uuid('source_spec_id').references(() => specs.id, { onDelete: 'set null' }),
+  sourceSpecVersion: integer('source_spec_version'),
   originSummary: text('origin_summary').notNull().default(''),
   verifiedAt: timestamp('verified_at', { withTimezone: true }),
   removedAt: timestamp('removed_at', { withTimezone: true }),
@@ -297,6 +300,7 @@ export const workItems = pgTable('work_items', {
   reporterId: uuid('reporter_id').references(() => users.id, { onDelete: 'set null' }),
   // Steers the item to resolution; distinct from reporter.
   ownerId: uuid('owner_id').references(() => users.id, { onDelete: 'set null' }),
+  // Deprecated, read-only legacy citation. New associations live in spec_links.
   specUrl: text('spec_url'),
   source: text('source').notNull().default('native'),
   connectionId: uuid('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
@@ -389,3 +393,56 @@ export const emailVerificationTokens = pgTable('email_verification_tokens', {
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+// Native, product-owned specifications. Bodies are canonical GFM from TipTap.
+export const specs = pgTable('specs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  body: text('body').notNull(),
+  specType: text('spec_type').notNull(),
+  area: text('area'),
+  status: text('status').notNull().default('draft'),
+  version: integer('version').notNull().default(1),
+  supersedes: uuid('supersedes').references((): AnyPgColumn => specs.id, { onDelete: 'set null' }),
+  supersededBy: uuid('superseded_by').references((): AnyPgColumn => specs.id, { onDelete: 'set null' }),
+  sourceType: text('source_type').notNull().default('native'),
+  sourceUrl: text('source_url'),
+  needsReview: boolean('needs_review').notNull().default(false),
+  authorType: text('author_type').notNull().default('user'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('specs_product_idx').on(t.productId),
+  uniqueIndex('specs_import_url_idx').on(t.productId, t.sourceUrl)
+    .where(sql`${t.sourceType} = 'git_import' AND ${t.supersedes} IS NULL`),
+])
+
+// Target ownership and existence are checked by the spec service.
+export const specLinks = pgTable('spec_links', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  specId: uuid('spec_id').notNull().references(() => specs.id, { onDelete: 'cascade' }),
+  targetType: text('target_type').notNull(),
+  targetId: uuid('target_id').notNull(),
+  relationshipType: text('relationship_type'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('spec_links_target_idx').on(t.specId, t.targetType, t.targetId),
+  index('spec_links_lookup_idx').on(t.targetType, t.targetId),
+])
+
+// Immutable event snapshots: unlinking or subsequent edits never rewrite history.
+export const specEvents = pgTable('spec_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  specId: uuid('spec_id').notNull().references(() => specs.id, { onDelete: 'cascade' }),
+  assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(),
+  specTitle: text('spec_title').notNull(),
+  specType: text('spec_type').notNull(),
+  fromVersion: integer('from_version'),
+  toVersion: integer('to_version').notNull(),
+  planId: uuid('plan_id').references(() => codePlans.id, { onDelete: 'set null' }),
+  workItemId: uuid('work_item_id').references(() => workItems.id, { onDelete: 'set null' }),
+  noteId: uuid('note_id').references(() => assetDesignLog.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('spec_events_asset_idx').on(t.assetId)])

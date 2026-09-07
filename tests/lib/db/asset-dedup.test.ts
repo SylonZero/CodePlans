@@ -29,13 +29,17 @@ describe('createAsset dedup', () => {
 
 describe('createTask dedup & plan list specUrl', () => {
   it('returns the existing task for a duplicate (plan, title)', async () => {
-    const { createTask, updateCodePlan } = await import('@/lib/db/mutations')
+    const { createTask } = await import('@/lib/db/mutations')
     const { getCodePlans } = await import('@/lib/db/queries')
     const a = await createTask({ codePlanId: F.planDraft, title: 'Same task', description: '', priority: 'medium', tags: [] })
     const b = await createTask({ codePlanId: F.planDraft, title: 'Same task', description: 'x', priority: 'high', tags: [] })
     expect(b.id).toBe(a.id)
 
-    await updateCodePlan(F.planDraft, { specUrl: 'https://github.com/o/r/blob/main/docs/spec.md' })
+    // Legacy URL remains readable; native mutations no longer write it.
+    const { db } = await import('@/lib/db')
+    const { codePlans } = await import('@/lib/db/schema.sqlite')
+    const { eq } = await import('drizzle-orm')
+    await (db as any).update(codePlans).set({ specUrl: 'https://github.com/o/r/blob/main/docs/spec.md' }).where(eq(codePlans.id, F.planDraft))
     const plans = await getCodePlans(F.alice)
     expect(plans.find((p) => p.id === F.planDraft)?.specUrl).toContain('docs/spec.md')
   })

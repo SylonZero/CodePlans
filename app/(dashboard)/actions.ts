@@ -1,5 +1,7 @@
 'use server'
 
+import { getSpec, linkSpec } from '@/lib/db/specs'
+import { getWorkItem } from '@/lib/db/queries'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { authAdapter } from '@/lib/auth'
@@ -274,8 +276,9 @@ export async function createCodePlanAction(formData: FormData) {
   const type = formData.get('type') as 'refactor' | 'feature' | 'improvement' | 'bugfix'
   const tags = parseTags(formData.get('tags') as string)
   const deadline = (formData.get('deadline') as string) || undefined
-  const specUrl = (formData.get('specUrl') as string) || undefined
 
+  const specId = (formData.get('specId') as string) || undefined
+  if (specId && (await getSpec(specId, authUser.id)).productId !== productId) throw new Error('Spec must belong to this product')
   const plan = await createCodePlan(
     {
       title,
@@ -285,11 +288,11 @@ export async function createCodePlanAction(formData: FormData) {
       tags,
       targetAssetIds: [],
       deadline,
-      specUrl,
     },
     authUser.id,
   )
 
+  if (specId) await linkSpec(specId, 'code_plan', plan.id, 'references', authUser.id)
   await logActivity({
     entityType: 'code_plan',
     entityId: plan.id,
@@ -308,11 +311,10 @@ export async function updateCodePlanAction(id: string, formData: FormData) {
   const type = formData.get('type') as 'refactor' | 'feature' | 'improvement' | 'bugfix'
   const tags = parseTags(formData.get('tags') as string)
   const deadline = (formData.get('deadline') as string) || undefined
-  const specUrl = (formData.get('specUrl') as string) || undefined
   const ownerRaw = formData.get('ownerId') as string | null
   const ownerId = ownerRaw === null ? undefined : ownerRaw || null
 
-  await updateCodePlan(id, { title, description, type, tags, deadline, specUrl, ownerId })
+  await updateCodePlan(id, { title, description, type, tags, deadline, ownerId })
 
   revalidatePath(`/plans/${id}`)
 }
@@ -664,6 +666,8 @@ export async function changePasswordAction(formData: FormData) {
 export async function createWorkItemAction(formData: FormData) {
   const authUser = await requireUser()
 
+  const specId = (formData.get('specId') as string) || undefined
+  if (specId && (await getSpec(specId, authUser.id)).productId !== formData.get('productId')) throw new Error('Spec must belong to this product')
   const item = await createWorkItem(
     {
       productId: formData.get('productId') as string,
@@ -673,13 +677,14 @@ export async function createWorkItemAction(formData: FormData) {
       title: formData.get('title') as string,
       description: (formData.get('description') as string) ?? '',
       severity: (formData.get('severity') as WorkItemSeverity) || 'medium',
-      specUrl: (formData.get('specUrl') as string) || undefined,
+
       ownerId: (formData.get('ownerId') as string) || undefined,
       tags: parseTags((formData.get('tags') as string) ?? ''),
     },
     authUser.id,
   )
 
+  if (specId) await linkSpec(specId, 'work_item', item.id, undefined, authUser.id)
   await logActivity({
     entityType: 'work_item',
     entityId: item.id,
@@ -702,7 +707,7 @@ export async function updateWorkItemAction(id: string, formData: FormData) {
     severity: (formData.get('severity') as WorkItemSeverity) || undefined,
     assetId: (formData.get('assetId') as string) || null,
     area: (formData.get('area') as string) || null,
-    specUrl: (formData.get('specUrl') as string) || undefined,
+
     ownerId: ((formData.get('ownerId') as string | null) ?? undefined) === undefined ? undefined : (formData.get('ownerId') as string) || null,
     tags: parseTags((formData.get('tags') as string) ?? ''),
   })
@@ -1209,9 +1214,11 @@ export async function saveReleaseDescriptionAction(releaseId: string, descriptio
 // Asset record (capabilities)
 // ---------------------------------------------------------------------------
 
-export async function graduateWorkItemAction(workItemId: string, assetId: string) {
+export async function graduateWorkItemAction(workItemId: string, assetId: string, sourceSpecId?: string) {
   const authUser = await requireUser()
-  const result = await graduateWorkItem(workItemId)
+  const item = await getWorkItem(workItemId, authUser.id)
+  if (!item || item.assetId !== assetId) throw new Error('Work item not found or not accessible on this asset')
+  const result = await graduateWorkItem(workItemId, sourceSpecId)
   if ('error' in result) throw new Error(result.error)
   if (!result.existed) {
     await logActivity({

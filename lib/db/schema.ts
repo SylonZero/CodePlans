@@ -11,6 +11,9 @@ const _schema: typeof import('./schema.pg') =
     : require('./schema.pg')
 
 export const {
+  specs,
+  specLinks,
+  specEvents,
   users,
   organizations,
   organizationMembers,

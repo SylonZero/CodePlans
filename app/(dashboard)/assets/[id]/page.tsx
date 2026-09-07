@@ -1,3 +1,4 @@
+import { NativeSpecsPanel } from '@/components/native-specs'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { authAdapter } from '@/lib/auth'
@@ -237,6 +238,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
           <TabsTrigger value="debt">Tech Debt ({debtItems.length})</TabsTrigger>
           <TabsTrigger value="plans">Code Plans ({asset.plans.length})</TabsTrigger>
           <TabsTrigger value="dependencies">Dependencies ({asset.dependencyEdges.length})</TabsTrigger>
+          <TabsTrigger value="specs">Specs</TabsTrigger>
           <TabsTrigger value="history">History ({(history ?? []).length})</TabsTrigger>
           <TabsTrigger value="record">
             Record ({(record?.capabilities ?? []).filter((c) => c.status === 'active').length})
@@ -396,6 +398,8 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
             </div>
           )}
         </TabsContent>
+
+        <TabsContent value="specs" className="mt-4"><NativeSpecsPanel productId={asset.productId} targetType="asset" targetId={asset.id} /></TabsContent>
 
         <TabsContent value="history" className="mt-4">
           <AssetHistoryTimeline

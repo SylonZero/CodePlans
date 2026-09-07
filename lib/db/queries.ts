@@ -1,3 +1,5 @@
+import { getAssetSpecs } from './specs'
+import { specEvents } from './schema'
 import { db } from './index'
 import {
   products,
@@ -1065,7 +1067,7 @@ export async function getAssetDetail(id: string, userId: string): Promise<AssetD
 export type AssetHistoryEntry = {
   /** Synthetic, stable within a render: `${kind}:${entityId}`. */
   id: string
-  kind: 'plan_completed' | 'work_item_resolved' | 'debt_opened' | 'debt_resolved' | 'release_stamp' | 'design_note'
+  kind: 'plan_completed' | 'work_item_resolved' | 'debt_opened' | 'debt_resolved' | 'release_stamp' | 'design_note' | 'spec_linked' | 'spec_updated'
   timestamp: string
   title: string
   planId?: string
@@ -1079,7 +1081,14 @@ export type AssetHistoryEntry = {
   area?: string
   /** release_stamp: the version this release stamped on the asset. */
   releaseId?: string
-  version?: string
+  version?: string | number
+  specId?: string
+  specTitle?: string
+  specType?: string
+  specVersion?: number
+  fromVersion?: number
+  toVersion?: number
+  specEventId?: string
   /** design_note fields. */
   noteId?: string
   body?: string
@@ -1253,6 +1262,18 @@ export async function getAssetHistory(assetId: string, userId: string): Promise<
     })
   }
 
+  const events = await db.select().from(specEvents).where(eq(specEvents.assetId, assetId))
+  for (const e of events) {
+    entries.push({ id: `spec_event:${e.id}`, kind: e.kind as 'spec_linked' | 'spec_updated',
+      timestamp: e.createdAt.toISOString(), title: e.specTitle, specId: e.specId, specTitle: e.specTitle,
+      specType: e.specType, version: e.toVersion, specVersion: e.toVersion, fromVersion: e.fromVersion ?? undefined, toVersion: e.toVersion,
+      noteId: e.noteId ?? undefined, planId: e.planId ?? undefined, workItemId: e.workItemId ?? undefined,
+    })
+    if (e.noteId) {
+      const note = entries.find((n) => n.kind === 'design_note' && n.noteId === e.noteId)
+      if (note) note.specEventId = e.id
+    }
+  }
   entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp))
   return entries
 }
@@ -2053,6 +2074,8 @@ export type AssetCapability = {
   area?: string
   status: 'active' | 'removed'
   source: 'graduated' | 'reconciled'
+  sourceSpecId?: string
+  sourceSpecVersion?: number
   originSummary: string
   originWorkItemId?: string
   originCodePlanId?: string
@@ -2070,6 +2093,9 @@ export type GraduationCandidate = {
 }
 
 export type AssetRecord = {
+  /** Spec intent is separate from delivered capability claims. null means no delivery confirmed. */
+  activeSpecs: { specId: string; specTitle: string; specType: string; area: string | null;
+    currentVersion: number; deliveredThroughVersion: number | null; status: string }[]
   capabilities: AssetCapability[]
   /** Derived: the asset's open bug/ux items. */
   knownIssues: ReleaseWorkItemRow[]
@@ -2107,6 +2133,7 @@ export async function getAssetRecord(assetId: string, userId: string): Promise<A
       .where(eq(workItems.assetId, assetId)),
   ])
 
+  const linkedSpecs = await getAssetSpecs(assetId, userId)
   const graduated = new Set(capRows.map((c) => c.originWorkItemId).filter(Boolean))
   const openStatuses = ['open', 'planned', 'in_progress']
   const severityRank: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 }
@@ -2117,6 +2144,11 @@ export async function getAssetRecord(assetId: string, userId: string): Promise<A
   })
 
   return {
+    activeSpecs: linkedSpecs.filter((s) => s.status === 'active' || s.status === 'draft').map((s) => {
+      const delivered = capRows.filter((c) => c.sourceSpecId === s.id && c.sourceSpecVersion !== null).map((c) => c.sourceSpecVersion!)
+      return { specId: s.id, specTitle: s.title, specType: s.specType, area: s.area, status: s.status,
+        currentVersion: s.version, deliveredThroughVersion: delivered.length ? Math.max(...delivered) : null }
+    }),
     capabilities: capRows.map((c) => ({
       id: c.id,
       title: c.title,
@@ -2125,6 +2157,8 @@ export async function getAssetRecord(assetId: string, userId: string): Promise<A
       status: c.status as 'active' | 'removed',
       source: c.source as 'graduated' | 'reconciled',
       originSummary: c.originSummary,
+      sourceSpecId: c.sourceSpecId ?? undefined,
+      sourceSpecVersion: c.sourceSpecVersion ?? undefined,
       originWorkItemId: c.originWorkItemId ?? undefined,
       originCodePlanId: c.originCodePlanId ?? undefined,
       originReleaseId: c.originReleaseId ?? undefined,

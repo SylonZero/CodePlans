@@ -44,7 +44,7 @@ export function RichTextEditor({
   const editor = useEditor({
     extensions: [
       StarterKit,
-      Markdown,
+      Markdown.configure({ markedOptions: { breaks: true, gfm: true } }),
       TableKit.configure({ table: { resizable: false } }),
       TaskList,
       TaskItem.configure({ nested: true }),
@@ -58,11 +58,7 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class: cn(
-          'prose prose-sm prose-invert max-w-none focus:outline-none px-3 py-2',
-          '[&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_pre]:bg-muted [&_pre]:p-2 [&_pre]:rounded [&_code]:text-xs [&_table]:text-xs',
-          '[&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-border [&_th]:px-2 [&_th]:py-1',
-          '[&_ul[data-type=taskList]]:list-none [&_ul[data-type=taskList]]:pl-1',
-          '[&_ul[data-type=taskList]_li]:flex [&_ul[data-type=taskList]_li]:gap-2 [&_ul[data-type=taskList]_label]:mt-0.5',
+          'markdown-body max-w-none focus:outline-none px-3 py-2',
           size === 'tall' ? 'min-h-56' : 'min-h-28',
         ),
       },

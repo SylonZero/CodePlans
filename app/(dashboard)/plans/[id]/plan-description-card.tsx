@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import { MarkdownContent } from '@/components/markdown-content'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { AlignLeft, ChevronDown, ChevronUp } from 'lucide-react'
@@ -37,7 +36,7 @@ export function PlanDescriptionCard({ description }: { description: string }) {
             !expanded && 'max-h-36 overflow-hidden',
           )}
         >
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{description}</ReactMarkdown>
+          <MarkdownContent>{description}</MarkdownContent>
         </div>
         {(clamped || expanded) && (
           <Button

@@ -157,6 +157,7 @@ export const codePlans = sqliteTable('code_plans', {
   // Steers the plan; distinct from creator and assignees.
   ownerId: text('owner_id').references(() => users.id, { onDelete: 'set null' }),
   // Link to the design spec (markdown in the repo, or any doc URL).
+  // Deprecated, read-only legacy citation. New associations live in spec_links.
   specUrl: text('spec_url'),
   // A plan ships in at most one release; detaching a release never touches its plans.
   releaseId: text('release_id').references((): AnySQLiteColumn => releases.id, { onDelete: 'set null' }),
@@ -245,6 +246,8 @@ export const assetCapabilities = sqliteTable('asset_capabilities', {
   originCodePlanId: text('origin_code_plan_id').references(() => codePlans.id, { onDelete: 'set null' }),
   originReleaseId: text('origin_release_id').references(() => releases.id, { onDelete: 'set null' }),
   // Captured lineage text — the receipt outlives its source rows.
+  sourceSpecId: text('source_spec_id').references(() => specs.id, { onDelete: 'set null' }),
+  sourceSpecVersion: integer('source_spec_version'),
   originSummary: text('origin_summary').notNull().default(''),
   verifiedAt: integer('verified_at', { mode: 'timestamp' }),
   removedAt: integer('removed_at', { mode: 'timestamp' }),
@@ -290,6 +293,7 @@ export const workItems = sqliteTable('work_items', {
   reporterId: text('reporter_id').references(() => users.id, { onDelete: 'set null' }),
   // Steers the item to resolution; distinct from reporter.
   ownerId: text('owner_id').references(() => users.id, { onDelete: 'set null' }),
+  // Deprecated, read-only legacy citation. New associations live in spec_links.
   specUrl: text('spec_url'),
   source: text('source').$type<ItemSource>().notNull().default('native'),
   connectionId: text('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
@@ -382,3 +386,56 @@ export const emailVerificationTokens = sqliteTable('email_verification_tokens', 
   expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 })
+
+// Native, product-owned specifications. Bodies are canonical GFM from TipTap.
+export const specs = sqliteTable('specs', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  productId: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  body: text('body').notNull(),
+  specType: text('spec_type').notNull(),
+  area: text('area'),
+  status: text('status').notNull().default('draft'),
+  version: integer('version').notNull().default(1),
+  supersedes: text('supersedes').references((): AnySQLiteColumn => specs.id, { onDelete: 'set null' }),
+  supersededBy: text('superseded_by').references((): AnySQLiteColumn => specs.id, { onDelete: 'set null' }),
+  sourceType: text('source_type').notNull().default('native'),
+  sourceUrl: text('source_url'),
+  needsReview: integer('needs_review', { mode: 'boolean' }).notNull().default(false),
+  authorType: text('author_type').notNull().default('user'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('specs_product_idx').on(t.productId),
+  uniqueIndex('specs_import_url_idx').on(t.productId, t.sourceUrl)
+    .where(sql`${t.sourceType} = 'git_import' AND ${t.supersedes} IS NULL`),
+])
+
+// Target ownership and existence are checked by the spec service.
+export const specLinks = sqliteTable('spec_links', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  specId: text('spec_id').notNull().references(() => specs.id, { onDelete: 'cascade' }),
+  targetType: text('target_type').notNull(),
+  targetId: text('target_id').notNull(),
+  relationshipType: text('relationship_type'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('spec_links_target_idx').on(t.specId, t.targetType, t.targetId),
+  index('spec_links_lookup_idx').on(t.targetType, t.targetId),
+])
+
+// Immutable event snapshots: unlinking or subsequent edits never rewrite history.
+export const specEvents = sqliteTable('spec_events', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  specId: text('spec_id').notNull().references(() => specs.id, { onDelete: 'cascade' }),
+  assetId: text('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(),
+  specTitle: text('spec_title').notNull(),
+  specType: text('spec_type').notNull(),
+  fromVersion: integer('from_version'),
+  toVersion: integer('to_version').notNull(),
+  planId: text('plan_id').references(() => codePlans.id, { onDelete: 'set null' }),
+  workItemId: text('work_item_id').references(() => workItems.id, { onDelete: 'set null' }),
+  noteId: text('note_id').references(() => assetDesignLog.id, { onDelete: 'set null' }),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [index('spec_events_asset_idx').on(t.assetId)])

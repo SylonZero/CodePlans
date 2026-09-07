@@ -1,3 +1,4 @@
+import { NativeSpecsPanel } from '@/components/native-specs'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { authAdapter } from '@/lib/auth'
@@ -217,6 +218,7 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
           {plan.description && <PlanDescriptionCard description={plan.description} />}
 
           {/* Linked design spec, rendered read-only from its source */}
+          <NativeSpecsPanel productId={plan.productId} targetType="code_plan" targetId={plan.id} />
           {plan.specUrl && (
             <SpecCard
               specUrl={plan.specUrl}

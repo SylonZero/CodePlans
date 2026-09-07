@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import { MarkdownContent } from '@/components/markdown-content'
 import { authAdapter } from '@/lib/auth'
 import { getRelease, getSuggestedReleaseAssets, getCodePlans } from '@/lib/db/queries'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -108,7 +107,7 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
                 <CardTitle className="text-sm font-medium text-muted-foreground">Description</CardTitle>
               </CardHeader>
               <CardContent className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{release.description}</ReactMarkdown>
+                <MarkdownContent>{release.description}</MarkdownContent>
               </CardContent>
             </Card>
           ) : (

@@ -1,11 +1,10 @@
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import { MarkdownContent } from '@/components/markdown-content'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { FileText, ExternalLink } from 'lucide-react'
 
 /**
- * Read-only rendering of a linked spec. Authored in git (or any doc tool);
- * CodePlans displays, never edits — see docs/guides/using-specs.md.
+ * Read-only fallback for deprecated specUrl citations. Native specs use the
+ * shared Markdown renderer and are edited through the Specs panel.
  */
 export function SpecCard({ specUrl, markdown }: { specUrl: string; markdown: string | null }) {
   return (
@@ -28,7 +27,7 @@ export function SpecCard({ specUrl, markdown }: { specUrl: string; markdown: str
       <CardContent>
         {markdown ? (
           <div className="prose prose-sm prose-invert max-w-none max-h-[480px] overflow-y-auto [&_h1]:text-lg [&_h2]:text-base [&_h3]:text-sm [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:rounded [&_code]:text-xs [&_table]:text-sm">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
+            <MarkdownContent>{markdown}</MarkdownContent>
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
