@@ -3,7 +3,7 @@
 Open any asset and the **History** tab shows its story, newest first: releases
 that shipped it (with version tick marks), plans delivered to it (with their
 branch/PR chips), work items resolved against it, tech-debt opened and paid
-down, and design notes recorded along the way. A sticky **version ladder**
+down, spec arrivals and revisions, and design notes recorded along the way. A sticky **version ladder**
 anchors into the timeline; the asset header shows the current version from the
 latest shipped release.
 
@@ -19,6 +19,7 @@ items, releases. The one authored layer is the design log.
 | 🚀 Version stamp | A shipped [release](releases-and-versions.md) that versioned this asset |
 | 📋 Plan delivered | A completed plan that targeted the asset (`code_plan_assets`), with branch/PR chips |
 | ✅ Work item resolved | A resolved feature/bug/UX item with this asset set |
+| 📑 Spec linked or updated | Durable snapshots of spec title, type, and version, with plan/work-item anchors when applicable; unlinking does not erase them |
 | ↑ / ↓ Debt movement | Tech-debt items opened or resolved on the asset; each version segment shows its net debt delta |
 
 Anything not yet shipped in a release accrues under an **Unreleased** segment
@@ -52,9 +53,19 @@ With [AI drafting](ai-agents.md#ai-drafting) enabled, the design-note panel
 can also draft a note from a completed plan's context — into the editor, for
 your review, never auto-saved.
 
-## Where this is heading
+## Revising a spec with a design note
 
-History is the diary. The next step —
-[the Asset Record](../specs/asset-record-spec.md) — is the current-state
-document: a capabilities register graduated from delivered work, kept honest
-by agent-driven reconciliation against the code itself.
+A design note explains a decision retrospectively; a [spec](using-specs.md)
+describes the intended behavior. MCP `record_design_note` can update both in
+one transaction: provide `revisesSpecId` and `revisedSpecBody`, with
+`expectedSpecVersion` to reject a stale edit. The timeline receives separate
+note and spec-revision entries linked to each other. Note text never silently
+replaces a spec body, and a failed revision rolls back the note too.
+
+## History and Record
+
+History is the diary. [Asset Record](../specs/asset-record-spec.md) shows
+capabilities graduated from delivered work, each with its original delivery
+receipt. Its separate Active Specs section compares current spec versions
+with versions confirmed by delivery. Agent-driven reconciliation against the
+code is a future extension.

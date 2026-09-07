@@ -1,6 +1,8 @@
 ## CodePlans App Spec
 
-> **Status:** current implemented state as of **v0.4.6** (2026-08). For the target
+> **Status:** current implemented state, including Native Spec Entity v1
+> on top of **v0.4.6** (2026-09). Native spec behavior and migration details are
+> documented in [the specs guide](guides/using-specs.md). For the target
 > design and rationale, see `docs/specs/design-spec-v3.md` (all phases shipped),
 > `docs/specs/releases-and-asset-history-spec.md` (Phases A–D shipped), and
 > `docs/specs/asset-record-spec.md` (Phase A shipped; Phases B–C are the next
@@ -8,7 +10,7 @@
 
 ### Overview
 
-CodePlans is a **code change coordination tool** for engineering teams. It organizes work around the hierarchy **Products → Assets → Code Plans → Tasks**, with **Work Items** (features, bugs, UX issues, tech debt) as the demand side linked many-to-many to code plans, per-asset **branch/PR tracking** on plans, **releases** grouping the plans that ship together (with per-asset version stamps and derived release notes), a per-asset **history timeline and design log**, a per-asset **record** (capabilities register graduated from delivered work), a top-level **Asset Atlas** (live system map with health/debt/activity lenses, plus grid/table views), **asset dependencies** with impact analysis, pull-only **integrations** that mirror external tracker items into work items, and a 42-tool **MCP server** for AI coding agents. Users track technical debt, coordinate architectural changes, and measure team velocity. Deployed at `codeplans.ai`. Stack: Next.js 16 (App Router), Drizzle ORM, pluggable auth/DB (SQLite local / Supabase+Postgres cloud).
+CodePlans is a **code change coordination tool** for engineering teams. It organizes work around the hierarchy **Products → Assets → Code Plans → Tasks**, with **Work Items** (features, bugs, UX issues, tech debt) as the demand side linked many-to-many to code plans, per-asset **branch/PR tracking** on plans, **releases** grouping the plans that ship together (with per-asset version stamps and derived release notes), a per-asset **history timeline and design log**, a per-asset **record** (capabilities register graduated from delivered work), a top-level **Asset Atlas** (live system map with health/debt/activity lenses, plus grid/table views), **asset dependencies** with impact analysis, pull-only **integrations** that mirror external tracker items into work items, and native versioned **specs** linked to assets, work items, and plans, and a 49-tool **MCP server** for AI coding agents. Users track technical debt, coordinate architectural changes, and measure team velocity. Deployed at `codeplans.ai`. Stack: Next.js 16 (App Router), Drizzle ORM, pluggable auth/DB (SQLite local / Supabase+Postgres cloud).
 
 ---
 
@@ -93,6 +95,38 @@ CodePlans is a **code change coordination tool** for engineering teams. It organ
 | createdAt | timestamp | |
 
 **Used by:** the product Dependencies tab (edge CRUD + adjacency view) and plan Impact Analysis (`getImpactedAssets`).
+
+#### Native specs (`specs`, `spec_links`, `spec_events`)
+
+Specs belong to one product. SQLite stores UUIDs as text and timestamps as
+integers; PostgreSQL uses UUID, timestamptz, and boolean columns. Both providers
+ship additive, journaled `0017_native_specs` Drizzle migrations.
+
+| Table | Fields and constraints |
+|---|---|
+| `specs` | `id`, `productId` (cascade FK), `title`, GFM `body`, open-string `specType`, optional `area`, `status` (draft/active/archived/superseded), `version` (starts at 1), self-FKs `supersedes` / `supersededBy`, `sourceType` (native/git_import), `sourceUrl`, `needsReview`, `authorType`, timestamps |
+| `spec_links` | `id`, `specId` (cascade FK), `targetType` (asset/work_item/code_plan), `targetId`, optional `relationshipType` (creates/revises/references for plans), `createdAt`; unique `(specId, targetType, targetId)` |
+| `spec_events` | `id`, `specId`, `assetId`, `kind` (spec_linked/spec_updated), title/type snapshots, `fromVersion` / `toVersion`, optional `planId`, `workItemId`, `noteId`, `createdAt` |
+
+The service enforces polymorphic target existence and product ownership.
+Native deletion paths clean up target links; unlinking never erases timeline
+events. Imported root specs have a partial unique index on product/source URL.
+A superseding document retains provenance without preventing import reruns.
+`asset_capabilities.sourceSpecId` (nullable FK) and `sourceSpecVersion`
+(nullable integer) pin the spec version confirmed by graduation.
+
+`lib/db/specs.ts` implements product-scoped create/get/list/update/supersede/
+link/unlink operations. Updates increment the version, with an optional
+`expectedVersion` check to reject stale edits. Supersession creates a new v1
+draft with the old associations, marks the old document read-only, and keeps
+its delivery receipts intact. V1 stores only the current body; historical body
+diffs are outside scope.
+
+Legacy `code_plans.specUrl` and `work_items.specUrl` remain readable citations;
+native forms and MCP no longer write them. `scripts/migrate-specs.ts` imports
+them with product-scoped deduplication and review flags. It defaults to dry-run
+and never overwrites later native content on reruns. See the
+[migration commands and PostgreSQL verifier](guides/using-specs.md#migrating-existing-urls).
 
 #### `code_plans`
 | Field | Type | Notes |
@@ -221,9 +255,9 @@ Provenance columns (`source` default `native`, `connectionId`, `externalId/Key/U
 | `attachPlanToRelease` / `detachPlanFromRelease` | none | Sets/clears `code_plans.releaseId` |
 | `setReleaseAsset(releaseId, assetId, data?)` | none | Upserts the per-asset version stamp |
 | `removeReleaseAsset(releaseId, assetId)` | none | Returns `{ id }` or null |
-| `createDesignNote(data)` / `updateDesignNote` / `deleteDesignNote` | none | `authorKind` defaults `user`; MCP sets `agent` |
-| `graduateWorkItem(workItemId)` | none | Validates resolved + feature/enhancement + has asset; idempotent per work item; composes `originSummary` from item → first linked plan → that plan's release stamp |
-| `moveAsset(assetId, targetProductId)` | at caller layer (both products) | (v0.4.6) Blocked while draft/active plans target the asset (returns `blockingPlans`); work items follow the asset; history (stamps, completed-plan links, capabilities, design log) untouched; no-op if already there |
+| `createDesignNote(data)` / `updateDesignNote` / `deleteDesignNote` | none | `authorKind` defaults `user`; MCP sets `agent`; creation can atomically revise a spec using `revisesSpecId`, `revisedSpecBody`, and optional `expectedSpecVersion` |
+| `graduateWorkItem(workItemId, sourceSpecId?)` | none | Validates resolved + feature/enhancement + has asset; idempotent per work item; composes `originSummary` from item → first linked plan → that plan's release stamp; pins the linked spec version (explicit choice required for multiple specs); retries preserve the original receipt |
+| `moveAsset(assetId, targetProductId)` | at caller layer (both products) | (v0.4.6) Blocked while specs on the asset or its work items would cross product boundaries, or while draft/active plans target the asset (returns `blockingPlans`); work items follow the asset; history (stamps, completed-plan links, capabilities, design log) untouched; no-op if already there |
 | `updateCapability(id, data)` | none | Edits title/description/area; lineage untouched |
 | `removeCapability(id, reason?)` | none | Tombstone: `status='removed'` + `removedAt`; reason appended to description as `**Removed:**` |
 
@@ -304,9 +338,23 @@ Top-level inventory of every visible asset (respects the global product scope + 
 #### `/assets/[id]` — Asset Detail (v0.3.25)
 Header (type/health badges, current version chip from latest shipped release, repo/docs links, owners), summary cards (tech debt score with derived-vs-manual note, open work items, plan count), and tabs (v0.4.4 moved the auto-save description + notes cards into a default **Overview** tab so every tab's content starts above the fold):
 - **Overview** (default) — auto-save description + notes (ideation doc) cards
+- **Specs** — native spec picker/creator and linked documents with type, area, status, and version; opens the shared spec editor.
 - **Work Items / Tech Debt / Code Plans / Dependencies** — the asset's slices of the existing views (plans with per-asset branch/PR chips)
-- **History** (v0.4.0–v0.4.2) — reverse-chronological timeline projected from existing rows: shipped releases as version tick marks (with a sticky version ladder), completed plans, resolved work items, debt movement, and design-log entries (expandable markdown, agent badge for MCP-authored notes, "via plan" anchor chips). Filter chips per entry kind. "Add design note" side panel with optional release/plan anchors and (flagged) AI draft-from-plan.
-- **Record** (v0.4.4) — the asset's current-state register: a candidates banner ("N resolved features can join this asset's record" with one-click graduation), capabilities list (lineage chip from `originSummary`, verification freshness dot, expandable markdown, edit dialog, remove-with-reason dialog), derived **Known issues** (open bug/ux) and **Debt register** (open tech_debt) cards, and a struck-through **Previously** card for tombstoned capabilities.
+- **History** (v0.4.0–v0.4.2) — reverse-chronological timeline projected from existing rows: shipped releases as version tick marks (with a sticky version ladder), completed plans, resolved work items, debt movement, spec link/update snapshots, and design-log entries (expandable markdown, agent badge for MCP-authored notes, "via plan" anchor chips). Filter chips per entry kind. "Add design note" side panel with optional release/plan anchors and (flagged) AI draft-from-plan.
+- **Record** (v0.4.4) — the asset's current-state register: a candidates banner ("N resolved features can join this asset's record" with graduation and explicit source-spec selection when multiple specs are linked), capabilities list (lineage chip from `originSummary`, verification freshness dot, expandable markdown, edit dialog, remove-with-reason dialog), derived **Known issues** (open bug/ux) and **Debt register** (open tech_debt) cards, and a struck-through **Previously** card for tombstoned capabilities. A separate **Active Specs** section shows draft/active intent with current and delivered-through versions (null when no receipt exists); capabilities show their pinned spec version.
+
+#### `/specs/[id]` — Native Spec
+Product-authorized reader and TipTap editor with type/area/review metadata,
+version, status, associations, and provenance. Version checks reject stale
+saves. Superseded specs are read-only and link to their replacement. Native
+spec panels also appear on plan detail and work-item side panels; new-plan and
+new-work-item forms offer a picker/creator.
+
+All Markdown readers share `MarkdownContent` with GFM and soft-line-break
+support. The shared document CSS supplies paragraphs, headings, lists, task
+lists, strikethrough, and fenced code; wide tables/code scroll inside narrow
+panels. TipTap uses matching typography and break handling. Raw HTML execution
+is disabled.
 
 #### `/releases` & `/releases/[id]` — Releases (v0.4.1)
 List: status tabs (All / In Progress / Shipped), rows with asset+version chips, plan counts, derived work-item type dots; create side panel. Detail mirrors plan-detail layout (v0.4.4: description moved into a default **Overview** tab — it is the release notes; empty state points at Draft release notes when AI is enabled):
@@ -375,7 +423,7 @@ Client component (`IntegrationsClient`) with:
 - Delete with confirm (mirrored items are kept, stop syncing)
 
 #### `/api/mcp/[transport]` — MCP server (no UI)
-Streamable HTTP MCP endpoint (`mcp-handler`) with 42 tools wrapping the query/mutation layer (task assignees resolved by workspace-member email) — reads, plus management of products/assets/dependencies (incl. `move_asset` model refactoring and asset `layer`), plan lifecycle (activate/complete incl. write-back), plan targets, work items, tasks, releases (create/update/attach/version-stamp/ship — shipped releases reject mutation), `get_asset_history`, `record_design_note` (agent-attributed design-log entries), `get_asset_record`, and `graduate_work_item`; `get_modeling_guide` carries the boundary rule and layer taxonomy; record deletes are deliberately excluded (link removals only) — see `docs/specs/mcp-server-spec.md`. Auth: `Authorization: Bearer cpk_…` resolved by `lib/mcp/auth.ts` to a user (scopes: read/write); 401 without a valid key. `proxy.ts` exempts this path from session redirects. Connect: `claude mcp add --transport http codeplans <base>/api/mcp/mcp --header "Authorization: Bearer <key>"`.
+Streamable HTTP MCP endpoint (`mcp-handler`) with 49 tools wrapping the query/mutation layer (task assignees resolved by workspace-member email) — reads, plus management of products/assets/dependencies (incl. `move_asset` model refactoring and asset `layer`), plan lifecycle (activate/complete incl. write-back), plan targets, work items, tasks, releases (create/update/attach/version-stamp/ship — shipped releases reject mutation), `get_asset_history`, `record_design_note` (agent-attributed design-log entries), `get_asset_record`, `graduate_work_item`, and seven spec tools (`create_spec`, `get_spec`, `list_specs`, `update_spec`, `supersede_spec`, `link_spec`, `unlink_spec`); `get_modeling_guide` carries the boundary rule and layer taxonomy; record deletes are deliberately excluded (link removals only) — see `docs/specs/mcp-server-spec.md`. Auth: `Authorization: Bearer cpk_…` resolved by `lib/mcp/auth.ts` to a user (scopes: read/write); 401 without a valid key. `proxy.ts` exempts this path from session redirects. Connect: `claude mcp add --transport http codeplans <base>/api/mcp/mcp --header "Authorization: Bearer <key>"`.
 
 #### `/team` — Team Management
 - Requires org membership; shows message if no org
@@ -425,7 +473,7 @@ Guarded by `BILLING_ENABLED` env flag (redirects to `/` if false). Shows:
 - `supabase`: delegates to Supabase client, session via cookies
 
 **DB providers** (pluggable via `DB_PROVIDER` env):
-- `sqlite`: `@libsql/client` + `drizzle-orm/libsql`, local file or `:memory:` (tests)
+- `sqlite`: `@libsql/client` + `drizzle-orm/libsql`, local file or `:memory:`; tests use isolated temporary files to preserve state across transactions
 - `postgres`: `postgres` (postgres.js) + `drizzle-orm/postgres-js`
 
 **Feature flags:**

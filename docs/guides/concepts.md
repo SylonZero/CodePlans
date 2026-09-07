@@ -24,10 +24,11 @@ Per asset:  History (derived diary)  ·  Record (delivered reality)
 | **Asset** | The unit you *change* — the work surface | Health, tech debt, dependencies, owners, history, record |
 | **Work item** | Demand — a feature, bug, UX issue, or debt someone wants addressed | Type, severity, status, target asset, links to plans |
 | **Code plan** | A coordinated change — the bridge from demand to execution | Tasks, target assets (with branch/PR per asset), linked work items, its release |
+| **Spec** | Product-owned design intent linked to assets, work items, and plans | GFM body, type/area, version, status, supersession, import provenance |
 | **Task** | The unit of execution | Status, assignee, effort, schedule |
 | **Release** | What ships *together* — always an explicit human act | Attached plans, per-asset version stamps, derived release notes |
-| **Record** | What an asset *is* today — delivered capabilities with receipts | Capabilities (with lineage), known issues, debt register |
-| **History** | How the asset *got here* — a derived diary | Version stamps, delivered plans, resolved items, design notes |
+| **Record** | What an asset *is* today — delivered capabilities with receipts | Capabilities (with pinned spec lineage), known issues, debt register; active spec intent shown separately |
+| **History** | How the asset *got here* — a derived diary | Version stamps, delivered plans, resolved items, design notes, spec arrivals and revisions |
 
 Two of these are load-bearing in ways that are easy to miss, and they're where
 modeling questions concentrate: **products** and **assets**.
@@ -102,11 +103,13 @@ dependency edges — there is deliberately no way to drag a node or pin a
 layout, because stored layout would make the map a document again, and
 documents rot.
 
-**2. Reality, not intent.** The asset Record only ever contains *delivered or
-verified* claims — a capability enters it by graduating from a resolved work
-item (with full lineage: work item → plan → release) or by being verified
-against code. Intent lives upstream in work items and PM tools and links out.
-This one rule is what keeps the record from becoming a second backlog.
+**2. Keep delivered claims distinct from intent.** A capability enters the
+asset Record by graduating from a resolved work item, with lineage back to its
+work item, plan, release, and pinned spec version. Native specs describe
+intent. Record shows them in a separate Active Specs section so a spec at v3
+can visibly coexist with a capability delivered against v1. Editing the spec
+does not rewrite that receipt or assert that v3 shipped. Agent reconciliation
+against code is planned separately.
 
 **3. Shipping is a human act.** Releases have an explicit lifecycle and an
 explicit "Mark Shipped" — nothing infers shipping from merges or deploy
@@ -114,7 +117,7 @@ events. Shipped releases become read-only, because the record of what shipped
 must stay trustworthy. Corrections reopen deliberately.
 
 **4. Agents are first-class users.** Everything the UI can do to the model,
-the MCP server exposes — currently 41 tools, with the same access rules and
+the MCP server exposes — currently 49 tools, with the same access rules and
 guardrails enforced at the tool layer (shipped releases reject mutation,
 mirrored items reject writes to tracker-owned fields). Modeling guidance
 ships *inside* the tools (`get_modeling_guide`, and heuristics in tool
@@ -133,6 +136,7 @@ migration.
 
 ## Where to go next
 
+- [Native, Versioned Specs](using-specs.md) — intent, delivery receipts, and migration
 - [The Asset Atlas](asset-atlas.md) — the system map these boundaries feed
 - [Releases & Versions](releases-and-versions.md) — the shipping boundary in practice
 - [Asset History & the Design Log](asset-history.md) — the derived diary
