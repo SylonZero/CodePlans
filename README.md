@@ -5,13 +5,17 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-SQLite_%7C_Postgres-C5F74F?logo=drizzle&logoColor=black)](https://orm.drizzle.team)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![Tests](https://img.shields.io/badge/Tests-161_passing-brightgreen?logo=vitest&logoColor=white)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-233_passing-brightgreen?logo=vitest&logoColor=white)](tests/)
 
 **Coordinate and track changes across your software architecture.**
 
-CodePlans is an open-source engineering planning tool that helps teams manage coordinated code changes across complex systems. It maps demand (work items: features, bugs, tech debt) onto delivery (code plans and tasks) across your architecture (products and assets), giving teams a shared view of what's changing, where, and why.
+CodePlans is an open-source engineering planning tool that helps teams manage coordinated code changes across complex systems. It maps demand (work items: features, bugs, tech debt) onto delivery (code plans and tasks) across your architecture (products and assets), giving teams a shared view of what's changing, where, and why. The Product Wiki brings those specs, decisions, and delivery records together into a searchable view of your system.
 
 → **Beta signup:** [codeplans.ai](https://codeplans.ai) · **Docs:** [sylonzero.github.io/CodePlans](https://sylonzero.github.io/CodePlans)
+
+[![Product Wiki overview showing the Atlas demo architecture, review queue, and asset library](docs/screenshots/wiki-overview.png)](https://sylonzero.github.io/CodePlans/#wiki)
+
+*Explore your product as a connected library. [Take the visual wiki tour →](https://sylonzero.github.io/CodePlans/#wiki)*
 
 ---
 
@@ -26,6 +30,25 @@ CodePlans sits between your issue tracker and your architecture diagram:
 - **Work Items** are the demand side — features, bugs, UX issues, and tech debt items — linked many-to-many to the plans that address them (natively, or mirrored from GitHub/GitLab)
 - **Code Plans** coordinate related changes across assets with owners, assignees, deadlines, per-asset branch/PR tracking, and progress
 - **Tasks** are the individual units of work tied to a plan and optionally scoped to a specific asset
+
+---
+
+## Product Wiki
+
+**Read the story behind every asset.** Open Wiki in its own browser tab to move
+from the product architecture to a service's specs, design decisions, active
+plans, known issues, and delivery history.
+
+- **Find the detail:** search document bodies and technical identifiers, then narrow by asset, type, status, area, or date.
+- **Read comfortably:** full Markdown documents with tables, code, task lists, section links, and related content alongside.
+- **Follow the evidence:** see authors, edit times, spec revisions, and capability receipts without confusing planned work with shipped versions.
+
+[![A versioned spec in the Wiki reader, with author details, a GFM lifecycle table, section navigation, and related assets](docs/screenshots/wiki-reader.png)](docs/guides/product-wiki.md)
+
+*Screenshots use a synthetic Atlas demo workspace. [See asset pages and search in the visual tour →](https://sylonzero.github.io/CodePlans/#wiki)*
+
+Run `pnpm db:migrate` before deploying to apply the additive SQLite/PostgreSQL
+attribution migration. See the [wiki guide](docs/guides/product-wiki.md).
 
 ---
 
@@ -77,7 +100,7 @@ CodePlans sits between your issue tracker and your architecture diagram:
 | Database | SQLite (local / libsql) or PostgreSQL (cloud) |
 | Auth | Local (bcrypt + session cookie) or Supabase |
 | Charts | Recharts |
-| Testing | Vitest (161 tests) |
+| Testing | Vitest (233 tests) |
 
 ---
 
@@ -320,19 +343,6 @@ Contributions are welcome. To get started:
 4. Open a pull request with a clear description
 
 Please keep PRs focused. Bug fixes, test coverage improvements, and documentation updates are especially appreciated.
-
----
-
-## Product Wiki
-
-Open **Wiki ↗** from the main navigation for a dedicated reading tab. Browse
-assets by layer, read specs and operational notes, follow related plans and
-decisions, and search content with asset/type/status/area/date filters. Wiki
-pages distinguish recorded capabilities, intended changes, completed work, and
-shipped versions, with creator/editor attribution and source provenance.
-
-Run `pnpm db:migrate` before deploying to apply the additive SQLite/PostgreSQL
-attribution migration. See the [wiki guide](docs/guides/product-wiki.md).
 
 ---
 

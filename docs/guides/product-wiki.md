@@ -5,6 +5,18 @@ in a new browser tab. The entry page follows your selected product, or offers a
 product picker. After entry, the product lives in the wiki URL: changing it does
 not change the product filter in your working CodePlans tab.
 
+## A visual walkthrough
+
+These captures use a synthetic Atlas demo workspace. Select an image to inspect it at full size.
+
+[![Asset wiki with capabilities, specs, attribution, and dependency links](../screenshots/wiki-asset.png)](../screenshots/wiki-asset.png)
+
+*Start with an asset and follow its documents, delivery context, and architecture connections.*
+
+[![Full spec reader with GFM tables, version details, authors, and section navigation](../screenshots/wiki-reader.png)](../screenshots/wiki-reader.png)
+
+*Read the whole document with its context alongside. [See the product overview and search in the visual tour](https://sylonzero.github.io/CodePlans/#wiki).*
+
 ## Browse an asset's story
 
 The left navigation groups assets by layer, using the existing type defaults

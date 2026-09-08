@@ -318,6 +318,22 @@
       .hierarchy-inner { padding: 16px; }
       .h-arrow { display: none; }
     }
+    /* Wiki walkthrough reuses the tour's screenshot framing. */
+    .wiki-gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 24px; margin-top: 40px; }
+    .wiki-shot-wide { grid-column: 1 / -1; }
+    .wiki-shot a { display: block; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface); transition: border-color .15s; }
+    .wiki-shot a:hover, .wiki-shot a:focus-visible { border-color: var(--accent); }
+    .wiki-shot img { display: block; width: 100%; height: auto; }
+    .wiki-shot figcaption { color: var(--muted); font-size: .875rem; margin-top: 14px; line-height: 1.7; }
+    .wiki-shot figcaption strong { display: block; color: var(--text); font-size: 1rem; margin-bottom: 4px; }
+    .wiki-demo-note { color: var(--muted); font-size: .8rem; margin-top: 24px; }
+    @media (max-width: 680px) {
+      .wiki-gallery { grid-template-columns: 1fr; }
+      nav .inner { gap: 16px; }
+      .nav-logo { flex-shrink: 0; }
+      .nav-links { min-width: 0; overflow-x: auto; }
+      .nav-links a { flex-shrink: 0; white-space: nowrap; }
+    }
   </style>
 </head>
 <body>
@@ -333,6 +349,7 @@
     </div>
     <div class="nav-links">
       <a href="#tour">Tour</a>
+      <a href="#wiki">Wiki</a>
       <a href="#features">Features</a>
       <a href="#ai">AI Agents</a>
       <a href="#docs">Docs</a>
@@ -403,10 +420,14 @@
   <div class="container">
     <div class="section-label">Tour</div>
     <h2>See it in action</h2>
-    <p class="section-sub">The demo workspace that ships with the repo — seed it locally with <code>pnpm db:seed-demo</code> and explore the same views.</p>
+    <p class="section-sub">Explore CodePlans with sample data. Seed the bundled workspace with <code>pnpm db:seed-demo</code>; Wiki captures use an extended synthetic Atlas workspace with native specs and linked delivery records.</p>
 
     <div class="tour-tabs" role="tablist">
       <button class="tour-tab active" data-img="screenshots/dashboard.png" data-caption="The dashboard — team velocity, active plans, and a live activity feed across your products.">Dashboard</button>
+      <button class="tour-tab" data-img="screenshots/wiki-overview.png" data-caption="Product Wiki — browse the Atlas demo architecture by layer, discover each asset’s documents, and spot specs that need review.">Wiki Overview</button>
+      <button class="tour-tab" data-img="screenshots/wiki-asset.png" data-caption="An asset’s story — recorded capabilities, specs, plans, issues, and evolution, with owners, dates, and dependency links in context.">Wiki Asset</button>
+      <button class="tour-tab" data-img="screenshots/wiki-reader.png" data-caption="The Wiki reader — formatted specs with version and author details, GFM tables, section navigation, and related assets.">Wiki Reader</button>
+      <button class="tour-tab" data-img="screenshots/wiki-search.png" data-caption="Wiki search — find technical identifiers inside documents, read matching excerpts, and narrow the results with product-scoped filters.">Wiki Search</button>
       <button class="tour-tab" data-img="screenshots/asset-map.png" data-caption="The Asset Atlas — a system map drawn live from your inventory and dependency edges, with health, debt, and activity lenses. Hover an asset to see its blast radius.">Asset Map</button>
       <button class="tour-tab" data-img="screenshots/asset-record.png" data-caption="The Record tab — capabilities graduated from delivered work items, each claim carrying its delivery lineage, beside derived known-issues and debt registers.">Asset Record</button>
       <button class="tour-tab" data-img="screenshots/asset-history.png" data-caption="Asset history — a version ladder of shipped releases, delivered plans, resolved work items, and design notes (user- or agent-authored).">Asset History</button>
@@ -522,6 +543,27 @@
       <div class="feature-card"><h3>Find the useful detail</h3><p>Search document bodies, headings, technical identifiers, areas, and repository paths. Filter by asset, content type, status, area, or date; results include matching excerpts.</p></div>
       <div class="feature-card"><h3>Understand the evidence</h3><p>See creator and last-editor attribution, import provenance, spec versions, and delivery receipts. Completed plans and shipped releases remain distinct; missing metadata stays explicitly unknown.</p></div>
     </div>
+    <div class="wiki-gallery">
+      <figure class="wiki-shot wiki-shot-wide">
+        <a href="screenshots/wiki-asset.png" target="_blank" rel="noopener" aria-label="Open the asset wiki screenshot at full size">
+          <img src="screenshots/wiki-asset.png" alt="File Processing Service wiki page with recorded capabilities, current specs, creator and editor details, and architecture dependencies" width="2880" height="2160" loading="lazy">
+        </a>
+        <figcaption><strong>Start with an asset. Follow its story.</strong> Read what it does, what is changing, and how it connects to the rest of the product. Jump from a capability or spec to the records behind it.</figcaption>
+      </figure>
+      <figure class="wiki-shot">
+        <a href="screenshots/wiki-reader.png" target="_blank" rel="noopener" aria-label="Open the wiki document reader screenshot at full size">
+          <img src="screenshots/wiki-reader.png" alt="Document processing contract at revision 2, with author attribution, a formatted lifecycle table, and a section outline" width="2880" height="2160" loading="lazy">
+        </a>
+        <figcaption><strong>Give the document room to breathe.</strong> Tables, code, and paragraphs stay readable, with versions, authors, and related content close at hand.</figcaption>
+      </figure>
+      <figure class="wiki-shot">
+        <a href="screenshots/wiki-search.png" target="_blank" rel="noopener" aria-label="Open the wiki search screenshot at full size">
+          <img src="screenshots/wiki-search.png" alt="Product Wiki search results highlighting MAX_FILE_SIZE_BYTES inside matching spec excerpts" width="2880" height="2160" loading="lazy">
+        </a>
+        <figcaption><strong>Find the detail you remember.</strong> Search an identifier, phrase, or area across the product, then follow the matching document and its asset context.</figcaption>
+      </figure>
+    </div>
+    <p class="wiki-demo-note">Captured from a synthetic Atlas demo workspace. Select any screenshot to inspect it at full size.</p>
     <p style="margin-top:24px"><a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/product-wiki.md">Explore the wiki guide and upgrade steps →</a></p>
   </div>
 </section>
