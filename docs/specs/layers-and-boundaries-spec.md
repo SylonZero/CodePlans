@@ -5,8 +5,8 @@
 > is live). Companion to
 > `asset-atlas-spec.md` (this supplies the Atlas's second grouping axis) and
 > the concepts guide (`docs/guides/concepts.md`, which states the boundary
-> rule this spec operationalizes). Shifts asset-record reconciliation to
-> `v0.4.7+` — and serves it: reconciliation agents will propose *structural*
+> rule this spec operationalizes). Supports the planned asset-record
+> reconciliation work (release version unassigned): reconciliation agents will propose *structural*
 > corrections too, and `move_asset` is the tool they need.
 
 ---

@@ -1,12 +1,13 @@
 ## CodePlans App Spec
 
-> **Status:** current implemented state, including Native Spec Entity v1
-> on top of **v0.4.6** (2026-09). Native spec behavior and migration details are
-> documented in [the specs guide](guides/using-specs.md). For the target
+> **Status:** current implemented state at **v0.5.0** (2026-09), including
+> Native Specs (**v0.4.7**) and the Product Wiki (**v0.5.0**). Behavior and
+> upgrade steps are documented in [the specs guide](guides/using-specs.md)
+> and [the wiki guide](guides/product-wiki.md). For the target
 > design and rationale, see `docs/specs/design-spec-v3.md` (all phases shipped),
 > `docs/specs/releases-and-asset-history-spec.md` (Phases A–D shipped), and
 > `docs/specs/asset-record-spec.md` (Phase A shipped; Phases B–C are the next
-> tranche, v0.4.7+).
+> tranche, with no assigned release version).
 
 ### Overview
 
