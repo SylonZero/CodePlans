@@ -80,6 +80,10 @@ async function requireUser() {
   return authUser
 }
 
+async function currentEditor() {
+  return { id: (await requireUser()).id, kind: 'user' as const }
+}
+
 async function getUserProfile(userId: string) {
   return db.query.users.findFirst({ where: eq(users.id, userId) })
 }
@@ -190,7 +194,7 @@ export async function createAssetAction(productId: string, productSlug: string, 
     repositoryUrl,
     repoPath,
     documentationUrl,
-  })
+  }, await currentEditor())
   await logActivity({
     entityType: 'asset',
     entityId: asset.id,
@@ -228,7 +232,7 @@ export async function updateAssetAction(id: string, productSlug: string, formDat
     documentationUrl,
     // Absent field = form without the input (no change); blank = clear.
     ...(layerRaw !== null ? { layer: (layerRaw as string).trim() || null } : {}),
-  })
+  }, await currentEditor())
 
   revalidatePath(`/products/${productSlug}`)
 }
@@ -258,7 +262,7 @@ export async function updateAssetContentAction(
   const authUser = await requireUser()
   const accessible = await getAssetOptions(authUser.id)
   if (!accessible.some((a) => a.id === assetId)) throw new Error('Asset not found or not accessible')
-  await updateAsset(assetId, content)
+  await updateAsset(assetId, content, await currentEditor())
   revalidatePath(`/assets/${assetId}`)
   revalidatePath(`/products/${productSlug}`)
 }
@@ -314,14 +318,14 @@ export async function updateCodePlanAction(id: string, formData: FormData) {
   const ownerRaw = formData.get('ownerId') as string | null
   const ownerId = ownerRaw === null ? undefined : ownerRaw || null
 
-  await updateCodePlan(id, { title, description, type, tags, deadline, ownerId })
+  await updateCodePlan(id, { title, description, type, tags, deadline, ownerId }, await currentEditor())
 
   revalidatePath(`/plans/${id}`)
 }
 
 export async function activatePlanAction(id: string) {
   const authUser = await requireUser()
-  const plan = await updateCodePlan(id, { status: 'active' })
+  const plan = await updateCodePlan(id, { status: 'active' }, await currentEditor())
   if (plan) {
     await logActivity({
       entityType: 'code_plan',
@@ -336,7 +340,7 @@ export async function activatePlanAction(id: string) {
 
 export async function completePlanAction(id: string) {
   const authUser = await requireUser()
-  const plan = await updateCodePlan(id, { status: 'completed' })
+  const plan = await updateCodePlan(id, { status: 'completed' }, await currentEditor())
   if (plan) {
     await logActivity({
       entityType: 'code_plan',
@@ -710,7 +714,7 @@ export async function updateWorkItemAction(id: string, formData: FormData) {
 
     ownerId: ((formData.get('ownerId') as string | null) ?? undefined) === undefined ? undefined : (formData.get('ownerId') as string) || null,
     tags: parseTags((formData.get('tags') as string) ?? ''),
-  })
+  }, await currentEditor())
   if (!item) return { error: 'Work item not found.' }
 
   await logActivity({
@@ -726,7 +730,7 @@ export async function updateWorkItemAction(id: string, formData: FormData) {
 
 export async function updateWorkItemStatusAction(id: string, status: WorkItemStatus) {
   const authUser = await requireUser()
-  const item = await updateWorkItemStatus(id, status)
+  const item = await updateWorkItemStatus(id, status, await currentEditor())
   if (item) {
     await logActivity({
       entityType: 'work_item',
@@ -1036,14 +1040,14 @@ export async function updateReleaseAction(id: string, formData: FormData) {
     name: formData.get('name') as string,
     description: (formData.get('description') as string) || '',
     tags: parseTags(formData.get('tags') as string),
-  })
+  }, await currentEditor())
   revalidatePath(`/releases/${id}`)
   revalidatePath('/releases')
 }
 
 export async function setReleaseStatusAction(id: string, status: 'planned' | 'in_progress' | 'shipped' | 'abandoned') {
   const authUser = await requireUser()
-  const release = await updateRelease(id, { status })
+  const release = await updateRelease(id, { status }, await currentEditor())
   if (release) {
     await logActivity({
       entityType: 'release',
@@ -1065,7 +1069,7 @@ export async function deleteReleaseAction(id: string) {
 
 export async function attachPlanToReleaseAction(codePlanId: string, releaseId: string) {
   const authUser = await requireUser()
-  const plan = await attachPlanToRelease(codePlanId, releaseId)
+  const plan = await attachPlanToRelease(codePlanId, releaseId, await currentEditor())
   if (plan) {
     await logActivity({
       entityType: 'release',
@@ -1081,7 +1085,7 @@ export async function attachPlanToReleaseAction(codePlanId: string, releaseId: s
 
 export async function detachPlanFromReleaseAction(codePlanId: string, releaseId: string) {
   await requireUser()
-  await detachPlanFromRelease(codePlanId)
+  await detachPlanFromRelease(codePlanId, await currentEditor())
   revalidatePath(`/releases/${releaseId}`)
   revalidatePath(`/plans/${codePlanId}`)
 }
@@ -1149,7 +1153,7 @@ export async function deleteDesignNoteAction(noteId: string, assetId: string) {
 export async function setPlanReleaseAction(codePlanId: string, releaseId: string | null) {
   const authUser = await requireUser()
   if (releaseId) {
-    const plan = await attachPlanToRelease(codePlanId, releaseId)
+    const plan = await attachPlanToRelease(codePlanId, releaseId, await currentEditor())
     if (plan) {
       await logActivity({
         entityType: 'release',
@@ -1161,7 +1165,7 @@ export async function setPlanReleaseAction(codePlanId: string, releaseId: string
     }
     revalidatePath(`/releases/${releaseId}`)
   } else {
-    await detachPlanFromRelease(codePlanId)
+    await detachPlanFromRelease(codePlanId, await currentEditor())
     revalidatePath('/releases')
   }
   revalidatePath(`/plans/${codePlanId}`)
@@ -1206,7 +1210,7 @@ export async function draftDesignNoteAction(
 /** Save AI-drafted (then human-edited) release notes into the description. */
 export async function saveReleaseDescriptionAction(releaseId: string, description: string) {
   await requireUser()
-  await updateRelease(releaseId, { description })
+  await updateRelease(releaseId, { description }, await currentEditor())
   revalidatePath(`/releases/${releaseId}`)
 }
 
@@ -1218,7 +1222,7 @@ export async function graduateWorkItemAction(workItemId: string, assetId: string
   const authUser = await requireUser()
   const item = await getWorkItem(workItemId, authUser.id)
   if (!item || item.assetId !== assetId) throw new Error('Work item not found or not accessible on this asset')
-  const result = await graduateWorkItem(workItemId, sourceSpecId)
+  const result = await graduateWorkItem(workItemId, sourceSpecId, await currentEditor())
   if ('error' in result) throw new Error(result.error)
   if (!result.existed) {
     await logActivity({
@@ -1239,13 +1243,13 @@ export async function updateCapabilityAction(id: string, assetId: string, formDa
     title: formData.get('title') as string,
     description: (formData.get('description') as string) || '',
     area: ((formData.get('area') as string) || '').trim() || null,
-  })
+  }, await currentEditor())
   revalidatePath(`/assets/${assetId}`)
 }
 
 export async function removeCapabilityAction(id: string, assetId: string, reason: string) {
   const authUser = await requireUser()
-  const removed = await removeCapability(id, reason.trim() || undefined)
+  const removed = await removeCapability(id, reason.trim() || undefined, await currentEditor())
   if (removed) {
     await logActivity({
       entityType: 'asset',

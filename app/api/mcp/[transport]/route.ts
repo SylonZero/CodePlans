@@ -79,7 +79,7 @@ const handler = createMcpHandler(
       async (data, extra) => { requireWrite(extra); return json(await createSpec(data, uid(extra), 'agent')) })
     server.tool('update_spec', 'Revise body, status, title, taxonomy or needsReview and increment version. Use expectedVersion to reject stale edits. Superseded specs are read-only; use supersede_spec for a changed approach.', {
       id: z.string(), ...specUpdateFields,
-    }, async ({ id, ...data }, extra) => { requireWrite(extra); return json(await updateSpec(id, specUpdateInput.parse(data), uid(extra))) })
+    }, async ({ id, ...data }, extra) => { requireWrite(extra); return json(await updateSpec(id, specUpdateInput.parse(data), uid(extra), 'agent')) })
     server.tool('supersede_spec', 'Replace an approach: create a new draft at v1, preserve provenance and associations, and mark the old spec superseded. Delivery receipts stay on the old spec.', {
       oldId: z.string(), newBody: z.string().max(500_000), title: z.string().optional(),
     }, async ({ oldId, newBody, title }, extra) => { requireWrite(extra); return json(await supersedeSpec(oldId, newBody, title, uid(extra), 'agent')) })
@@ -257,7 +257,7 @@ const handler = createMcpHandler(
       async ({ ownerEmails, ...args }, extra) => {
         requireWrite(extra)
         await assertProductAccess(uid(extra), args.productId)
-        const asset = await createAsset(args)
+        const asset = await createAsset(args, { id: uid(extra), kind: 'agent' })
         if (ownerEmails !== undefined) {
           const ownerIds = await Promise.all(ownerEmails.map((e) => resolveAssigneeEmail(uid(extra), e)))
           await setAssetOwners(asset.id, ownerIds)
@@ -291,7 +291,7 @@ const handler = createMcpHandler(
           const ownerIds = await Promise.all(ownerEmails.map((e) => resolveAssigneeEmail(uid(extra), e)))
           await setAssetOwners(id, ownerIds)
         }
-        return json(await updateAsset(id, data))
+        return json(await updateAsset(id, data, { id: uid(extra), kind: 'agent' }))
       },
     )
 
@@ -305,7 +305,7 @@ const handler = createMcpHandler(
         const options = await getAssetOptions(userId)
         if (!options.some((a) => a.id === assetId)) return json({ error: 'Asset not found or not accessible' })
         await assertProductAccess(userId, targetProductId)
-        return json(await moveAsset(assetId, targetProductId))
+        return json(await moveAsset(assetId, targetProductId, { id: uid(extra), kind: 'agent' }))
       },
     )
 
@@ -371,7 +371,7 @@ const handler = createMcpHandler(
           ownerEmail === undefined ? undefined
           : ownerEmail === null ? null
           : await resolveAssigneeEmail(uid(extra), ownerEmail)
-        return json(await updateCodePlan(id, { ...data, ...(ownerId !== undefined ? { ownerId } : {}) }))
+        return json(await updateCodePlan(id, { ...data, ...(ownerId !== undefined ? { ownerId } : {}) }, { id: uid(extra), kind: 'agent' }))
       },
     )
 
@@ -382,7 +382,7 @@ const handler = createMcpHandler(
       async ({ id }, extra) => {
         requireWrite(extra)
         if (!(await getCodePlan(id, uid(extra)))) return json({ error: 'Plan not found or not accessible' })
-        return json(await updateCodePlan(id, { status: 'active' }))
+        return json(await updateCodePlan(id, { status: 'active' }, { id: uid(extra), kind: 'agent' }))
       },
     )
 
@@ -393,7 +393,7 @@ const handler = createMcpHandler(
       async ({ id }, extra) => {
         requireWrite(extra)
         if (!(await getCodePlan(id, uid(extra)))) return json({ error: 'Plan not found or not accessible' })
-        const plan = await updateCodePlan(id, { status: 'completed' })
+        const plan = await updateCodePlan(id, { status: 'completed' }, { id: uid(extra), kind: 'agent' })
         const { notifyPlanCompleted } = await import('@/lib/integrations/writeback')
         const commentsPosted = await notifyPlanCompleted(id)
         return json({ ...plan, commentsPosted })
@@ -442,7 +442,7 @@ const handler = createMcpHandler(
           ownerEmail === undefined ? undefined
           : ownerEmail === null ? null
           : await resolveAssigneeEmail(uid(extra), ownerEmail)
-        return json((await updateWorkItem(id, { ...data, ...(ownerId !== undefined ? { ownerId } : {}) })) ?? { error: 'Work item not found' })
+        return json((await updateWorkItem(id, { ...data, ...(ownerId !== undefined ? { ownerId } : {}) }, { id: uid(extra), kind: 'agent' })) ?? { error: 'Work item not found' })
       },
     )
 
@@ -474,7 +474,7 @@ const handler = createMcpHandler(
       async ({ ownerEmail, ...args }, extra) => {
         requireWrite(extra)
         const ownerId = ownerEmail ? await resolveAssigneeEmail(uid(extra), ownerEmail) : undefined
-        return json(await createWorkItem({ ...args, ownerId }, uid(extra)))
+        return json(await createWorkItem({ ...args, ownerId }, uid(extra), 'agent'))
       },
     )
 
@@ -484,7 +484,7 @@ const handler = createMcpHandler(
       { id: z.string(), status: z.enum(['open', 'planned', 'in_progress', 'resolved', 'wont_do']) },
       async ({ id, status }, extra) => {
         requireWrite(extra)
-        const item = await updateWorkItemStatus(id, status)
+        const item = await updateWorkItemStatus(id, status, { id: uid(extra), kind: 'agent' })
         return json(item ?? { error: 'Not found, or mirrored from an external tracker — change it there.' })
       },
     )
@@ -516,7 +516,7 @@ const handler = createMcpHandler(
       async ({ workItemIds, ownerEmail, ...data }, extra) => {
         requireWrite(extra)
         const ownerId = ownerEmail ? await resolveAssigneeEmail(uid(extra), ownerEmail) : undefined
-        const plan = await createCodePlan({ ...data, ownerId }, uid(extra))
+        const plan = await createCodePlan({ ...data, ownerId }, uid(extra), 'agent')
         for (const workItemId of workItemIds) await linkWorkItemToPlan(workItemId, plan.id)
         return json(plan)
       },
@@ -642,7 +642,7 @@ const handler = createMcpHandler(
         requireWrite(extra)
         const userId = uid(extra)
         await assertProductAccess(userId, productId)
-        return json(await createRelease({ productId, ...data }, userId))
+        return json(await createRelease({ productId, ...data }, userId, 'agent'))
       },
     )
 
@@ -663,7 +663,7 @@ const handler = createMcpHandler(
         if (release.status === 'shipped') {
           return json({ error: 'Shipped releases are read-only — the record must stay trustworthy.' })
         }
-        return json(await updateRelease(id, data))
+        return json(await updateRelease(id, data, { id: uid(extra), kind: 'agent' }))
       },
     )
 
@@ -676,7 +676,7 @@ const handler = createMcpHandler(
         const release = await getRelease(id, uid(extra))
         if (!release) return json({ error: 'Release not found or not accessible' })
         const unversioned = release.assets.filter((a) => !a.version).map((a) => a.assetName)
-        const shipped = await updateRelease(id, { status: 'shipped' })
+        const shipped = await updateRelease(id, { status: 'shipped' }, { id: uid(extra), kind: 'agent' })
         return json({
           release: shipped,
           ...(unversioned.length > 0
@@ -694,7 +694,7 @@ const handler = createMcpHandler(
         requireWrite(extra)
         const release = await getRelease(releaseId, uid(extra))
         if (!release) return json({ error: 'Release not found or not accessible' })
-        const plan = await attachPlanToRelease(codePlanId, releaseId)
+        const plan = await attachPlanToRelease(codePlanId, releaseId, { id: uid(extra), kind: 'agent' })
         return json(plan ?? { error: 'Plan not found' })
       },
     )
@@ -705,7 +705,7 @@ const handler = createMcpHandler(
       { codePlanId: z.string() },
       async ({ codePlanId }, extra) => {
         requireWrite(extra)
-        const plan = await detachPlanFromRelease(codePlanId)
+        const plan = await detachPlanFromRelease(codePlanId, { id: uid(extra), kind: 'agent' })
         return json(plan ?? { error: 'Plan not found' })
       },
     )
@@ -780,7 +780,7 @@ const handler = createMcpHandler(
         requireWrite(extra)
         const { getWorkItem } = await import('@/lib/db/queries')
         if (!await getWorkItem(workItemId, uid(extra))) return json({ error: 'Work item not found or not accessible' })
-        return json(await graduateWorkItem(workItemId, sourceSpecId))
+        return json(await graduateWorkItem(workItemId, sourceSpecId, { id: uid(extra), kind: 'agent' }))
       },
     )
   },

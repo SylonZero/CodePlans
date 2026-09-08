@@ -1,3 +1,4 @@
+import { createdBy, editedBy, type ArtifactActor } from './attribution'
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from './index'
@@ -90,12 +91,12 @@ export async function createSpec(input: z.input<typeof specInput>, userId: strin
   const data = specInput.parse(input)
   if (data.sourceType === 'git_import' && !data.sourceUrl) throw new Error('Git imports require sourceUrl')
   await assertSpecProductAccess(userId, data.productId)
-  const [row] = await db.insert(specs).values({ ...data, authorType }).returning()
+  const [row] = await db.insert(specs).values({ ...data, authorType, ...createdBy({ id: userId, kind: authorType }) }).returning()
   return row
 }
 
 // Compare-and-swap protects concurrent edits and keeps version/event snapshots consistent.
-export async function reviseSpec(d: SpecDb, id: string, input: z.input<typeof specUpdateInput>, noteId?: string) {
+export async function reviseSpec(d: SpecDb, id: string, input: z.input<typeof specUpdateInput>, noteId?: string, actor?: ArtifactActor) {
   const data = specUpdateInput.parse(input)
   const old = await requireSpec(id, d)
   if (old.status === 'superseded') throw new Error('Superseded specs are read-only')
@@ -107,7 +108,7 @@ export async function reviseSpec(d: SpecDb, id: string, input: z.input<typeof sp
     ...(data.needsReview !== undefined ? { needsReview: data.needsReview } : {}),
     ...(data.body !== undefined ? { body: data.body } : {}),
     ...(data.status !== undefined ? { status: data.status } : {}),
-    version: old.version + 1, updatedAt: new Date(),
+    ...editedBy(actor), version: old.version + 1, updatedAt: new Date(),
   }).where(and(eq(specs.id, id), eq(specs.version, old.version), eq(specs.status, old.status))).returning()
   if (!row) throw new Error('Spec changed; reload before saving')
   const links = await d.select().from(specLinks).where(eq(specLinks.specId, id))
@@ -115,10 +116,10 @@ export async function reviseSpec(d: SpecDb, id: string, input: z.input<typeof sp
   return { spec: row, events }
 }
 
-export async function updateSpec(id: string, input: z.input<typeof specUpdateInput>, userId: string) {
+export async function updateSpec(id: string, input: z.input<typeof specUpdateInput>, userId: string, actorKind: 'user' | 'agent' = 'user') {
   const old = await requireSpec(id)
   await assertSpecProductAccess(userId, old.productId)
-  return db.transaction(async (tx) => (await reviseSpec(tx, id, input)).spec)
+  return db.transaction(async (tx) => (await reviseSpec(tx, id, input, undefined, { id: userId, kind: actorKind })).spec)
 }
 
 export async function linkSpecInTransaction(d: SpecDb, specId: string, targetType: SpecTargetType, targetId: string, relationshipType?: SpecRelationshipType) {
@@ -161,8 +162,8 @@ export async function supersedeSpec(oldId: string, newBody: string, title: strin
   const data = specInput.parse({ ...old, area: old.area ?? undefined, sourceUrl: old.sourceUrl ?? undefined, title: title ?? old.title, body: newBody })
   return db.transaction(async (tx) => {
     if (old.status === 'superseded' || old.supersededBy) throw new Error('Spec is already superseded')
-    const [next] = await tx.insert(specs).values({ ...data, supersedes: oldId, authorType, needsReview: old.needsReview }).returning()
-    const [changed] = await tx.update(specs).set({ status: 'superseded', supersededBy: next.id, updatedAt: new Date() })
+    const [next] = await tx.insert(specs).values({ ...data, ...createdBy({ id: userId, kind: authorType }), supersedes: oldId, authorType, needsReview: old.needsReview }).returning()
+    const [changed] = await tx.update(specs).set({ status: 'superseded', supersededBy: next.id, ...editedBy({ id: userId, kind: authorType }), updatedAt: new Date() })
       .where(and(eq(specs.id, oldId), eq(specs.version, old.version), isNull(specs.supersededBy))).returning()
     if (!changed) throw new Error('Spec changed; reload before superseding')
     // Preserve old links as history and associate the replacement with the same targets.

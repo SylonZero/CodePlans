@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { editedBy } from '@/lib/db/attribution'
 import { integrations, workItems, codePlans, codePlanAssets, tasks, syncLog } from '@/lib/db/schema'
 import { eq, and, isNotNull } from 'drizzle-orm'
 import type { WorkItemStatus, WorkItemType, TaskStatus } from '@/lib/types'
@@ -108,7 +109,7 @@ export async function runSync(integration: IntegrationRow, connector: Connector)
       // Only mirrored fields — never assetId/area/severity/parent (native annotations).
       await db
         .update(workItems)
-        .set({ ...mirrored, updatedAt: new Date() })
+        .set({ ...mirrored, ...editedBy(), updatedAt: new Date() })
         .where(eq(workItems.id, existing.id))
       updated += 1
       await logSyncEvent(integration, existing.id, 'updated', item)

@@ -37,6 +37,7 @@ import {
   Layers,
   Plug,
   Rocket,
+  BookOpen,
 } from 'lucide-react'
 import { signOut } from '@/app/(auth)/actions'
 import { setProductScopeAction } from '@/lib/actions/product-scope'
@@ -61,6 +62,7 @@ const navigation = [
   { name: 'Code Plans', href: '/plans', icon: FileCode2 },
   { name: 'Releases', href: '/releases', icon: Rocket },
   { name: 'Tasks', href: '/tasks', icon: CheckSquare },
+  { name: 'Wiki ↗', href: '/wiki', icon: BookOpen },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
 ]
 
@@ -206,6 +208,9 @@ export function AppShell({ children, user, orgName, products, selectedProductId,
                 <Link
                   key={item.name}
                   href={item.href}
+                  target={item.href === '/wiki' ? '_blank' : undefined}
+                  rel={item.href === '/wiki' ? 'noopener noreferrer' : undefined}
+                  aria-label={item.href === '/wiki' ? 'Wiki (opens in a new tab)' : undefined}
                   className={cn(
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                     isActive

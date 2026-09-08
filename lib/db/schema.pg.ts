@@ -106,6 +106,11 @@ export const products = pgTable('products', {
 })
 
 export const assets = pgTable('assets', {
+  // Explicit attribution; null means the actor was not recorded (never infer from owner).
+  createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  updatedById: uuid('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByKind: text('updated_by_kind'),
   id: uuid('id').primaryKey().defaultRandom(),
   productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
@@ -149,6 +154,11 @@ export const assetDependencies = pgTable('asset_dependencies', {
 })
 
 export const codePlans = pgTable('code_plans', {
+  // Explicit attribution; null means the actor was not recorded (never infer from owner).
+  createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  updatedById: uuid('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByKind: text('updated_by_kind'),
   id: uuid('id').primaryKey().defaultRandom(),
   title: text('title').notNull(),
   description: text('description').notNull().default(''),
@@ -198,6 +208,11 @@ export const codePlanAssets = pgTable('code_plan_assets', {
 // Delivery grouping above code plans: what ships together, stamping per-asset
 // versions via release_assets. Status is explicit — shipping is a human act.
 export const releases = pgTable('releases', {
+  // Explicit attribution; null means the actor was not recorded (never infer from owner).
+  createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  updatedById: uuid('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByKind: text('updated_by_kind'),
   id: uuid('id').primaryKey().defaultRandom(),
   productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
@@ -241,6 +256,11 @@ export const releaseAssets = pgTable('release_assets', {
 // (asset-record-spec.md §5.1). Entries enter only by graduating a resolved work
 // item or by an accepted reconciliation proposal — never as intent.
 export const assetCapabilities = pgTable('asset_capabilities', {
+  // Explicit attribution; null means the actor was not recorded (never infer from owner).
+  createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  updatedById: uuid('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByKind: text('updated_by_kind'),
   id: uuid('id').primaryKey().defaultRandom(),
   assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
@@ -270,6 +290,11 @@ export const assetCapabilities = pgTable('asset_capabilities', {
 // The forward-looking scratchpad stays in assets.notes. Agents are first-class
 // authors here (authorKind) — recorded via MCP at plan-completion time.
 export const assetDesignLog = pgTable('asset_design_log', {
+  // Explicit attribution; null means the actor was not recorded (never infer from owner).
+  createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  updatedById: uuid('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByKind: text('updated_by_kind'),
   id: uuid('id').primaryKey().defaultRandom(),
   assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
   releaseId: uuid('release_id').references(() => releases.id, { onDelete: 'set null' }),
@@ -285,6 +310,11 @@ export const assetDesignLog = pgTable('asset_design_log', {
 ])
 
 export const workItems = pgTable('work_items', {
+  // Explicit attribution; null means the actor was not recorded (never infer from owner).
+  createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  updatedById: uuid('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByKind: text('updated_by_kind'),
   id: uuid('id').primaryKey().defaultRandom(),
   productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
   assetId: uuid('asset_id').references(() => assets.id, { onDelete: 'set null' }),
@@ -396,6 +426,11 @@ export const emailVerificationTokens = pgTable('email_verification_tokens', {
 
 // Native, product-owned specifications. Bodies are canonical GFM from TipTap.
 export const specs = pgTable('specs', {
+  // Explicit attribution; null means the actor was not recorded (never infer from owner).
+  createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  updatedById: uuid('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByKind: text('updated_by_kind'),
   id: uuid('id').primaryKey().defaultRandom(),
   productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
