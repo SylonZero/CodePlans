@@ -444,7 +444,9 @@ Your agent can then read specs, plans, work items, and tech debt and (with a wri
 - [x] **v0.4.4 — Asset Record (Phase A):** per-asset capabilities register with delivery lineage, graduation from resolved work items, derived known-issues/debt sections, tombstoned removals, `get_asset_record` + `graduate_work_item` MCP tools (41 total)
 - [x] **v0.4.5 — Asset Atlas** (see [`docs/specs/asset-atlas-spec.md`](docs/specs/asset-atlas-spec.md)): top-level Assets view — a live system map (products as columns, dependency edges, health/debt/activity lenses, blast-radius hover) plus grid and sortable table views
 - [x] **v0.4.6 — Layers & model boundaries** (see [`docs/specs/layers-and-boundaries-spec.md`](docs/specs/layers-and-boundaries-spec.md)): asset `layer` field with display-time type defaults, Atlas layer columns (auto for single-product scope), `move_asset` model refactoring, boundary rule + layer taxonomy in the MCP modeling guide (42 tools)
-- [ ] **v0.4.7+ — Reconciliation & round-trip engineering** (see [`docs/specs/asset-record-spec.md`](docs/specs/asset-record-spec.md)): agent reconciliation proposals, release publishing
+- [x] **[v0.4.7 — Native Specs](https://github.com/SylonZero/CodePlans/releases/tag/v0.4.7):** first-class versioned specs, asset/plan/work-item associations, pinned delivery receipts, legacy URL import, and consistent GFM rendering
+- [x] **[v0.5.0 — Product Wiki](https://github.com/SylonZero/CodePlans/releases/tag/v0.5.0):** full-window asset pages and document readers, product-wide search, contextual links, versions, timestamps, and creator/editor attribution
+- [ ] **Planned — Reconciliation & round-trip engineering** (see [`docs/specs/asset-record-spec.md`](docs/specs/asset-record-spec.md)): agent reconciliation proposals, release publishing
 - [ ] AI-assisted effort estimation
 - [ ] Billing / subscription management (hosted tier, optional & feature-flagged)
 
