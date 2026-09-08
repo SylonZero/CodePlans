@@ -180,6 +180,9 @@ importers:
       embla-carousel-react:
         specifier: 8.6.0
         version: 8.6.0(react@19.2.4)
+      github-slugger:
+        specifier: 2.0.0
+        version: 2.0.0
       input-otp:
         specifier: 1.4.2
         version: 1.4.2(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -228,6 +231,9 @@ importers:
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
+      remark-parse:
+        specifier: 11.0.0
+        version: 11.0.0
       resend:
         specifier: ^6.12.4
         version: 6.12.4
@@ -237,6 +243,9 @@ importers:
       tailwind-merge:
         specifier: ^3.3.1
         version: 3.4.0
+      unified:
+        specifier: 11.0.5
+        version: 11.0.5
       vaul:
         specifier: ^1.1.2
         version: 1.1.2(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -2890,6 +2899,9 @@ packages:
 
   get-tsconfig@4.13.7:
     resolution: {integrity: sha512-7tN6rFgBlMgpBML5j8typ92BKFi2sFQvIdpAqLA2beia5avZDrMs0FLZiM5etShWq5irVyGcGMEA1jcDaK7A/Q==}
+
+  github-slugger@2.0.0:
+    resolution: {integrity: sha512-IaOQ9puYtjrkq7Y0Ygl9KDZnrf/aiUJYUpVf89y8kyaxbRG7Y1SrX/jaumrv81vc61+kiMempujsM3Yw7w5qcw==}
 
   gopd@1.2.0:
     resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}
@@ -6350,6 +6362,8 @@ snapshots:
   get-tsconfig@4.13.7:
     dependencies:
       resolve-pkg-maps: 1.0.0
+
+  github-slugger@2.0.0: {}
 
   gopd@1.2.0: {}
 

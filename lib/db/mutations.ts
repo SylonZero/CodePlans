@@ -1,3 +1,4 @@
+import { createdBy, editedBy, type ArtifactActor } from './attribution'
 import { db } from './index'
 import { requireSpec, reviseSpec, specAssetAnchors, refreshSpecAssetLinks } from './specs'
 import {
@@ -80,13 +81,13 @@ type CreateAssetData = {
   layer?: string
 }
 
-export async function createAsset(data: CreateAssetData) {
+export async function createAsset(data: CreateAssetData, actor?: ArtifactActor) {
   // Idempotent by (product, name) so agent re-runs can't duplicate assets.
   const existing = await db.query.assets.findFirst({
     where: and(eq(assets.productId, data.productId), eq(assets.name, data.name)),
   })
   if (existing) return existing
-  const [asset] = await db.insert(assets).values(data).returning()
+  const [asset] = await db.insert(assets).values({ ...data, ...createdBy(actor) }).returning()
   return asset
 }
 
@@ -99,10 +100,10 @@ type UpdateAssetData = Partial<Omit<CreateAssetData, 'productId' | 'layer'> & {
   layer: string | null
 }>
 
-export async function updateAsset(id: string, data: UpdateAssetData) {
+export async function updateAsset(id: string, data: UpdateAssetData, actor?: ArtifactActor) {
   const [asset] = await db
     .update(assets)
-    .set({ ...data, updatedAt: new Date() })
+    .set({ ...data, ...editedBy(actor), updatedAt: new Date() })
     .where(eq(assets.id, id))
     .returning()
   return asset ?? null
@@ -133,7 +134,7 @@ export async function setAssetOwners(assetId: string, userIds: string[]) {
  * history (release stamps, completed-plan links, capabilities, design log)
  * is deliberately left untouched. Access is validated at the caller layer.
  */
-export async function moveAsset(assetId: string, targetProductId: string) {
+export async function moveAsset(assetId: string, targetProductId: string, actor?: ArtifactActor) {
   const asset = await db.query.assets.findFirst({ where: eq(assets.id, assetId) })
   if (!asset) return { error: 'Asset not found' as const }
   if (asset.productId === targetProductId) return { asset, moved: false as const }
@@ -161,10 +162,10 @@ export async function moveAsset(assetId: string, targetProductId: string) {
 
   const [moved] = await db
     .update(assets)
-    .set({ productId: targetProductId, updatedAt: new Date() })
+    .set({ productId: targetProductId, ...editedBy(actor), updatedAt: new Date() })
     .where(eq(assets.id, assetId))
     .returning()
-  await db.update(workItems).set({ productId: targetProductId }).where(eq(workItems.assetId, assetId))
+  await db.update(workItems).set({ productId: targetProductId, ...editedBy(actor), updatedAt: new Date() }).where(eq(workItems.assetId, assetId))
   return { asset: moved, moved: true as const }
 }
 
@@ -210,13 +211,13 @@ async function syncPlanAssets(planId: string, assetIds: string[]) {
   }
 }
 
-export async function createCodePlan(data: CreateCodePlanData, userId: string) {
+export async function createCodePlan(data: CreateCodePlanData, userId: string, actorKind: 'user' | 'agent' = 'user') {
   const { targetAssetIds, ...columns } = data
   const [plan] = await db
     .insert(codePlans)
     .values({
       ...columns,
-      creatorId: userId,
+      ...createdBy({ id: userId, kind: actorKind }), creatorId: userId,
       status: 'draft',
     })
     .returning()
@@ -230,11 +231,11 @@ type UpdateCodePlanData = Partial<
   }
 >
 
-export async function updateCodePlan(id: string, data: UpdateCodePlanData) {
+export async function updateCodePlan(id: string, data: UpdateCodePlanData, actor?: ArtifactActor) {
   const { targetAssetIds, ...columns } = data
   const [plan] = await db
     .update(codePlans)
-    .set({ ...columns, updatedAt: new Date() })
+    .set({ ...columns, ...editedBy(actor), updatedAt: new Date() })
     .where(eq(codePlans.id, id))
     .returning()
   if (!plan) return null
@@ -366,7 +367,7 @@ export async function linkPlanToExternalScope(planId: string, data: LinkPlanScop
       externalId: data.externalId,
       externalKey: data.externalKey ?? null,
       externalUrl: data.externalUrl ?? null,
-      updatedAt: new Date(),
+      ...editedBy(), updatedAt: new Date(),
     })
     .where(eq(codePlans.id, planId))
     .returning()
@@ -390,7 +391,7 @@ export async function unlinkPlanFromExternalScope(planId: string) {
       externalId: null,
       externalKey: null,
       externalUrl: null,
-      updatedAt: new Date(),
+      ...editedBy(), updatedAt: new Date(),
     })
     .where(eq(codePlans.id, planId))
     .returning()
@@ -413,10 +414,10 @@ type CreateWorkItemData = {
   tags: string[]
 }
 
-export async function createWorkItem(data: CreateWorkItemData, userId: string) {
+export async function createWorkItem(data: CreateWorkItemData, userId: string, actorKind: 'user' | 'agent' = 'user') {
   const [item] = await db
     .insert(workItems)
-    .values({ ...data, reporterId: userId })
+    .values({ ...data, ...createdBy({ id: userId, kind: actorKind }), reporterId: userId })
     .returning()
   return item
 }
@@ -429,7 +430,7 @@ type UpdateWorkItemData = Partial<
   }
 >
 
-export async function updateWorkItem(id: string, data: UpdateWorkItemData) {
+export async function updateWorkItem(id: string, data: UpdateWorkItemData, actor?: ArtifactActor) {
   const existing = await db.query.workItems.findFirst({ where: eq(workItems.id, id) })
   if (!existing) return null
 
@@ -442,14 +443,14 @@ export async function updateWorkItem(id: string, data: UpdateWorkItemData) {
 
   const [item] = await db
     .update(workItems)
-    .set({ ...patch, updatedAt: new Date() })
+    .set({ ...patch, ...editedBy(actor), updatedAt: new Date() })
     .where(eq(workItems.id, id))
     .returning()
   if (item && patch.assetId !== undefined) await refreshSpecAssetLinks('work_item', id)
   return item ?? null
 }
 
-export async function updateWorkItemStatus(id: string, status: WorkItemStatus) {
+export async function updateWorkItemStatus(id: string, status: WorkItemStatus, actor?: ArtifactActor) {
   const existing = await db.query.workItems.findFirst({ where: eq(workItems.id, id) })
   if (!existing) return null
   // Status is a mirrored field — change it in the external tracker instead.
@@ -457,7 +458,7 @@ export async function updateWorkItemStatus(id: string, status: WorkItemStatus) {
 
   const [item] = await db
     .update(workItems)
-    .set({ status, updatedAt: new Date() })
+    .set({ status, ...editedBy(actor), updatedAt: new Date() })
     .where(eq(workItems.id, id))
     .returning()
   return item ?? null
@@ -636,10 +637,10 @@ type CreateReleaseData = {
   tags?: string[]
 }
 
-export async function createRelease(data: CreateReleaseData, userId: string) {
+export async function createRelease(data: CreateReleaseData, userId: string, actorKind: 'user' | 'agent' = 'user') {
   const [release] = await db
     .insert(releases)
-    .values({ ...data, creatorId: userId, status: 'planned' })
+    .values({ ...data, ...createdBy({ id: userId, kind: actorKind }), creatorId: userId, status: 'planned' })
     .returning()
   return release
 }
@@ -651,8 +652,8 @@ type UpdateReleaseData = Partial<{
   status: ReleaseStatus
 }>
 
-export async function updateRelease(id: string, data: UpdateReleaseData) {
-  const patch: Record<string, unknown> = { ...data, updatedAt: new Date() }
+export async function updateRelease(id: string, data: UpdateReleaseData, actor?: ArtifactActor) {
+  const patch: Record<string, unknown> = { ...data, ...editedBy(actor), updatedAt: new Date() }
   // shippedAt tracks the status transition, not a separate edit.
   if (data.status === 'shipped') patch.shippedAt = new Date()
   if (data.status && data.status !== 'shipped') patch.shippedAt = null
@@ -666,19 +667,19 @@ export async function deleteRelease(id: string) {
   return deleted ?? null
 }
 
-export async function attachPlanToRelease(codePlanId: string, releaseId: string) {
+export async function attachPlanToRelease(codePlanId: string, releaseId: string, actor?: ArtifactActor) {
   const [plan] = await db
     .update(codePlans)
-    .set({ releaseId, updatedAt: new Date() })
+    .set({ releaseId, ...editedBy(actor), updatedAt: new Date() })
     .where(eq(codePlans.id, codePlanId))
     .returning()
   return plan ?? null
 }
 
-export async function detachPlanFromRelease(codePlanId: string) {
+export async function detachPlanFromRelease(codePlanId: string, actor?: ArtifactActor) {
   const [plan] = await db
     .update(codePlans)
-    .set({ releaseId: null, updatedAt: new Date() })
+    .set({ releaseId: null, ...editedBy(actor), updatedAt: new Date() })
     .where(eq(codePlans.id, codePlanId))
     .returning()
   return plan ?? null
@@ -742,18 +743,18 @@ export async function createDesignNote(data: CreateDesignNoteData) {
         throw new Error('The revised spec must be linked to this asset')
       }
     }
-    const [note] = await tx.insert(assetDesignLog).values({ ...noteData, authorKind: data.authorKind ?? 'user' }).returning()
-    const revision = revisesSpecId ? await reviseSpec(tx, revisesSpecId, { body: revisedSpecBody!, expectedVersion: expectedSpecVersion }, note.id) : undefined
+    const [note] = await tx.insert(assetDesignLog).values({ ...noteData, ...createdBy(data.authorId ? { id: data.authorId, kind: data.authorKind } : undefined), authorKind: data.authorKind ?? 'user' }).returning()
+    const revision = revisesSpecId ? await reviseSpec(tx, revisesSpecId, { body: revisedSpecBody!, expectedVersion: expectedSpecVersion }, note.id, data.authorId ? { id: data.authorId, kind: data.authorKind } : undefined) : undefined
     return { ...note, specEventId: revision?.events.find((e) => e.assetId === note.assetId)?.id }
   })
 }
 
 type UpdateDesignNoteData = Partial<Pick<CreateDesignNoteData, 'title' | 'body' | 'releaseId' | 'codePlanId'>>
 
-export async function updateDesignNote(id: string, data: UpdateDesignNoteData) {
+export async function updateDesignNote(id: string, data: UpdateDesignNoteData, actor?: ArtifactActor) {
   const [note] = await db
     .update(assetDesignLog)
-    .set({ ...data, updatedAt: new Date() })
+    .set({ ...data, ...editedBy(actor), updatedAt: new Date() })
     .where(eq(assetDesignLog.id, id))
     .returning()
   return note ?? null
@@ -777,7 +778,7 @@ export async function deleteDesignNote(id: string) {
  * release) as FKs plus originSummary text that survives FK nulling. Idempotent
  * per work item (partial unique index on originWorkItemId).
  */
-export async function graduateWorkItem(workItemId: string, sourceSpecId?: string) {
+export async function graduateWorkItem(workItemId: string, sourceSpecId?: string, actor?: ArtifactActor) {
   return db.transaction(async (tx) => {
     const item = await tx.query.workItems.findFirst({ where: eq(workItems.id, workItemId) })
     if (!item) return { error: 'Work item not found' as const }
@@ -821,6 +822,7 @@ export async function graduateWorkItem(workItemId: string, sourceSpecId?: string
     const [capability] = await tx
       .insert(assetCapabilities)
       .values({
+        ...createdBy(actor),
         assetId: item.assetId,
         title: item.title,
         description: item.description,
@@ -846,17 +848,17 @@ export async function graduateWorkItem(workItemId: string, sourceSpecId?: string
 
 type UpdateCapabilityData = Partial<{ title: string; description: string; area: string | null }>
 
-export async function updateCapability(id: string, data: UpdateCapabilityData) {
+export async function updateCapability(id: string, data: UpdateCapabilityData, actor?: ArtifactActor) {
   const [row] = await db
     .update(assetCapabilities)
-    .set({ ...data, updatedAt: new Date() })
+    .set({ ...data, ...editedBy(actor), updatedAt: new Date() })
     .where(eq(assetCapabilities.id, id))
     .returning()
   return row ?? null
 }
 
 /** Tombstone, not delete — "used to do X" is record too. */
-export async function removeCapability(id: string, reason?: string) {
+export async function removeCapability(id: string, reason?: string, actor?: ArtifactActor) {
   const existing = await db.query.assetCapabilities.findFirst({ where: eq(assetCapabilities.id, id) })
   if (!existing) return null
   const [row] = await db
@@ -864,7 +866,7 @@ export async function removeCapability(id: string, reason?: string) {
     .set({
       status: 'removed',
       removedAt: new Date(),
-      updatedAt: new Date(),
+      ...editedBy(actor), updatedAt: new Date(),
       ...(reason ? { description: `${existing.description ? existing.description + '\n\n' : ''}**Removed:** ${reason}` } : {}),
     })
     .where(eq(assetCapabilities.id, id))

@@ -16,6 +16,7 @@ async function main() {
   const { users, products, assets, workItems, specs, assetDesignLog, specLinks } = await import('../lib/db/schema.pg')
   const { createSpec, linkSpec, updateSpec, getSpec, supersedeSpec } = await import('../lib/db/specs')
   const { createDesignNote, graduateWorkItem } = await import('../lib/db/mutations')
+  const { getWikiProduct } = await import('../lib/db/wiki')
   const { getAssetRecord, getAssetHistory } = await import('../lib/db/queries')
   const { migrateLegacySpecs } = await import('../lib/db/spec-migration')
   const client = (db as unknown as { $client: { end(): Promise<void> } }).$client
@@ -62,10 +63,15 @@ async function main() {
     assert.equal((await db.select().from(specs)).length, 3)
     const imported = (await db.select().from(specs)).find((s) => s.sourceType === 'git_import')!
     await supersedeSpec(imported.id, 'Revised imported approach', undefined, userId)
+    const wiki = await getWikiProduct('spec-verification', userId)
+    assert.ok(wiki)
+    assert.equal(wiki.documents.find((d) => d.id === first.id)?.createdBy, 'Spec test')
+    assert.ok(wiki.documents.some((d) => d.kind === 'spec' && d.associations.some((a) => a.assetId === assetId)))
+    assert.equal(await getWikiProduct('spec-verification', randomUUID()), null)
     await db.delete(products).where(eq(products.id, productId))
     assert.equal((await db.select().from(specs)).length, 0)
     assert.equal((await db.select().from(specLinks)).length, 0)
-    console.log('Postgres passed: full migration chain + rerun, FK cleanup, concurrent edits, note rollback, pinned delivery gaps, supersession, import dry-run + idempotency.')
+    console.log('Postgres passed: full migration chain + rerun, FK cleanup, concurrent edits, note rollback, pinned delivery gaps, supersession, import dry-run + idempotency, wiki assembly + access + attribution.')
   } finally { await client.end() }
 }
 main().catch((error) => { console.error(error); process.exitCode = 1 })

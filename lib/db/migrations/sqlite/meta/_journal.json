@@ -127,6 +127,13 @@
       "when": 1788814726466,
       "tag": "0017_native_specs",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1788838931659,
+      "tag": "0018_wiki_attribution",
+      "breakpoints": true
     }
   ]
 }

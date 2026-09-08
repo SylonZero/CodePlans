@@ -100,6 +100,11 @@ export const products = sqliteTable('products', {
 })
 
 export const assets = sqliteTable('assets', {
+  // Explicit attribution; null means the actor was not recorded (never infer from owner).
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByKind: text('updated_by_kind'),
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   productId: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
@@ -143,6 +148,11 @@ export const assetDependencies = sqliteTable('asset_dependencies', {
 })
 
 export const codePlans = sqliteTable('code_plans', {
+  // Explicit attribution; null means the actor was not recorded (never infer from owner).
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByKind: text('updated_by_kind'),
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   title: text('title').notNull(),
   description: text('description').notNull().default(''),
@@ -192,6 +202,11 @@ export const codePlanAssets = sqliteTable('code_plan_assets', {
 // Delivery grouping above code plans: what ships together, stamping per-asset
 // versions via release_assets. Status is explicit — shipping is a human act.
 export const releases = sqliteTable('releases', {
+  // Explicit attribution; null means the actor was not recorded (never infer from owner).
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByKind: text('updated_by_kind'),
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   productId: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
@@ -235,6 +250,11 @@ export const releaseAssets = sqliteTable('release_assets', {
 // (asset-record-spec.md §5.1). Entries enter only by graduating a resolved work
 // item or by an accepted reconciliation proposal — never as intent.
 export const assetCapabilities = sqliteTable('asset_capabilities', {
+  // Explicit attribution; null means the actor was not recorded (never infer from owner).
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByKind: text('updated_by_kind'),
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   assetId: text('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
@@ -263,6 +283,11 @@ export const assetCapabilities = sqliteTable('asset_capabilities', {
 // The forward-looking scratchpad stays in assets.notes. Agents are first-class
 // authors here (authorKind) — recorded via MCP at plan-completion time.
 export const assetDesignLog = sqliteTable('asset_design_log', {
+  // Explicit attribution; null means the actor was not recorded (never infer from owner).
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByKind: text('updated_by_kind'),
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   assetId: text('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
   releaseId: text('release_id').references(() => releases.id, { onDelete: 'set null' }),
@@ -278,6 +303,11 @@ export const assetDesignLog = sqliteTable('asset_design_log', {
 ])
 
 export const workItems = sqliteTable('work_items', {
+  // Explicit attribution; null means the actor was not recorded (never infer from owner).
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByKind: text('updated_by_kind'),
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   productId: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
   assetId: text('asset_id').references(() => assets.id, { onDelete: 'set null' }),
@@ -389,6 +419,11 @@ export const emailVerificationTokens = sqliteTable('email_verification_tokens', 
 
 // Native, product-owned specifications. Bodies are canonical GFM from TipTap.
 export const specs = sqliteTable('specs', {
+  // Explicit attribution; null means the actor was not recorded (never infer from owner).
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByKind: text('updated_by_kind'),
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   productId: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
