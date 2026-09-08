@@ -58,6 +58,7 @@ CodePlans sits between your issue tracker and your architecture diagram:
 | Releases — delivery grouping with per-asset version stamps & derived release notes | ✅ Available |
 | Asset history timeline, version ladder & design log (user + agent authored) | ✅ Available |
 | Native specs — versioned editing, supersession, asset/plan/work-item links & pinned delivery receipts | ✅ Available |
+| Product Wiki — full-window asset reading, searchable documents, contextual links & provenance | ✅ Available |
 | Shared GFM Markdown — paragraphs, line breaks, tables & task lists across pages and side panels | ✅ Available |
 | AI drafting — release notes & design notes (feature-flagged, `ANTHROPIC_API_KEY`) | ✅ Available |
 | AI-assisted effort estimation | 🔜 Planned |
@@ -319,6 +320,19 @@ Contributions are welcome. To get started:
 4. Open a pull request with a clear description
 
 Please keep PRs focused. Bug fixes, test coverage improvements, and documentation updates are especially appreciated.
+
+---
+
+## Product Wiki
+
+Open **Wiki ↗** from the main navigation for a dedicated reading tab. Browse
+assets by layer, read specs and operational notes, follow related plans and
+decisions, and search content with asset/type/status/area/date filters. Wiki
+pages distinguish recorded capabilities, intended changes, completed work, and
+shipped versions, with creator/editor attribution and source provenance.
+
+Run `pnpm db:migrate` before deploying to apply the additive SQLite/PostgreSQL
+attribution migration. See the [wiki guide](docs/guides/product-wiki.md).
 
 ---
 

@@ -263,7 +263,29 @@ Provenance columns (`source` default `native`, `connectionId`, `externalId/Key/U
 
 ---
 
+### Wiki attribution
+
+`0018_wiki_attribution` adds nullable `createdById`, `createdByKind`,
+`updatedById`, and `updatedByKind` to assets, specs, code plans, work items,
+releases, design notes, and capabilities in both Drizzle schemas. User FKs use
+SET NULL. Authenticated UI/MCP callers pass actor metadata alongside the same
+row write; MCP actors are labelled agent. Unknown actors clear last-editor
+metadata. Existing creator/reporter/author fields remain available as historical
+fallbacks; owner assignments are never used as authorship.
+
 ### Views / Routes
+
+#### `/wiki` and `/wiki/[slug]` — Product Wiki
+
+An authenticated route group outside AppShell provides full-window reading,
+entered from the main navigation in a new tab. Product selection is URL-scoped.
+Asset pages assemble native documents and relationship paths; canonical
+readers cover specs, plans, work items, notes, capabilities, and releases.
+Search includes scoped ranking, excerpts, and pagination; filters cover asset,
+kind, status, area, date, and review/archive state. Layer navigation, dependency
+links, GFM section anchors, source-relative links, delivery receipts, and grouped
+history complete the reading experience. See [the wiki guide](guides/product-wiki.md)
+for metadata semantics, URL shapes, implementation limits, and upgrade steps.
 
 #### Auth Routes (`/(auth)`)
 Centered layout with no sidebar.

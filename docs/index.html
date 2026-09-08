@@ -511,6 +511,21 @@
   </div>
 </section>
 
+<!-- ── Product Wiki ── -->
+<section class="section" id="wiki">
+  <div class="container">
+    <div class="section-label">Product Knowledge</div>
+    <h2>A wiki assembled from the work you already record</h2>
+    <p class="section-sub">Open Wiki from the main navigation in its own browser tab. Read the architecture, documents, decisions, and delivery history around every asset, with space to follow the full story.</p>
+    <div class="feature-grid">
+      <div class="feature-card"><h3>Read by asset</h3><p>Browse by layer, read specs and operational notes, and follow plans, work items, capabilities, releases, and dependencies. Shared documents retain one canonical reader with clear association paths.</p></div>
+      <div class="feature-card"><h3>Find the useful detail</h3><p>Search document bodies, headings, technical identifiers, areas, and repository paths. Filter by asset, content type, status, area, or date; results include matching excerpts.</p></div>
+      <div class="feature-card"><h3>Understand the evidence</h3><p>See creator and last-editor attribution, import provenance, spec versions, and delivery receipts. Completed plans and shipped releases remain distinct; missing metadata stays explicitly unknown.</p></div>
+    </div>
+    <p style="margin-top:24px"><a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/product-wiki.md">Explore the wiki guide and upgrade steps →</a></p>
+  </div>
+</section>
+
 <!-- ── Native Specs ── -->
 <section class="section" id="native-specs">
   <div class="container">
@@ -620,6 +635,12 @@
         <div class="doc-tag">Guide</div>
         <h3>Modeling Monorepos</h3>
         <p>Break a large codebase into assets without over-modeling: the asset test, tiered libraries, curated dependency edges — and a Claude skill that does it for you.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/product-wiki.md">
+        <div class="doc-tag">Guide</div>
+        <h3>Product Wiki</h3>
+        <p>Read your product as a connected library: asset pages, full document readers, searchable content, delivery context, and creator/editor provenance.</p>
         <div class="doc-arrow">Read → </div>
       </a>
       <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/using-specs.md">
@@ -954,7 +975,7 @@
           <tr>
             <td class="layer">Testing</td>
             <td class="tech">Vitest</td>
-            <td class="note">222 tests covering data, MCP access, imports, and Markdown, alongside existing behavior; isolated temporary SQLite databases plus an opt-in real PostgreSQL migration and behavior verifier</td>
+            <td class="note">233 tests covering data, MCP access, imports, and Markdown, alongside existing behavior; isolated temporary SQLite databases plus an opt-in real PostgreSQL migration and behavior verifier</td>
           </tr>
         </tbody>
       </table>
@@ -1006,6 +1027,7 @@
           <tr><td>Asset Atlas — live system map with health/debt/activity lenses (v0.4.5)</td><td><span class="status-pill done">Available</span></td></tr>
           <tr><td>Layers &amp; model boundaries — asset layers, Atlas layer columns, move_asset (v0.4.6)</td><td><span class="status-pill done">Available</span></td></tr>
           <tr><td>Asset Record — agent reconciliation &amp; round-trip publishing (v0.4.7+)</td><td><span class="status-pill plan">Planned</span></td></tr>
+          <tr><td>Product Wiki — asset pages, full document readers, search, review &amp; attribution</td><td><span class="status-pill done">Available</span></td></tr>
           <tr><td>Native specs — versioned editing, supersession, asset/plan/work-item links</td><td><span class="status-pill done">Available</span></td></tr>
           <tr><td>Spec History events &amp; pinned delivery versions in Asset Record</td><td><span class="status-pill done">Available</span></td></tr>
           <tr><td>Legacy URL import — dry-run preview, deduplication, SQLite &amp; PostgreSQL migrations</td><td><span class="status-pill done">Available</span></td></tr>

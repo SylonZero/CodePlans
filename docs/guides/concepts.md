@@ -136,6 +136,8 @@ migration.
 
 ## Where to go next
 
+- [Product Wiki](product-wiki.md) — read and search the connected product record
+
 - [Native, Versioned Specs](using-specs.md) — intent, delivery receipts, and migration
 - [The Asset Atlas](asset-atlas.md) — the system map these boundaries feed
 - [Releases & Versions](releases-and-versions.md) — the shipping boundary in practice
