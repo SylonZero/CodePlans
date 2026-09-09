@@ -143,6 +143,10 @@ HOST_MODE=saas
 REGISTRATION=invite
 ```
 
+Commercial/hosted-only features are built as an optional private module the
+app loads at startup, never as forked or hidden code in this repo. See the
+[enterprise extensions guide](docs/guides/enterprise-extensions.md).
+
 ---
 
 ## Getting Started

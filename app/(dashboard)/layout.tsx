@@ -6,6 +6,7 @@ import { AppShell } from '@/components/app-shell'
 import { Toaster } from '@/components/ui/sonner'
 import { config } from '@/lib/config'
 import { getProductScope } from '@/lib/product-scope'
+import { getEnterpriseHooks } from '@/lib/ee/registry'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const authUser = await authAdapter.getUser()
@@ -54,6 +55,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       products={productList}
       selectedProductId={selectedProductId}
       billingEnabled={config.billing.enabled}
+      extraNavItems={getEnterpriseHooks().navItems()}
     >
       {children}
       <Toaster position="bottom-right" />
