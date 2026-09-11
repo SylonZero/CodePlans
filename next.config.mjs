@@ -14,6 +14,11 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Optional enterprise module (see lib/ee/load.ts): listing it here tells
+  // Next.js to leave it as a plain runtime require instead of tracing/
+  // bundling it at build time, so a community build never fails just
+  // because the private package isn't installed.
+  serverExternalPackages: ['@codeplans/enterprise'],
 }
 
 export default nextConfig
