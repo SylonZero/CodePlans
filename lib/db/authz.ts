@@ -1,5 +1,5 @@
 import { db } from './index'
-import { organizations, organizationMembers, products, codePlans, releases, workItems, tasks } from './schema'
+import { organizations, organizationMembers, products, codePlans, releases, workItems, tasks, assets, assetOwners } from './schema'
 import { eq, and } from 'drizzle-orm'
 
 /**
@@ -79,4 +79,21 @@ export async function canDeleteTask(userId: string, taskId: string): Promise<boo
   const plan = await db.query.codePlans.findFirst({ where: eq(codePlans.id, task.codePlanId) })
   if (plan && (await hasOrgOverride(await getProductOrgId(plan.productId), userId))) return true
   return task.createdById === userId || task.assigneeId === userId
+}
+
+/**
+ * Governs both archiveAsset and restoreAsset (Phase 3) — archiving is the
+ * delete-equivalent action for assets, so it follows the same rule. "Owns
+ * it" means listed in assetOwners (declared code-owner routing/visibility),
+ * the closest asset analog to a task's assigneeId.
+ */
+export async function canDeleteAsset(userId: string, assetId: string): Promise<boolean> {
+  const asset = await db.query.assets.findFirst({ where: eq(assets.id, assetId) })
+  if (!asset) return false
+  if (await hasOrgOverride(await getProductOrgId(asset.productId), userId)) return true
+  if (asset.createdById === userId) return true
+  const owner = await db.query.assetOwners.findFirst({
+    where: and(eq(assetOwners.assetId, assetId), eq(assetOwners.userId, userId)),
+  })
+  return !!owner
 }

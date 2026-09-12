@@ -144,6 +144,13 @@ export const assets = pgTable('assets', {
   layer: text('layer'),
   documentationUrl: text('documentation_url'),
   metadata: jsonb('metadata').notNull().default({}),
+  // Soft-delete tombstone (spec "Deletion & Cascade Design for Core Entities",
+  // Phase 3) — archived means removedAt IS NOT NULL. Never hard-deleted by
+  // the normal UI/MCP path; deleteAsset remains for a possible future
+  // admin-only purge of genuinely empty/orphaned assets.
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
+  archivedById: uuid('archived_by_id').references(() => users.id, { onDelete: 'set null' }),
+  archivedByKind: text('archived_by_kind'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })

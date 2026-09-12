@@ -7,8 +7,9 @@ import {
   canDeleteRelease,
   canDeleteWorkItem,
   canDeleteTask,
+  canDeleteAsset,
 } from '@/lib/db/authz'
-import { createCodePlan, createRelease, createWorkItem } from '@/lib/db/mutations'
+import { createCodePlan, createRelease, createWorkItem, createAsset, setAssetOwners } from '@/lib/db/mutations'
 
 beforeAll(async () => {
   await runMigrations()
@@ -130,5 +131,41 @@ describe('canDeleteTask', () => {
 
   it('blocks a user unrelated to the org entirely', async () => {
     expect(await canDeleteTask(F.carol, F.task1)).toBe(false)
+  })
+})
+
+describe('canDeleteAsset', () => {
+  it('blocks an unrelated editor with no creator/owner relationship', async () => {
+    // F.assetApi has no createdById and no assetOwners row in seedFixtures.
+    expect(await canDeleteAsset(F.bob, F.assetApi)).toBe(false)
+  })
+
+  it('allows the org owner even without creating or owning the asset', async () => {
+    expect(await canDeleteAsset(F.alice, F.assetApi)).toBe(true)
+  })
+
+  it('allows the creator', async () => {
+    const asset = await createAsset({
+      productId: F.productShared,
+      name: 'Notification Service',
+      type: 'service',
+      description: 'Sends notifications',
+      tags: [],
+    }, { id: F.bob })
+    expect(await canDeleteAsset(F.bob, asset.id)).toBe(true)
+    expect(await canDeleteAsset(F.carol, asset.id)).toBe(false)
+  })
+
+  it('allows a declared asset owner who did not create it', async () => {
+    await setAssetOwners(F.assetDb, [F.bob])
+    expect(await canDeleteAsset(F.bob, F.assetDb)).toBe(true)
+  })
+
+  it('blocks a user unrelated to the org entirely', async () => {
+    expect(await canDeleteAsset(F.carol, F.assetApi)).toBe(false)
+  })
+
+  it('returns false for a nonexistent asset', async () => {
+    expect(await canDeleteAsset(F.alice, 'asset-does-not-exist')).toBe(false)
   })
 })

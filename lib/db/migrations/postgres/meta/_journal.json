@@ -148,6 +148,13 @@
       "when": 1789412521000,
       "tag": "0020_backfill_creator_attribution",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789420000000,
+      "tag": "0021_phase3_asset_archive",
+      "breakpoints": true
     }
   ]
 }

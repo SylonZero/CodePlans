@@ -7,6 +7,8 @@ import {
   createAsset,
   updateAsset,
   deleteAsset,
+  archiveAsset,
+  restoreAsset,
   createCodePlan,
   updateCodePlan,
   deleteCodePlan,
@@ -160,6 +162,57 @@ describe('deleteAsset', () => {
 
   it('returns null for non-existent asset', async () => {
     const result = await deleteAsset('nonexistent')
+    expect(result).toBeNull()
+  })
+})
+
+describe('archiveAsset', () => {
+  it('sets archivedAt/archivedById/archivedByKind and stamps updatedAt', async () => {
+    const before = Math.floor(Date.now() / 1000) * 1000
+    const archived = await archiveAsset(F.assetDb, undefined, { id: F.alice })
+    expect(archived).not.toBeNull()
+    expect(archived!.archivedAt).not.toBeNull()
+    expect(archived!.archivedById).toBe(F.alice)
+    expect(archived!.archivedByKind).toBe('user')
+    expect(archived!.updatedAt.getTime()).toBeGreaterThanOrEqual(before)
+  })
+
+  it('appends the optional reason to notes', async () => {
+    const archived = await archiveAsset(F.assetDb, 'Replaced by managed Postgres', { id: F.alice })
+    expect(archived!.notes).toContain('Replaced by managed Postgres')
+  })
+
+  it('does not delete the row or touch anything referencing it', async () => {
+    const archived = await archiveAsset(F.assetApi)
+    expect(archived).not.toBeNull()
+    const plan = await getCodePlan(F.planActive, F.alice)
+    expect(plan!.targetAssets.some((a) => a.id === F.assetApi)).toBe(true)
+  })
+
+  it('is idempotent — archiving an already-archived asset just updates who/when', async () => {
+    await archiveAsset(F.assetDb, undefined, { id: F.alice })
+    const second = await archiveAsset(F.assetDb, undefined, { id: F.bob })
+    expect(second!.archivedById).toBe(F.bob)
+  })
+
+  it('returns null for non-existent asset', async () => {
+    const result = await archiveAsset('nonexistent')
+    expect(result).toBeNull()
+  })
+})
+
+describe('restoreAsset', () => {
+  it('clears archivedAt/archivedById/archivedByKind', async () => {
+    await archiveAsset(F.assetDb, undefined, { id: F.alice })
+    const restored = await restoreAsset(F.assetDb)
+    expect(restored).not.toBeNull()
+    expect(restored!.archivedAt).toBeNull()
+    expect(restored!.archivedById).toBeNull()
+    expect(restored!.archivedByKind).toBeNull()
+  })
+
+  it('returns null for non-existent asset', async () => {
+    const result = await restoreAsset('nonexistent')
     expect(result).toBeNull()
   })
 })

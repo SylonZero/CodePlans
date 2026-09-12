@@ -21,7 +21,7 @@ import {
   assetDesignLog,
   assetCapabilities,
 } from './schema'
-import { eq, and, sql, desc, or, inArray, gte, isNotNull } from 'drizzle-orm'
+import { eq, and, sql, desc, or, inArray, gte, isNotNull, isNull } from 'drizzle-orm'
 import type {
   Product,
   Asset,
@@ -104,7 +104,7 @@ export async function getDashboardStats(userId: string, productId?: string): Pro
     db
       .select({ count: sql<number>`CAST(count(*) AS INTEGER)` })
       .from(assets)
-      .where(inArray(assets.productId, ids)),
+      .where(and(inArray(assets.productId, ids), isNull(assets.archivedAt))),
     db
       .select({ count: sql<number>`CAST(count(*) AS INTEGER)` })
       .from(codePlans)
@@ -234,6 +234,8 @@ export async function getProduct(slug: string, userId: string): Promise<(Product
   const product = await db.query.products.findFirst({ where: productFilter })
   if (!product) return null
 
+  // Includes archived assets — the product page shows them in a separate
+  // section (with a restore action) rather than hiding them entirely.
   const productAssets = await db.query.assets.findMany({
     where: eq(assets.productId, product.id),
     orderBy: desc(assets.createdAt),
@@ -276,7 +278,7 @@ export async function getProduct(slug: string, userId: string): Promise<(Product
     tags: product.tags,
     organizationId: product.organizationId ?? undefined,
     creatorId: product.creatorId,
-    assetCount: productAssets.length,
+    assetCount: productAssets.filter((a) => !a.archivedAt).length,
     activePlanCount: activePlanCount?.count ?? 0,
     createdAt: product.createdAt.toISOString(),
     assets: productAssets.map((a) => ({
@@ -297,6 +299,13 @@ export async function getProduct(slug: string, userId: string): Promise<(Product
       documentationUrl: a.documentationUrl ?? undefined,
       dependencies: [], // asset_dependencies resolved separately when needed
       createdAt: a.createdAt.toISOString(),
+      createdById: a.createdById,
+      createdByKind: a.createdByKind,
+      updatedById: a.updatedById,
+      updatedByKind: a.updatedByKind,
+      archivedAt: a.archivedAt?.toISOString() ?? null,
+      archivedById: a.archivedById,
+      archivedByKind: a.archivedByKind,
     })),
   }
 }
@@ -837,7 +846,7 @@ export async function getAssetOptions(
     .select({ id: assets.id, name: assets.name, productId: assets.productId })
     .from(assets)
     .innerJoin(products, eq(assets.productId, products.id))
-    .where(productFilter)
+    .where(and(productFilter, isNull(assets.archivedAt)))
     .orderBy(assets.name)
 }
 
@@ -856,7 +865,7 @@ export async function getAssetDebtInfo(userId: string): Promise<AssetDebtInfo[]>
     .select({ id: assets.id, health: assets.health, techDebtScore: assets.techDebtScore })
     .from(assets)
     .innerJoin(products, eq(assets.productId, products.id))
-    .where(productFilter)
+    .where(and(productFilter, isNull(assets.archivedAt)))
   const owners = await ownersByAsset(rows.map((r) => r.id))
   return rows.map((r) => ({ ...r, owners: owners.get(r.id) ?? [] }))
 }
@@ -889,7 +898,7 @@ export async function getOwnedAssets(userId: string): Promise<OwnedAsset[]> {
     .from(assetOwners)
     .innerJoin(assets, eq(assetOwners.assetId, assets.id))
     .innerJoin(products, eq(assets.productId, products.id))
-    .where(eq(assetOwners.userId, userId))
+    .where(and(eq(assetOwners.userId, userId), isNull(assets.archivedAt)))
     .orderBy(assets.name)
   if (rows.length === 0) return []
 
@@ -1017,7 +1026,7 @@ export async function getAssetDetail(id: string, userId: string): Promise<AssetD
       })
       .from(assetDependencies)
       .innerJoin(assets, eq(assetDependencies.targetAssetId, assets.id))
-      .where(eq(assetDependencies.sourceAssetId, id)),
+      .where(and(eq(assetDependencies.sourceAssetId, id), isNull(assets.archivedAt))),
     db
       .select({
         edgeId: assetDependencies.id,
@@ -1030,7 +1039,7 @@ export async function getAssetDetail(id: string, userId: string): Promise<AssetD
       })
       .from(assetDependencies)
       .innerJoin(assets, eq(assetDependencies.sourceAssetId, assets.id))
-      .where(eq(assetDependencies.targetAssetId, id)),
+      .where(and(eq(assetDependencies.targetAssetId, id), isNull(assets.archivedAt))),
   ])
 
   const owners = await ownersByAsset([
@@ -1076,6 +1085,13 @@ export async function getAssetDetail(id: string, userId: string): Promise<AssetD
     documentationUrl: asset.documentationUrl ?? undefined,
     dependencies: upstreamRows.map((r) => r.assetId),
     createdAt: asset.createdAt.toISOString(),
+    createdById: asset.createdById,
+    createdByKind: asset.createdByKind,
+    updatedById: asset.updatedById,
+    updatedByKind: asset.updatedByKind,
+    archivedAt: asset.archivedAt?.toISOString() ?? null,
+    archivedById: asset.archivedById,
+    archivedByKind: asset.archivedByKind,
     productName: product.name,
     productSlug: product.slug,
     plans: planRows.map((r) => ({
@@ -1338,7 +1354,7 @@ export async function getProductDependencyEdges(productId: string): Promise<Depe
     })
     .from(assetDependencies)
     .innerJoin(assets, eq(assetDependencies.sourceAssetId, assets.id))
-    .where(eq(assets.productId, productId))
+    .where(and(eq(assets.productId, productId), isNull(assets.archivedAt)))
   return rows
 }
 
@@ -1377,7 +1393,7 @@ export async function getImpactedAssets(planId: string): Promise<ImpactedAsset[]
     })
     .from(assetDependencies)
     .innerJoin(assets, eq(assetDependencies.sourceAssetId, assets.id))
-    .where(inArray(assetDependencies.targetAssetId, targetIds))
+    .where(and(inArray(assetDependencies.targetAssetId, targetIds), isNull(assets.archivedAt)))
 
   // Targets themselves are being changed deliberately — not "impact".
   const targetSet = new Set(targetIds)
@@ -1453,7 +1469,7 @@ export async function getAnalytics(userId: string, productId?: string): Promise<
         techDebtScore: assets.techDebtScore,
       })
       .from(assets)
-      .where(inArray(assets.productId, ids)),
+      .where(and(inArray(assets.productId, ids), isNull(assets.archivedAt))),
     db
       .select({ assetId: workItems.assetId, severity: workItems.severity })
       .from(workItems)
@@ -2087,7 +2103,7 @@ export async function getSuggestedReleaseAssets(releaseId: string): Promise<Rele
     .from(codePlanAssets)
     .innerJoin(codePlans, eq(codePlanAssets.codePlanId, codePlans.id))
     .innerJoin(assets, eq(codePlanAssets.assetId, assets.id))
-    .where(eq(codePlans.releaseId, releaseId))
+    .where(and(eq(codePlans.releaseId, releaseId), isNull(assets.archivedAt)))
   const existing = await db
     .select({ assetId: releaseAssets.assetId })
     .from(releaseAssets)
@@ -2277,7 +2293,7 @@ export async function getAssetInventory(
   const productIds = visibleProducts.map((p) => p.id)
 
   const assetRows = await db.query.assets.findMany({
-    where: inArray(assets.productId, productIds),
+    where: and(inArray(assets.productId, productIds), isNull(assets.archivedAt)),
     orderBy: assets.name,
   })
   const assetIds = assetRows.map((a) => a.id)

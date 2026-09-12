@@ -2,7 +2,7 @@ import { createSpec, updateSpec, supersedeSpec, linkSpec, unlinkSpec, getSpec, l
 import { createMcpHandler, withMcpAuth } from 'mcp-handler'
 import { z } from 'zod'
 import { verifyApiKey } from '@/lib/mcp/auth'
-import { canDeleteCodePlan, canDeleteRelease, canDeleteWorkItem, canDeleteTask } from '@/lib/db/authz'
+import { canDeleteCodePlan, canDeleteRelease, canDeleteWorkItem, canDeleteTask, canDeleteAsset } from '@/lib/db/authz'
 import {
   getProducts,
   getProduct,
@@ -21,6 +21,8 @@ import {
   updateProduct,
   createAsset,
   updateAsset,
+  archiveAsset,
+  restoreAsset,
   setAssetOwners,
   createAssetDependency,
   deleteAssetDependency,
@@ -322,6 +324,58 @@ const handler = createMcpHandler(
         const detail = await getAssetDetail(id, uid(extra))
         if (!detail) return json({ error: 'Asset not found or not accessible' })
         return json(detail)
+      },
+    )
+
+    server.tool(
+      'archive_asset',
+      "Archive an asset — the delete-equivalent action for assets. Hides it from asset lists/pickers and Atlas, but does NOT delete it or touch anything referencing it: work items, tasks, dependency edges, plan/release links all keep their reference (they just can no longer be newly assigned to it). Reversible via restore_asset. Only the asset's creator/owner, or an org owner/admin, may archive it.",
+      { id: z.string(), reason: z.string().optional() },
+      async ({ id, reason }, extra) => {
+        requireWrite(extra)
+        const userId = uid(extra)
+        const options = await getAssetOptions(userId)
+        if (!options.some((a) => a.id === id)) return json({ error: 'Asset not found, not accessible, or already archived' })
+        if (!(await canDeleteAsset(userId, id))) {
+          return json({ error: "Only the asset's creator/owner, or an org owner/admin, can archive it." })
+        }
+        const { db } = await import('@/lib/db')
+        const { workItems, tasks, assetDependencies, codePlanAssets, releaseAssets } = await import('@/lib/db/schema')
+        const { eq, or } = await import('drizzle-orm')
+        const [workItemRows, taskRows, depRows, planAssetRows, releaseAssetRows] = await Promise.all([
+          db.select({ id: workItems.id }).from(workItems).where(eq(workItems.assetId, id)),
+          db.select({ id: tasks.id }).from(tasks).where(eq(tasks.assetId, id)),
+          db.select({ id: assetDependencies.id }).from(assetDependencies).where(or(eq(assetDependencies.sourceAssetId, id), eq(assetDependencies.targetAssetId, id))),
+          db.select({ id: codePlanAssets.id }).from(codePlanAssets).where(eq(codePlanAssets.assetId, id)),
+          db.select({ id: releaseAssets.id }).from(releaseAssets).where(eq(releaseAssets.assetId, id)),
+        ])
+        const archived = await archiveAsset(id, reason, { id: userId, kind: 'agent' })
+        if (!archived) return json({ error: 'Asset not found' })
+        return json({
+          archived: true,
+          id,
+          referencedByWorkItemCount: workItemRows.length,
+          referencedByTaskCount: taskRows.length,
+          dependencyEdgeCount: depRows.length,
+          planTargetCount: planAssetRows.length,
+          releaseStampCount: releaseAssetRows.length,
+          note: 'None of the above were deleted or unlinked — they keep referencing this asset, it just no longer appears in lists or pickers until restored.',
+        })
+      },
+    )
+
+    server.tool(
+      'restore_asset',
+      'Restore a previously archived asset, making it visible again in lists, pickers, and Atlas. Same authorization as archive_asset.',
+      { id: z.string() },
+      async ({ id }, extra) => {
+        requireWrite(extra)
+        const userId = uid(extra)
+        if (!(await canDeleteAsset(userId, id))) {
+          return json({ error: "Only the asset's creator/owner, or an org owner/admin, can restore it." })
+        }
+        const restored = await restoreAsset(id, { id: userId, kind: 'agent' })
+        return json(restored ?? { error: 'Asset not found' })
       },
     )
 

@@ -2,7 +2,7 @@
 
 import { getSpec, linkSpec } from '@/lib/db/specs'
 import { createdBy } from '@/lib/db/attribution'
-import { isOrgOwner, canDeleteCodePlan, canDeleteRelease, canDeleteWorkItem, canDeleteTask } from '@/lib/db/authz'
+import { isOrgOwner, canDeleteCodePlan, canDeleteRelease, canDeleteWorkItem, canDeleteTask, canDeleteAsset } from '@/lib/db/authz'
 import { getWorkItem } from '@/lib/db/queries'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
@@ -17,7 +17,8 @@ import {
   deleteProduct,
   createAsset,
   updateAsset,
-  deleteAsset,
+  archiveAsset,
+  restoreAsset,
   setAssetOwners,
   createCodePlan,
   updateCodePlan,
@@ -198,10 +199,26 @@ export async function updateAssetAction(id: string, productSlug: string, formDat
   revalidatePath(`/products/${productSlug}`)
 }
 
-export async function deleteAssetAction(id: string, productSlug: string) {
-  await requireUser()
-  await deleteAsset(id, await currentEditor())
+export async function archiveAssetAction(id: string, productSlug: string, reason?: string) {
+  const authUser = await requireUser()
+  if (!(await canDeleteAsset(authUser.id, id))) {
+    return { error: 'Only the asset\'s creator/owner, or an org owner/admin, can archive it.' }
+  }
+  await archiveAsset(id, reason, await currentEditor())
   revalidatePath(`/products/${productSlug}`)
+  revalidatePath(`/assets/${id}`)
+  revalidatePath('/assets')
+}
+
+export async function restoreAssetAction(id: string, productSlug: string) {
+  const authUser = await requireUser()
+  if (!(await canDeleteAsset(authUser.id, id))) {
+    return { error: 'Only the asset\'s creator/owner, or an org owner/admin, can restore it.' }
+  }
+  await restoreAsset(id, await currentEditor())
+  revalidatePath(`/products/${productSlug}`)
+  revalidatePath(`/assets/${id}`)
+  revalidatePath('/assets')
 }
 
 export async function setAssetOwnersAction(assetId: string, productSlug: string, userIds: string[]) {

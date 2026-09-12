@@ -32,7 +32,8 @@ import {
 import {
   Plus,
   Pencil,
-  Trash2,
+  Archive,
+  ArchiveRestore,
   Box,
   Server,
   Library,
@@ -49,7 +50,7 @@ import type { Asset, AssetType } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { OwnerAvatars } from '@/components/owner-avatars'
-import { createAssetAction, updateAssetAction, deleteAssetAction, setAssetOwnersAction } from '../../actions'
+import { createAssetAction, updateAssetAction, archiveAssetAction, restoreAssetAction, setAssetOwnersAction } from '../../actions'
 
 const assetTypeIcons: Record<AssetType, typeof Box> = {
   app: Box,
@@ -138,11 +139,15 @@ export function AssetsSection({
   members?: MemberOption[]
 }) {
   const [openAsset, setOpenAsset] = useState<Asset | null>(null)
+  const [showArchived, setShowArchived] = useState(false)
 
   // Keep the panel in sync with refreshed server data after an edit
   const currentAsset = openAsset ? assets.find((a) => a.id === openAsset.id) ?? null : null
 
-  const assetsByType = assets.reduce((acc, asset) => {
+  const activeAssets = assets.filter((a) => !a.archivedAt)
+  const archivedAssets = assets.filter((a) => a.archivedAt)
+
+  const assetsByType = activeAssets.reduce((acc, asset) => {
     if (!acc[asset.type]) acc[asset.type] = []
     acc[asset.type].push(asset)
     return acc
@@ -168,7 +173,7 @@ export function AssetsSection({
         )
       })}
 
-      {assets.length === 0 && (
+      {activeAssets.length === 0 && (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Box className="h-12 w-12 text-muted-foreground mb-4" />
@@ -179,6 +184,29 @@ export function AssetsSection({
             <AssetCreatePanel productId={productId} productSlug={productSlug} />
           </CardContent>
         </Card>
+      )}
+
+      {archivedAssets.length > 0 && (
+        <div>
+          <button
+            type="button"
+            className="flex items-center gap-2 mb-4 text-muted-foreground hover:text-foreground"
+            onClick={() => setShowArchived((v) => !v)}
+          >
+            <Archive className="h-4 w-4" />
+            <h2 className="text-sm font-medium">
+              {showArchived ? 'Hide' : 'Show'} archived assets
+            </h2>
+            <Badge variant="secondary">{archivedAssets.length}</Badge>
+          </button>
+          {showArchived && (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 opacity-70">
+              {archivedAssets.map((asset) => (
+                <AssetCard key={asset.id} asset={asset} onOpen={setOpenAsset} />
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       <Sheet open={!!currentAsset} onOpenChange={(o) => { if (!o) setOpenAsset(null) }}>
@@ -209,7 +237,10 @@ function AssetCard({ asset, onOpen }: { asset: Asset; onOpen: (asset: Asset) => 
               <Icon className="h-5 w-5 text-muted-foreground" />
             </div>
             <div>
-              <CardTitle className="text-base">{asset.name}</CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-base">{asset.name}</CardTitle>
+                {asset.archivedAt && <Badge variant="secondary" className="text-xs">Archived</Badge>}
+              </div>
               <p className="text-sm text-muted-foreground">{assetTypeLabels[asset.type]}</p>
             </div>
           </div>
@@ -323,10 +354,25 @@ function AssetEditor({
     })
   }
 
-  function handleDelete() {
+  function handleArchive() {
     startTransition(async () => {
-      await deleteAssetAction(asset.id, productSlug)
+      const result = await archiveAssetAction(asset.id, productSlug)
+      if (result?.error) {
+        toast.error(result.error)
+        return
+      }
       onDeleted()
+    })
+  }
+
+  function handleRestore() {
+    startTransition(async () => {
+      const result = await restoreAssetAction(asset.id, productSlug)
+      if (result?.error) {
+        toast.error(result.error)
+        return
+      }
+      toast.success('Asset restored')
     })
   }
 
@@ -338,7 +384,10 @@ function AssetEditor({
             <Icon className="h-5 w-5 text-muted-foreground" />
           </div>
           <div>
-            <SheetTitle className="text-lg">{asset.name}</SheetTitle>
+            <div className="flex items-center gap-2">
+              <SheetTitle className="text-lg">{asset.name}</SheetTitle>
+              {asset.archivedAt && <Badge variant="secondary">Archived</Badge>}
+            </div>
             <SheetDescription>{assetTypeLabels[asset.type]}</SheetDescription>
           </div>
         </div>
@@ -458,28 +507,35 @@ function AssetEditor({
       </div>
 
       <SheetFooter className="flex-row justify-end gap-2">
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete asset?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will permanently delete &ldquo;{asset.name}&rdquo;. Tasks and work items pointing at it lose their asset link. This action cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDelete} disabled={isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                {isPending ? 'Deleting…' : 'Delete'}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        {asset.archivedAt ? (
+          <Button variant="outline" size="sm" onClick={handleRestore} disabled={isPending}>
+            <ArchiveRestore className="mr-2 h-4 w-4" />
+            {isPending ? 'Restoring…' : 'Restore'}
+          </Button>
+        ) : (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
+                <Archive className="mr-2 h-4 w-4" />
+                Archive
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Archive this asset?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  &ldquo;{asset.name}&rdquo; will be hidden from asset lists, pickers, and Atlas. Tasks, work items, dependency edges, and plan/release links that already point at it keep working — nothing is deleted or unlinked. You can restore it later.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleArchive} disabled={isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  {isPending ? 'Archiving…' : 'Archive'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
       </SheetFooter>
     </>
   )
