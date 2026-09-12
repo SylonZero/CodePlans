@@ -138,6 +138,13 @@ export const assets = sqliteTable('assets', {
   layer: text('layer'),
   documentationUrl: text('documentation_url'),
   metadata: text('metadata', { mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
+  // Soft-delete tombstone (spec "Deletion & Cascade Design for Core Entities",
+  // Phase 3) — archived means archivedAt IS NOT NULL. Never hard-deleted by
+  // the normal UI/MCP path; deleteAsset remains for a possible future
+  // admin-only purge of genuinely empty/orphaned assets.
+  archivedAt: integer('archived_at', { mode: 'timestamp' }),
+  archivedById: text('archived_by_id').references(() => users.id, { onDelete: 'set null' }),
+  archivedByKind: text('archived_by_kind'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 })

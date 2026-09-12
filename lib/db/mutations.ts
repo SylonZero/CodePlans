@@ -154,6 +154,12 @@ export async function updateAsset(id: string, data: UpdateAssetData, actor?: Art
   return asset ?? null
 }
 
+/**
+ * Hard delete. Not called by the normal UI/MCP path — archiveAsset is the
+ * user-facing "delete" action (spec "Deletion & Cascade Design for Core
+ * Entities", Phase 3). Kept for a possible future admin-only purge of
+ * genuinely empty/orphaned assets.
+ */
 export async function deleteAsset(id: string, actor?: ArtifactActor) {
   const [deleted] = await db
     .delete(assets)
@@ -164,6 +170,39 @@ export async function deleteAsset(id: string, actor?: ArtifactActor) {
     await logAudit({ entityType: 'asset', entityId: deleted.id, event: 'deleted', actor, payload: { name: deleted.name } })
   }
   return deleted ?? null
+}
+
+/**
+ * Soft-delete tombstone — the asset row is kept, just hidden from default
+ * views (see the isNull(assets.archivedAt) filters in lib/db/queries.ts).
+ * Idempotent: archiving an already-archived asset just updates who/when.
+ */
+export async function archiveAsset(id: string, reason?: string, actor?: ArtifactActor) {
+  const existing = await db.query.assets.findFirst({ where: eq(assets.id, id) })
+  if (!existing) return null
+  const [archived] = await db
+    .update(assets)
+    .set({
+      archivedAt: new Date(),
+      archivedById: actor?.id ?? null,
+      archivedByKind: actor ? (actor.kind ?? 'user') : null,
+      updatedAt: new Date(),
+      ...(reason ? { notes: `${existing.notes ? existing.notes + '\n\n' : ''}**Archived:** ${reason}` } : {}),
+    })
+    .where(eq(assets.id, id))
+    .returning()
+  if (archived) await logAudit({ entityType: 'asset', entityId: archived.id, event: 'archived', actor, payload: { name: archived.name } })
+  return archived ?? null
+}
+
+export async function restoreAsset(id: string, actor?: ArtifactActor) {
+  const [restored] = await db
+    .update(assets)
+    .set({ archivedAt: null, archivedById: null, archivedByKind: null, updatedAt: new Date() })
+    .where(eq(assets.id, id))
+    .returning()
+  if (restored) await logAudit({ entityType: 'asset', entityId: restored.id, event: 'restored', actor, payload: { name: restored.name } })
+  return restored ?? null
 }
 
 /** Replace the full owner set for an asset. */

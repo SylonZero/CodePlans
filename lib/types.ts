@@ -76,7 +76,7 @@ export interface AssetOwner {
   avatarUrl?: string
 }
 
-export interface Asset {
+export interface Asset extends Attribution {
   id: string
   productId: string
   name: string
@@ -100,6 +100,10 @@ export interface Asset {
   documentationUrl?: string
   dependencies: string[]
   createdAt: string
+  /** Soft-delete tombstone — null means active. See lib/db/authz.ts canDeleteAsset. */
+  archivedAt?: string | null
+  archivedById?: string | null
+  archivedByKind?: string | null
 }
 
 /**
