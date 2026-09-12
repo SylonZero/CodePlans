@@ -2,7 +2,7 @@
 
 import { getSpec, linkSpec } from '@/lib/db/specs'
 import { createdBy } from '@/lib/db/attribution'
-import { isOrgOwner } from '@/lib/db/authz'
+import { isOrgOwner, canDeleteCodePlan, canDeleteRelease, canDeleteWorkItem, canDeleteTask } from '@/lib/db/authz'
 import { getWorkItem } from '@/lib/db/queries'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
@@ -296,6 +296,9 @@ export async function completePlanAction(id: string) {
 
 export async function deleteCodePlanAction(id: string) {
   const authUser = await requireUser()
+  if (!(await canDeleteCodePlan(authUser.id, id))) {
+    return { error: 'Only the plan\'s creator, or an org owner/admin, can delete it.' }
+  }
   await deleteCodePlan(id, authUser.id)
   revalidatePath('/plans')
   redirect('/plans')
@@ -400,7 +403,10 @@ export async function updateTaskStatusAction(id: string, status: 'not_started' |
 }
 
 export async function deleteTaskAction(id: string, planId: string) {
-  await requireUser()
+  const authUser = await requireUser()
+  if (!(await canDeleteTask(authUser.id, id))) {
+    return { error: 'Only the task\'s assignee/creator, or an org owner/admin, can delete it.' }
+  }
   await deleteTask(id, await currentEditor())
   revalidatePath(`/plans/${planId}`)
   revalidatePath('/tasks')
@@ -648,7 +654,10 @@ export async function updateWorkItemStatusAction(id: string, status: WorkItemSta
 }
 
 export async function deleteWorkItemAction(id: string) {
-  await requireUser()
+  const authUser = await requireUser()
+  if (!(await canDeleteWorkItem(authUser.id, id))) {
+    return { error: 'Only the reporter/owner, or an org owner/admin, can delete this work item.' }
+  }
   await deleteWorkItem(id, await currentEditor())
   revalidatePath('/work-items')
 }
@@ -913,7 +922,10 @@ export async function setReleaseStatusAction(id: string, status: 'planned' | 'in
 }
 
 export async function deleteReleaseAction(id: string) {
-  await requireUser()
+  const authUser = await requireUser()
+  if (!(await canDeleteRelease(authUser.id, id))) {
+    return { error: 'Only the release\'s creator, or an org owner/admin, can delete it.' }
+  }
   await deleteRelease(id, await currentEditor())
   revalidatePath('/releases')
   redirect('/releases')

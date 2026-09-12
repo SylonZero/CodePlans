@@ -37,6 +37,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Settings, Plus, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import {
   activatePlanAction,
   completePlanAction,
@@ -131,7 +132,10 @@ export function DeletePlanButton({
           <AlertDialogAction
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             disabled={isPending}
-            onClick={() => startTransition(async () => { await deleteCodePlanAction(planId) })}
+            onClick={() => startTransition(async () => {
+              const result = await deleteCodePlanAction(planId)
+              if (result?.error) toast.error(result.error)
+            })}
           >
             {isPending ? 'Deleting…' : 'Delete Plan'}
           </AlertDialogAction>

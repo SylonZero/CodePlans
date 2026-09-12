@@ -2,6 +2,7 @@ import { createSpec, updateSpec, supersedeSpec, linkSpec, unlinkSpec, getSpec, l
 import { createMcpHandler, withMcpAuth } from 'mcp-handler'
 import { z } from 'zod'
 import { verifyApiKey } from '@/lib/mcp/auth'
+import { canDeleteCodePlan, canDeleteRelease, canDeleteWorkItem, canDeleteTask } from '@/lib/db/authz'
 import {
   getProducts,
   getProduct,
@@ -406,16 +407,19 @@ const handler = createMcpHandler(
 
     server.tool(
       'delete_code_plan',
-      'Permanently delete a code plan you created, including its tasks and target-asset/PR tracking. Linked work items are unlinked, not deleted. Returns what was affected. Cannot be undone; only the plan creator may delete it.',
+      'Permanently delete a code plan, including its tasks and target-asset/PR tracking. Linked work items are unlinked, not deleted. Returns what was affected. Cannot be undone; only the plan creator, or an org owner/admin, may delete it.',
       { id: z.string() },
       async ({ id }, extra) => {
         requireWrite(extra)
         const userId = uid(extra)
         const plan = await getCodePlan(id, userId)
         if (!plan) return json({ error: 'Plan not found or not accessible' })
+        if (!(await canDeleteCodePlan(userId, id))) {
+          return json({ error: "Only the plan's creator, or an org owner/admin, can delete it." })
+        }
         const linkedWorkItems = await getWorkItems(userId, { planId: id })
         const deleted = await deleteCodePlan(id, userId)
-        if (!deleted) return json({ error: 'Not found, or only the plan creator can delete it' })
+        if (!deleted) return json({ error: 'Plan not found' })
         return json({
           deleted: true,
           id,
@@ -517,7 +521,7 @@ const handler = createMcpHandler(
 
     server.tool(
       'delete_work_item',
-      'Permanently delete a work item — unlinks it from any plans and specs first. Returns how many plan links and spec links were removed. Cannot be undone; consider whether the item should be marked wont_do instead.',
+      'Permanently delete a work item — unlinks it from any plans and specs first. Returns how many plan links and spec links were removed. Cannot be undone; only the reporter/owner, or an org owner/admin, may delete it. Consider whether the item should be marked wont_do instead.',
       { id: z.string() },
       async ({ id }, extra) => {
         requireWrite(extra)
@@ -525,6 +529,9 @@ const handler = createMcpHandler(
         const { getWorkItem } = await import('@/lib/db/queries')
         const item = await getWorkItem(id, userId)
         if (!item) return json({ error: 'Work item not found or not accessible' })
+        if (!(await canDeleteWorkItem(userId, id))) {
+          return json({ error: 'Only the reporter/owner, or an org owner/admin, can delete this work item.' })
+        }
         const { db } = await import('@/lib/db')
         const { workItemCodePlans, specLinks } = await import('@/lib/db/schema')
         const { eq, and } = await import('drizzle-orm')
@@ -638,7 +645,7 @@ const handler = createMcpHandler(
 
     server.tool(
       'delete_task',
-      'Permanently delete a task from its plan. Cannot be undone.',
+      'Permanently delete a task from its plan. Cannot be undone; only the assignee/creator, or an org owner/admin, may delete it.',
       { id: z.string() },
       async ({ id }, extra) => {
         requireWrite(extra)
@@ -648,6 +655,9 @@ const handler = createMcpHandler(
         const { eq } = await import('drizzle-orm')
         const task = await db.query.tasks.findFirst({ where: eq(tasks.id, id) })
         if (!task || !(await getCodePlan(task.codePlanId, userId))) return json({ error: 'Task not found or not accessible' })
+        if (!(await canDeleteTask(userId, id))) {
+          return json({ error: 'Only the assignee/creator, or an org owner/admin, can delete this task.' })
+        }
         const deleted = await deleteTask(id, { id: userId, kind: 'agent' })
         return json(deleted ?? { error: 'Task not found' })
       },
@@ -754,13 +764,17 @@ const handler = createMcpHandler(
 
     server.tool(
       'delete_release',
-      'Permanently delete a release, including its per-asset version stamps. Attached plans are detached, not deleted. Returns what was affected. Cannot be undone.',
+      'Permanently delete a release, including its per-asset version stamps. Attached plans are detached, not deleted. Returns what was affected. Cannot be undone; only the release creator, or an org owner/admin, may delete it.',
       { id: z.string() },
       async ({ id }, extra) => {
         requireWrite(extra)
-        const release = await getRelease(id, uid(extra))
+        const userId = uid(extra)
+        const release = await getRelease(id, userId)
         if (!release) return json({ error: 'Release not found or not accessible' })
-        const deleted = await deleteRelease(id, { id: uid(extra), kind: 'agent' })
+        if (!(await canDeleteRelease(userId, id))) {
+          return json({ error: "Only the release's creator, or an org owner/admin, can delete it." })
+        }
+        const deleted = await deleteRelease(id, { id: userId, kind: 'agent' })
         if (!deleted) return json({ error: 'Release not found' })
         return json({ deleted: true, id, deletedAssetVersionCount: release.assets.length, detachedPlanCount: release.plans.length })
       },
