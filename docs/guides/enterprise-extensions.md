@@ -82,12 +82,25 @@ export default enterpriseModule
 
 To wire it into a real deployment:
 
-1. Add it as an optional dependency once the private repo exists, e.g.
-   `"@codeplans/enterprise": "github:your-org/codeplans-enterprise#main"` in
-   `optionalDependencies` (not `dependencies` — this keeps `pnpm install`
-   succeeding for everyone who doesn't have access to the private repo).
-2. Set `ENTERPRISE_ENABLED=true` in that deployment's environment only.
-3. Any page/route backed by an enterprise-only feature should still live
+1. **Don't** add `@codeplans/enterprise` to this repo's tracked
+   `package.json`/`pnpm-lock.yaml` — not even as an `optionalDependency`.
+   `pnpm install --frozen-lockfile` (what CI and most deploy platforms use)
+   requires every dependency in `package.json` to already have a matching
+   entry in the lockfile; since nobody without access to the private repo
+   can generate that entry, committing the dependency breaks CI and any
+   contributor's install the moment the lockfile needs regenerating for an
+   unrelated reason. `optionalDependencies` only protects a plain
+   `pnpm install`, not `--frozen-lockfile`.
+2. Instead, have the commercial deployment's own build pipeline place the
+   package into `node_modules/@codeplans/enterprise` as a step outside of
+   pnpm's dependency resolution — e.g. its Dockerfile/CI checks out
+   `codeplans-enterprise` (with credentials that do have access) and copies
+   or `pnpm link`s it into `node_modules` before `next build` runs.
+   `lib/ee/load.ts` only needs the package to exist in `node_modules` at
+   runtime; it doesn't care how it got there, and this keeps the OSS repo's
+   lockfile fully resolvable by anyone.
+3. Set `ENTERPRISE_ENABLED=true` in that deployment's environment only.
+4. Any page/route backed by an enterprise-only feature should still live
    behind its own check (e.g. `config`-style flag or a dedicated hook) so it
    degrades gracefully — a 404 or an upsell placeholder, not a crash — when
    the package isn't present.
