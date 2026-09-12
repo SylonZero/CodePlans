@@ -362,7 +362,11 @@ function WorkItemEditor({
             <AlertDialogHeader>
               <AlertDialogTitle>Delete work item?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently delete &ldquo;{item.title}&rdquo; and its plan links. This action cannot be undone.
+                This will permanently delete &ldquo;{item.title}&rdquo;
+                {item.linkedPlans.length > 0
+                  ? ` and unlink it from ${item.linkedPlans.length} plan${item.linkedPlans.length === 1 ? '' : 's'}`
+                  : ''}
+                . This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

@@ -26,6 +26,7 @@ import {
   createWorkItem,
   updateWorkItem,
   updateWorkItemStatus,
+  deleteWorkItem,
   linkWorkItemToPlan,
   unlinkWorkItemFromPlan,
   createCodePlan,
@@ -33,6 +34,7 @@ import {
   createTask,
   updateTask,
   updateTaskStatus,
+  deleteTask,
   updatePlanAsset,
   addPlanAsset,
   removePlanAsset,
@@ -490,6 +492,29 @@ const handler = createMcpHandler(
     )
 
     server.tool(
+      'delete_work_item',
+      'Permanently delete a work item — unlinks it from any plans and specs first. Returns how many plan links and spec links were removed. Cannot be undone; consider whether the item should be marked wont_do instead.',
+      { id: z.string() },
+      async ({ id }, extra) => {
+        requireWrite(extra)
+        const userId = uid(extra)
+        const { getWorkItem } = await import('@/lib/db/queries')
+        const item = await getWorkItem(id, userId)
+        if (!item) return json({ error: 'Work item not found or not accessible' })
+        const { db } = await import('@/lib/db')
+        const { workItemCodePlans, specLinks } = await import('@/lib/db/schema')
+        const { eq, and } = await import('drizzle-orm')
+        const [linkedPlans, linkedSpecs] = await Promise.all([
+          db.select({ id: workItemCodePlans.id }).from(workItemCodePlans).where(eq(workItemCodePlans.workItemId, id)),
+          db.select({ id: specLinks.id }).from(specLinks).where(and(eq(specLinks.targetType, 'work_item'), eq(specLinks.targetId, id))),
+        ])
+        const deleted = await deleteWorkItem(id, { id: userId, kind: 'agent' })
+        if (!deleted) return json({ error: 'Work item not found' })
+        return json({ deleted: true, id, unlinkedPlanCount: linkedPlans.length, unlinkedSpecCount: linkedSpecs.length })
+      },
+    )
+
+    server.tool(
       'link_work_item_to_plan',
       'Link a work item to a code plan (many-to-many).',
       { workItemId: z.string(), codePlanId: z.string() },
@@ -584,6 +609,23 @@ const handler = createMcpHandler(
         requireWrite(extra)
         const task = await updateTaskStatus(id, status, { id: uid(extra), kind: 'agent' })
         return json(task ?? { error: 'Not found, or mirrored from an external tracker — change it there.' })
+      },
+    )
+
+    server.tool(
+      'delete_task',
+      'Permanently delete a task from its plan. Cannot be undone.',
+      { id: z.string() },
+      async ({ id }, extra) => {
+        requireWrite(extra)
+        const userId = uid(extra)
+        const { db } = await import('@/lib/db')
+        const { tasks } = await import('@/lib/db/schema')
+        const { eq } = await import('drizzle-orm')
+        const task = await db.query.tasks.findFirst({ where: eq(tasks.id, id) })
+        if (!task || !(await getCodePlan(task.codePlanId, userId))) return json({ error: 'Task not found or not accessible' })
+        const deleted = await deleteTask(id, { id: userId, kind: 'agent' })
+        return json(deleted ?? { error: 'Task not found' })
       },
     )
 
