@@ -31,6 +31,7 @@ import {
   unlinkWorkItemFromPlan,
   createCodePlan,
   updateCodePlan,
+  deleteCodePlan,
   createTask,
   updateTask,
   updateTaskStatus,
@@ -40,6 +41,7 @@ import {
   removePlanAsset,
   createRelease,
   updateRelease,
+  deleteRelease,
   attachPlanToRelease,
   detachPlanFromRelease,
   setReleaseAsset,
@@ -403,6 +405,28 @@ const handler = createMcpHandler(
     )
 
     server.tool(
+      'delete_code_plan',
+      'Permanently delete a code plan you created, including its tasks and target-asset/PR tracking. Linked work items are unlinked, not deleted. Returns what was affected. Cannot be undone; only the plan creator may delete it.',
+      { id: z.string() },
+      async ({ id }, extra) => {
+        requireWrite(extra)
+        const userId = uid(extra)
+        const plan = await getCodePlan(id, userId)
+        if (!plan) return json({ error: 'Plan not found or not accessible' })
+        const linkedWorkItems = await getWorkItems(userId, { planId: id })
+        const deleted = await deleteCodePlan(id, userId)
+        if (!deleted) return json({ error: 'Not found, or only the plan creator can delete it' })
+        return json({
+          deleted: true,
+          id,
+          deletedTaskCount: plan.tasks.length,
+          deletedTargetAssetCount: plan.planAssets.length,
+          unlinkedWorkItemCount: linkedWorkItems.length,
+        })
+      },
+    )
+
+    server.tool(
       'add_plan_asset',
       'Add a target asset to an existing plan (creates its branch/PR row).',
       { codePlanId: z.string(), assetId: z.string() },
@@ -725,6 +749,20 @@ const handler = createMcpHandler(
             ? { warning: `Shipped without version stamps on: ${unversioned.join(', ')}` }
             : {}),
         })
+      },
+    )
+
+    server.tool(
+      'delete_release',
+      'Permanently delete a release, including its per-asset version stamps. Attached plans are detached, not deleted. Returns what was affected. Cannot be undone.',
+      { id: z.string() },
+      async ({ id }, extra) => {
+        requireWrite(extra)
+        const release = await getRelease(id, uid(extra))
+        if (!release) return json({ error: 'Release not found or not accessible' })
+        const deleted = await deleteRelease(id, { id: uid(extra), kind: 'agent' })
+        if (!deleted) return json({ error: 'Release not found' })
+        return json({ deleted: true, id, deletedAssetVersionCount: release.assets.length, detachedPlanCount: release.plans.length })
       },
     )
 

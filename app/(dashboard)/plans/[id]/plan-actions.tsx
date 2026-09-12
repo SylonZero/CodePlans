@@ -25,12 +25,24 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Settings, Plus } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import { Settings, Plus, Trash2 } from 'lucide-react'
 import {
   activatePlanAction,
   completePlanAction,
   updateCodePlanAction,
   createTaskAction,
+  deleteCodePlanAction,
 } from '../../actions'
 import type { CodePlanDetail } from '@/lib/db/queries'
 import type { TeamMember } from '@/lib/types'
@@ -77,6 +89,55 @@ export function PlanStatusButtons({ plan }: { plan: CodePlanDetail }) {
         </Button>
       )}
     </>
+  )
+}
+
+export function DeletePlanButton({
+  planId,
+  planTitle,
+  taskCount,
+  targetAssetCount,
+  linkedWorkItemCount,
+}: {
+  planId: string
+  planTitle: string
+  taskCount: number
+  targetAssetCount: number
+  linkedWorkItemCount: number
+}) {
+  const [isPending, startTransition] = useTransition()
+  const parts: string[] = []
+  if (taskCount > 0) parts.push(`${taskCount} task${taskCount === 1 ? '' : 's'}`)
+  if (targetAssetCount > 0) parts.push(`${targetAssetCount} target asset${targetAssetCount === 1 ? '' : 's'}`)
+  if (linkedWorkItemCount > 0) parts.push(`${linkedWorkItemCount} linked work item${linkedWorkItemCount === 1 ? '' : 's'}`)
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="outline" size="icon" className="text-destructive hover:text-destructive">
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete &ldquo;{planTitle}&rdquo;?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will permanently delete this plan{parts.length > 0 ? `, including ${parts.join(', ')}` : ''}. Linked
+            work items are unlinked, not deleted. This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            disabled={isPending}
+            onClick={() => startTransition(async () => { await deleteCodePlanAction(planId) })}
+          >
+            {isPending ? 'Deleting…' : 'Delete Plan'}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
 

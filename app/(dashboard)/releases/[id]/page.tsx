@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn, formatDateShort } from '@/lib/utils'
 import { releaseStatusStyles, releaseStatusLabels } from '../releases-client'
-import { ReleaseActions } from './release-actions'
+import { ReleaseActions, DeleteReleaseButton } from './release-actions'
 import { ReleaseNotesDraft } from './release-notes-draft'
 import { config } from '@/lib/config'
 import { ReleaseAssetsSection } from './release-assets-section'
@@ -87,6 +87,12 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
         <div className="flex items-center gap-2 flex-wrap">
           {config.ai.enabled && editable && <ReleaseNotesDraft releaseId={release.id} />}
           <ReleaseActions releaseId={release.id} status={release.status} unversionedAssets={unversioned} />
+          <DeleteReleaseButton
+            releaseId={release.id}
+            releaseName={release.name}
+            assetCount={release.assets.length}
+            planCount={release.plans.length}
+          />
         </div>
       </div>
 
