@@ -2,6 +2,7 @@
 
 import { getSpec, linkSpec } from '@/lib/db/specs'
 import { createdBy } from '@/lib/db/attribution'
+import { isOrgOwner } from '@/lib/db/authz'
 import { getWorkItem } from '@/lib/db/queries'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
@@ -463,6 +464,8 @@ export async function changeMemberRoleAction(memberUserId: string, role: UserRol
   const authUser = await requireUser()
   const profile = await getUserProfile(authUser.id)
   if (!profile?.organizationId) return
+  // Only the org's actual owner may change roles — see lib/db/authz.ts.
+  if (!(await isOrgOwner(profile.organizationId, authUser.id))) return
 
   await db
     .update(organizationMembers)
@@ -483,6 +486,8 @@ export async function removeMemberAction(memberUserId: string) {
   const authUser = await requireUser()
   const profile = await getUserProfile(authUser.id)
   if (!profile?.organizationId) return
+  // Only the org's actual owner may remove members — see lib/db/authz.ts.
+  if (!(await isOrgOwner(profile.organizationId, authUser.id))) return
 
   await db
     .delete(organizationMembers)
