@@ -67,6 +67,15 @@ export interface Product {
   assetCount: number
   activePlanCount: number
   createdAt: string
+  /** Soft-delete tombstone — null means active. See lib/db/authz.ts canDeleteProduct. */
+  archivedAt?: string | null
+  archivedById?: string | null
+  archivedByKind?: string | null
+  /** Total (not just active) plans, releases, work items, and specs — for the archive confirmation's blast-radius disclosure. */
+  planCount?: number
+  releaseCount?: number
+  workItemCount?: number
+  specCount?: number
 }
 
 /** Declared owner of an asset (like a code owner) — routing and visibility, not an ACL. */

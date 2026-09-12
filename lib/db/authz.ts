@@ -42,9 +42,11 @@ async function hasOrgOverride(organizationId: string | null, userId: string): Pr
   return member?.role === 'owner' || member?.role === 'admin'
 }
 
-/** Product delete is not yet wired to this (Phase 4 replaces hard-delete
- * with archive entirely and will call this then), but the rule is defined
- * here now so the library is complete per the spec. */
+/**
+ * Governs both archiveProduct and restoreProduct (Phase 4) — archiving is the
+ * delete-equivalent action for products, the highest blast radius in the
+ * schema, so it follows the same unified rule as everything else.
+ */
 export async function canDeleteProduct(userId: string, productId: string): Promise<boolean> {
   const product = await db.query.products.findFirst({ where: eq(products.id, productId) })
   if (!product) return false

@@ -2,7 +2,7 @@
 
 import { getSpec, linkSpec } from '@/lib/db/specs'
 import { createdBy } from '@/lib/db/attribution'
-import { isOrgOwner, canDeleteCodePlan, canDeleteRelease, canDeleteWorkItem, canDeleteTask, canDeleteAsset } from '@/lib/db/authz'
+import { isOrgOwner, canDeleteCodePlan, canDeleteRelease, canDeleteWorkItem, canDeleteTask, canDeleteAsset, canDeleteProduct } from '@/lib/db/authz'
 import { getWorkItem } from '@/lib/db/queries'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
@@ -14,7 +14,8 @@ import {
   updateIntegration,
   createProduct,
   updateProduct,
-  deleteProduct,
+  archiveProduct,
+  restoreProduct,
   createAsset,
   updateAsset,
   archiveAsset,
@@ -132,11 +133,24 @@ export async function updateProductAction(id: string, formData: FormData) {
   redirect(`/products/${slug}`)
 }
 
-export async function deleteProductAction(id: string, slug: string) {
+export async function archiveProductAction(id: string, slug: string) {
   const authUser = await requireUser()
-  await deleteProduct(id, authUser.id)
+  if (!(await canDeleteProduct(authUser.id, id))) {
+    return { error: 'Only the product\'s creator, or an org owner/admin, can archive it.' }
+  }
+  await archiveProduct(id, await currentEditor())
   revalidatePath('/products')
-  redirect('/products')
+  revalidatePath(`/products/${slug}`)
+}
+
+export async function restoreProductAction(id: string, slug: string) {
+  const authUser = await requireUser()
+  if (!(await canDeleteProduct(authUser.id, id))) {
+    return { error: 'Only the product\'s creator, or an org owner/admin, can restore it.' }
+  }
+  await restoreProduct(id, await currentEditor())
+  revalidatePath('/products')
+  revalidatePath(`/products/${slug}`)
 }
 
 // ---------------------------------------------------------------------------
@@ -169,7 +183,9 @@ export async function createAssetAction(productId: string, productSlug: string, 
 }
 
 export async function updateAssetAction(id: string, productSlug: string, formData: FormData) {
-  await requireUser()
+  const authUser = await requireUser()
+  const accessible = await getAssetOptions(authUser.id)
+  if (!accessible.some((a) => a.id === id)) throw new Error('Asset not found or not accessible')
 
   const name = formData.get('name') as string
   const type = formData.get('type') as 'app' | 'service' | 'library' | 'datastore' | 'platform'

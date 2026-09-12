@@ -4,6 +4,8 @@ import {
   createProduct,
   updateProduct,
   deleteProduct,
+  archiveProduct,
+  restoreProduct,
   createAsset,
   updateAsset,
   deleteAsset,
@@ -17,7 +19,7 @@ import {
   updateTaskStatus,
   deleteTask,
 } from '@/lib/db/mutations'
-import { getCodePlan } from '@/lib/db/queries'
+import { getCodePlan, getCodePlans } from '@/lib/db/queries'
 
 beforeAll(async () => {
   await runMigrations()
@@ -93,19 +95,63 @@ describe('updateProduct', () => {
 })
 
 describe('deleteProduct', () => {
-  it('deletes the product and returns its id', async () => {
-    const result = await deleteProduct(F.productCarol, F.carol)
+  it('deletes the product unconditionally by id and returns it', async () => {
+    // Authorization now lives at the caller (canDeleteProduct) — deleteProduct
+    // itself no longer restricts by creator; the actor param is for audit only.
+    const result = await deleteProduct(F.productShared, { id: F.carol })
     expect(result).not.toBeNull()
-    expect(result!.id).toBe(F.productCarol)
-  })
-
-  it('returns null when userId is not the creator', async () => {
-    const result = await deleteProduct(F.productShared, F.carol)
-    expect(result).toBeNull()
+    expect(result!.id).toBe(F.productShared)
   })
 
   it('returns null for non-existent product', async () => {
-    const result = await deleteProduct('nonexistent', F.alice)
+    const result = await deleteProduct('nonexistent', { id: F.alice })
+    expect(result).toBeNull()
+  })
+})
+
+describe('archiveProduct', () => {
+  it('sets archivedAt/archivedById/archivedByKind and stamps updatedAt', async () => {
+    const before = Math.floor(Date.now() / 1000) * 1000
+    const archived = await archiveProduct(F.productShared, { id: F.alice })
+    expect(archived).not.toBeNull()
+    expect(archived!.archivedAt).not.toBeNull()
+    expect(archived!.archivedById).toBe(F.alice)
+    expect(archived!.archivedByKind).toBe('user')
+    expect(archived!.updatedAt.getTime()).toBeGreaterThanOrEqual(before)
+  })
+
+  it('does not delete the row or touch anything beneath it', async () => {
+    const archived = await archiveProduct(F.productShared)
+    expect(archived).not.toBeNull()
+    // targeted with includeArchived: true — this product's own plans are still there.
+    const plans = await getCodePlans(F.alice, { productId: F.productShared, includeArchived: true })
+    expect(plans.length).toBeGreaterThan(0)
+  })
+
+  it('is idempotent — archiving an already-archived product just updates who/when', async () => {
+    await archiveProduct(F.productShared, { id: F.alice })
+    const second = await archiveProduct(F.productShared, { id: F.bob })
+    expect(second!.archivedById).toBe(F.bob)
+  })
+
+  it('returns null for non-existent product', async () => {
+    const result = await archiveProduct('nonexistent')
+    expect(result).toBeNull()
+  })
+})
+
+describe('restoreProduct', () => {
+  it('clears archivedAt/archivedById/archivedByKind', async () => {
+    await archiveProduct(F.productShared, { id: F.alice })
+    const restored = await restoreProduct(F.productShared)
+    expect(restored).not.toBeNull()
+    expect(restored!.archivedAt).toBeNull()
+    expect(restored!.archivedById).toBeNull()
+    expect(restored!.archivedByKind).toBeNull()
+  })
+
+  it('returns null for non-existent product', async () => {
+    const result = await restoreProduct('nonexistent')
     expect(result).toBeNull()
   })
 })

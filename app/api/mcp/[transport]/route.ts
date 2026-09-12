@@ -2,7 +2,7 @@ import { createSpec, updateSpec, supersedeSpec, linkSpec, unlinkSpec, getSpec, l
 import { createMcpHandler, withMcpAuth } from 'mcp-handler'
 import { z } from 'zod'
 import { verifyApiKey } from '@/lib/mcp/auth'
-import { canDeleteCodePlan, canDeleteRelease, canDeleteWorkItem, canDeleteTask, canDeleteAsset } from '@/lib/db/authz'
+import { canDeleteCodePlan, canDeleteRelease, canDeleteWorkItem, canDeleteTask, canDeleteAsset, canDeleteProduct } from '@/lib/db/authz'
 import {
   getProducts,
   getProduct,
@@ -19,6 +19,8 @@ import {
 import {
   createProduct,
   updateProduct,
+  archiveProduct,
+  restoreProduct,
   createAsset,
   updateAsset,
   archiveAsset,
@@ -243,6 +245,49 @@ const handler = createMcpHandler(
         requireWrite(extra)
         const row = await updateProduct(id, data, uid(extra))
         return json(row ?? { error: 'Not found, or only the product creator can update it' })
+      },
+    )
+
+    server.tool(
+      'archive_product',
+      "Archive a product — the delete-equivalent action for products, and the highest blast radius in the schema. Hides the product and everything beneath it (assets, code plans, releases, work items, specs) from lists, pickers, and Atlas — none of them are deleted, modified, or unlinked, they simply stop resolving through the normal access check until restored. An archived product also stops accepting new writes (create_asset, create_code_plan, etc. will report it as not found). Reversible via restore_product. Only the product's creator, or an org owner/admin, may archive it.",
+      { id: z.string() },
+      async ({ id }, extra) => {
+        requireWrite(extra)
+        const userId = uid(extra)
+        const visible = await getProducts(userId, id)
+        if (visible.length === 0) return json({ error: 'Product not found, not accessible, or already archived' })
+        if (!(await canDeleteProduct(userId, id))) {
+          return json({ error: "Only the product's creator, or an org owner/admin, can archive it." })
+        }
+        const product = visible[0]
+        const archived = await archiveProduct(id, { id: userId, kind: 'agent' })
+        if (!archived) return json({ error: 'Product not found' })
+        return json({
+          archived: true,
+          id,
+          assetCount: product.assetCount,
+          planCount: product.planCount,
+          releaseCount: product.releaseCount,
+          workItemCount: product.workItemCount,
+          specCount: product.specCount,
+          note: 'None of the above were deleted, modified, or unlinked — they keep existing exactly as they were, just unreachable through the normal access check until restored.',
+        })
+      },
+    )
+
+    server.tool(
+      'restore_product',
+      'Restore a previously archived product, making it and everything beneath it visible and writable again. Same authorization as archive_product.',
+      { id: z.string() },
+      async ({ id }, extra) => {
+        requireWrite(extra)
+        const userId = uid(extra)
+        if (!(await canDeleteProduct(userId, id))) {
+          return json({ error: "Only the product's creator, or an org owner/admin, can restore it." })
+        }
+        const restored = await restoreProduct(id, { id: userId, kind: 'agent' })
+        return json(restored ?? { error: 'Product not found' })
       },
     )
 

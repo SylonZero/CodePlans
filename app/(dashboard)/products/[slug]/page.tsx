@@ -14,6 +14,7 @@ import { Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AssetsSection, AssetCreatePanel } from './assets-section'
 import { ProductEditPanel } from './product-edit-panel'
+import { ArchivedProductBanner } from './archived-product-banner'
 import { PlanCreatePanel } from '../../plans/plan-create-panel'
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -21,14 +22,14 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const user = await authAdapter.getUser()
   if (!user) return null
 
-  const [product, plans] = await Promise.all([
-    getProduct(slug, user.id),
-    getCodePlans(user.id),
-  ])
-
+  const product = await getProduct(slug, user.id)
   if (!product) notFound()
 
-  const productPlans = plans.filter((p) => p.productId === product.id)
+  // Scoped + includeArchived: this page has already resolved access to `product`
+  // directly (including when it's itself archived) — a plain getCodePlans(user.id)
+  // would silently drop this product's plans if the product is archived, since
+  // that call excludes archived products from the accessible-products set.
+  const productPlans = await getCodePlans(user.id, { productId: product.id, includeArchived: true })
   const dependencyEdges = await getProductDependencyEdges(product.id)
 
   const profile = await db.query.users.findFirst({ where: eq(users.id, user.id) })
@@ -37,6 +38,8 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
   return (
     <div className="space-y-6">
+      {product.archivedAt && <ArchivedProductBanner id={product.id} slug={slug} />}
+
       <div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
           <Link href="/products" className="hover:text-foreground transition-colors">Products</Link>
@@ -49,18 +52,20 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             <h1 className="text-2xl font-bold tracking-tight">{product.name}</h1>
             <p className="text-muted-foreground">{product.description}</p>
           </div>
-          <div className="flex gap-2">
-            <ProductEditPanel
-              product={{
-                id: product.id,
-                slug: product.slug,
-                name: product.name,
-                description: product.description,
-                tags: product.tags,
-              }}
-            />
-            <AssetCreatePanel productId={product.id} productSlug={slug} />
-          </div>
+          {!product.archivedAt && (
+            <div className="flex gap-2">
+              <ProductEditPanel
+                product={{
+                  id: product.id,
+                  slug: product.slug,
+                  name: product.name,
+                  description: product.description,
+                  tags: product.tags,
+                }}
+              />
+              <AssetCreatePanel productId={product.id} productSlug={slug} />
+            </div>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2 mt-4">

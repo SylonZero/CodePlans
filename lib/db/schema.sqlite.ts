@@ -113,6 +113,14 @@ export const products = sqliteTable('products', {
   creatorId: text('creator_id').notNull().references(() => users.id),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  // Soft-delete tombstone (spec "Deletion & Cascade Design for Core Entities", Phase 4) —
+  // archived means archivedAt IS NOT NULL. Highest blast radius in the schema: nothing
+  // beneath a product (assets, plans, releases, work items, specs) is touched or cascaded,
+  // it just becomes unreachable through the normal access-check path. Never hard-deleted
+  // by the normal UI/MCP path; deleteProduct remains for a possible future admin-only purge.
+  archivedAt: integer('archived_at', { mode: 'timestamp' }),
+  archivedById: text('archived_by_id').references(() => users.id, { onDelete: 'set null' }),
+  archivedByKind: text('archived_by_kind'),
 })
 
 export const assets = sqliteTable('assets', {

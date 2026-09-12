@@ -55,16 +55,23 @@ import { effectiveLayer } from '@/lib/types'
  * Single source of truth for product visibility — every query goes through this.
  * Membership lives in organization_members (joined only); users.organizationId
  * is just a "current org" pointer and is deliberately not consulted here.
+ *
+ * Excludes archived products by default — pass `includeArchived: true` for
+ * detail-style reads (viewing/restoring a specific product or something
+ * beneath it), never for listing/picker/aggregate queries: an archived
+ * product's plans, releases, work items, and assets all become unreachable
+ * through this one check, with nothing on the child rows themselves touched.
  */
-export async function productAccessWhere(userId: string) {
+export async function productAccessWhere(userId: string, opts: { includeArchived?: boolean } = {}) {
   const memberships = await db
     .select({ organizationId: organizationMembers.organizationId })
     .from(organizationMembers)
     .where(and(eq(organizationMembers.userId, userId), isNotNull(organizationMembers.joinedAt)))
   const orgIds = memberships.map((m) => m.organizationId)
-  return orgIds.length > 0
+  const access = orgIds.length > 0
     ? or(eq(products.creatorId, userId), inArray(products.organizationId, orgIds))
     : eq(products.creatorId, userId)
+  return opts.includeArchived ? access : and(access, isNull(products.archivedAt))
 }
 
 // ---------------------------------------------------------------------------
@@ -169,8 +176,12 @@ export async function getDashboardStats(userId: string, productId?: string): Pro
 // Products
 // ---------------------------------------------------------------------------
 
-export async function getProducts(userId: string, productId?: string): Promise<Product[]> {
-  const accessFilter = await productAccessWhere(userId)
+export async function getProducts(
+  userId: string,
+  productId?: string,
+  opts: { includeArchived?: boolean } = {},
+): Promise<Product[]> {
+  const accessFilter = await productAccessWhere(userId, opts)
   const productFilter = productId ? and(accessFilter, eq(products.id, productId)) : accessFilter
 
   const rows = await db
@@ -183,12 +194,28 @@ export async function getProducts(userId: string, productId?: string): Promise<P
       organizationId: products.organizationId,
       creatorId: products.creatorId,
       createdAt: products.createdAt,
+      archivedAt: products.archivedAt,
+      archivedById: products.archivedById,
+      archivedByKind: products.archivedByKind,
       assetCount: sql<number>`(
         select CAST(count(*) AS INTEGER) from assets where assets.product_id = products.id
       )`,
       activePlanCount: sql<number>`(
         select CAST(count(*) AS INTEGER) from code_plans
         where code_plans.product_id = products.id and code_plans.status = 'active'
+      )`,
+      // Totals (not just active/open) — for the archive confirmation's blast-radius disclosure.
+      planCount: sql<number>`(
+        select CAST(count(*) AS INTEGER) from code_plans where code_plans.product_id = products.id
+      )`,
+      releaseCount: sql<number>`(
+        select CAST(count(*) AS INTEGER) from releases where releases.product_id = products.id
+      )`,
+      workItemCount: sql<number>`(
+        select CAST(count(*) AS INTEGER) from work_items where work_items.product_id = products.id
+      )`,
+      specCount: sql<number>`(
+        select CAST(count(*) AS INTEGER) from specs where specs.product_id = products.id
       )`,
     })
     .from(products)
@@ -199,8 +226,13 @@ export async function getProducts(userId: string, productId?: string): Promise<P
     ...r,
     organizationId: r.organizationId ?? undefined,
     createdAt: r.createdAt.toISOString(),
+    archivedAt: r.archivedAt?.toISOString() ?? null,
     assetCount: r.assetCount,
     activePlanCount: r.activePlanCount,
+    planCount: r.planCount,
+    releaseCount: r.releaseCount,
+    workItemCount: r.workItemCount,
+    specCount: r.specCount,
   }))
 }
 
@@ -229,7 +261,7 @@ async function ownersByAsset(assetIds: string[]): Promise<Map<string, AssetOwner
 }
 
 export async function getProduct(slug: string, userId: string): Promise<(Product & { assets: Asset[] }) | null> {
-  const productFilter = and(eq(products.slug, slug), await productAccessWhere(userId))
+  const productFilter = and(eq(products.slug, slug), await productAccessWhere(userId, { includeArchived: true }))
 
   const product = await db.query.products.findFirst({ where: productFilter })
   if (!product) return null
@@ -281,6 +313,9 @@ export async function getProduct(slug: string, userId: string): Promise<(Product
     assetCount: productAssets.filter((a) => !a.archivedAt).length,
     activePlanCount: activePlanCount?.count ?? 0,
     createdAt: product.createdAt.toISOString(),
+    archivedAt: product.archivedAt?.toISOString() ?? null,
+    archivedById: product.archivedById,
+    archivedByKind: product.archivedByKind,
     assets: productAssets.map((a) => ({
       id: a.id,
       productId: a.productId,
@@ -318,10 +353,12 @@ type PlanFilters = {
   productId?: string
   status?: 'draft' | 'active' | 'completed' | 'cancelled'
   type?: 'refactor' | 'feature' | 'improvement' | 'bugfix'
+  /** Only meaningful paired with `productId` — e.g. showing an archived product's own plans on its detail page. */
+  includeArchived?: boolean
 }
 
 export async function getCodePlans(userId: string, filters: PlanFilters = {}): Promise<CodePlan[]> {
-  const productFilter = await productAccessWhere(userId)
+  const productFilter = await productAccessWhere(userId, { includeArchived: filters.includeArchived })
   const accessibleProducts = await db.select({ id: products.id }).from(products).where(productFilter)
   const ids = accessibleProducts.map((p) => p.id)
   if (ids.length === 0) return []
@@ -431,7 +468,7 @@ export async function getCodePlan(id: string, userId: string): Promise<CodePlanD
 
   // Org-scope guard: the plan's product must be visible to this user.
   const product = await db.query.products.findFirst({
-    where: and(eq(products.id, plan.productId), await productAccessWhere(userId)),
+    where: and(eq(products.id, plan.productId), await productAccessWhere(userId, { includeArchived: true })),
   })
   if (!product) return null
 
@@ -801,7 +838,7 @@ export async function getWorkItem(id: string, userId: string): Promise<WorkItemW
     .innerJoin(products, eq(workItems.productId, products.id))
     .leftJoin(assets, eq(workItems.assetId, assets.id))
     .leftJoin(users, eq(workItems.ownerId, users.id))
-    .where(and(eq(workItems.id, id), await productAccessWhere(userId)))
+    .where(and(eq(workItems.id, id), await productAccessWhere(userId, { includeArchived: true })))
 
   const row = rows[0]
   if (!row) return null
@@ -984,7 +1021,7 @@ export async function getAssetDetail(id: string, userId: string): Promise<AssetD
 
   // Org-scope guard: the asset's product must be visible to this user.
   const product = await db.query.products.findFirst({
-    where: and(eq(products.id, asset.productId), await productAccessWhere(userId)),
+    where: and(eq(products.id, asset.productId), await productAccessWhere(userId, { includeArchived: true })),
   })
   if (!product) return null
 
@@ -1159,7 +1196,7 @@ export async function getAssetHistory(assetId: string, userId: string): Promise<
 
   // Org-scope guard, same as getAssetDetail.
   const product = await db.query.products.findFirst({
-    where: and(eq(products.id, asset.productId), await productAccessWhere(userId)),
+    where: and(eq(products.id, asset.productId), await productAccessWhere(userId, { includeArchived: true })),
   })
   if (!product) return null
 
@@ -2018,7 +2055,7 @@ export async function getRelease(id: string, userId: string): Promise<ReleaseDet
     .select({ release: releases, productName: products.name, productSlug: products.slug })
     .from(releases)
     .innerJoin(products, eq(releases.productId, products.id))
-    .where(and(eq(releases.id, id), await productAccessWhere(userId)))
+    .where(and(eq(releases.id, id), await productAccessWhere(userId, { includeArchived: true })))
 
   if (!row) return null
 
@@ -2166,7 +2203,7 @@ export async function getAssetRecord(assetId: string, userId: string): Promise<A
   const asset = await db.query.assets.findFirst({ where: eq(assets.id, assetId) })
   if (!asset) return null
   const product = await db.query.products.findFirst({
-    where: and(eq(products.id, asset.productId), await productAccessWhere(userId)),
+    where: and(eq(products.id, asset.productId), await productAccessWhere(userId, { includeArchived: true })),
   })
   if (!product) return null
 
