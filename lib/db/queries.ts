@@ -342,6 +342,10 @@ export async function getCodePlans(userId: string, filters: PlanFilters = {}): P
       releaseId: codePlans.releaseId,
       createdAt: codePlans.createdAt,
       updatedAt: codePlans.updatedAt,
+      createdById: codePlans.createdById,
+      createdByKind: codePlans.createdByKind,
+      updatedById: codePlans.updatedById,
+      updatedByKind: codePlans.updatedByKind,
       productName: products.name,
       taskCount: sql<number>`(
         select CAST(count(*) AS INTEGER) from tasks where tasks.code_plan_id = code_plans.id
@@ -479,6 +483,10 @@ export async function getCodePlan(id: string, userId: string): Promise<CodePlanD
     endDate: plan.endDate ?? undefined,
     deadline: plan.deadline ?? undefined,
     creatorId: plan.creatorId,
+    createdById: plan.createdById,
+    createdByKind: plan.createdByKind,
+    updatedById: plan.updatedById,
+    updatedByKind: plan.updatedByKind,
     assigneeIds: resolvedAssignees.map((u) => u.id),
     taskCount,
     completedTaskCount,
@@ -503,6 +511,10 @@ export async function getCodePlan(id: string, userId: string): Promise<CodePlanD
       endDate: t.endDate ?? undefined,
       estimatedEffort: t.estimatedEffort ?? undefined,
       actualEffort: t.actualEffort ?? undefined,
+      createdById: t.createdById,
+      createdByKind: t.createdByKind,
+      updatedById: t.updatedById,
+      updatedByKind: t.updatedByKind,
       createdAt: t.createdAt.toISOString(),
       updatedAt: t.updatedAt.toISOString(),
     })),
@@ -573,6 +585,10 @@ export async function getTasks(userId: string, filters: TaskFilters = {}): Promi
       externalUrl: tasks.externalUrl,
       createdAt: tasks.createdAt,
       updatedAt: tasks.updatedAt,
+      createdById: tasks.createdById,
+      createdByKind: tasks.createdByKind,
+      updatedById: tasks.updatedById,
+      updatedByKind: tasks.updatedByKind,
       planTitle: codePlans.title,
       planStatus: codePlans.status,
       assetName: assets.name,
@@ -605,6 +621,10 @@ export async function getTasks(userId: string, filters: TaskFilters = {}): Promi
     externalUrl: r.externalUrl ?? undefined,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
+    createdById: r.createdById,
+    createdByKind: r.createdByKind,
+    updatedById: r.updatedById,
+    updatedByKind: r.updatedByKind,
     planTitle: r.planTitle,
     planStatus: r.planStatus,
     assetName: r.assetName,
@@ -653,6 +673,10 @@ type WorkItemRow = {
   externalUrl: string | null
   createdAt: Date
   updatedAt: Date
+  createdById: string | null
+  createdByKind: string | null
+  updatedById: string | null
+  updatedByKind: string | null
   productName: string
   productSlug: string
   assetName: string | null
@@ -683,6 +707,10 @@ function mapWorkItemRow(
     externalUrl: r.externalUrl ?? undefined,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
+    createdById: r.createdById,
+    createdByKind: r.createdByKind,
+    updatedById: r.updatedById,
+    updatedByKind: r.updatedByKind,
     productName: r.productName,
     productSlug: r.productSlug,
     assetName: r.assetName,
@@ -793,6 +821,10 @@ function workItemColumns() {
     externalUrl: workItems.externalUrl,
     createdAt: workItems.createdAt,
     updatedAt: workItems.updatedAt,
+    createdById: workItems.createdById,
+    createdByKind: workItems.createdByKind,
+    updatedById: workItems.updatedById,
+    updatedByKind: workItems.updatedByKind,
   }
 }
 
@@ -1860,6 +1892,10 @@ function releaseRow(r: typeof releases.$inferSelect): Release {
     shippedAt: r.shippedAt?.toISOString(),
     tags: r.tags,
     creatorId: r.creatorId,
+    createdById: r.createdById,
+    createdByKind: r.createdByKind,
+    updatedById: r.updatedById,
+    updatedByKind: r.updatedByKind,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
   }
