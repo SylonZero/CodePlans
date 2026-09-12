@@ -57,6 +57,11 @@ export const users = pgTable('users', {
 })
 
 export const organizations = pgTable('organizations', {
+  // Explicit attribution; null means the actor was not recorded (never infer from owner).
+  createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  updatedById: uuid('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByKind: text('updated_by_kind'),
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
@@ -64,9 +69,14 @@ export const organizations = pgTable('organizations', {
   billingTier: billingTierEnum('billing_tier').notNull().default('free'),
   productLimit: integer('product_limit').notNull().default(1),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
 export const organizationMembers = pgTable('organization_members', {
+  // Explicit attribution; who added this member. No updatedBy — the row is
+  // replaced (role edits are in-place, but membership itself isn't "edited").
+  createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
   id: uuid('id').primaryKey().defaultRandom(),
   organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -95,6 +105,11 @@ export const integrations = pgTable('integrations', {
 })
 
 export const products = pgTable('products', {
+  // Explicit attribution; null means the actor was not recorded (never infer from owner).
+  createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  updatedById: uuid('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByKind: text('updated_by_kind'),
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
@@ -103,6 +118,7 @@ export const products = pgTable('products', {
   organizationId: uuid('organization_id').references(() => organizations.id, { onDelete: 'set null' }),
   creatorId: uuid('creator_id').notNull().references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
 export const assets = pgTable('assets', {
@@ -135,6 +151,9 @@ export const assets = pgTable('assets', {
 // Declared responsibility (like code owners) — routing and visibility, not an ACL.
 // Explicit rather than derived: unlike plan assignees, there is no activity to derive it from.
 export const assetOwners = pgTable('asset_owners', {
+  // Who declared this ownership. No updatedBy — the row is deleted, not edited.
+  createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
   id: uuid('id').primaryKey().defaultRandom(),
   assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -145,6 +164,9 @@ export const assetOwners = pgTable('asset_owners', {
 ])
 
 export const assetDependencies = pgTable('asset_dependencies', {
+  // Who recorded this edge. No updatedBy — the row is deleted, not edited.
+  createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
   id: uuid('id').primaryKey().defaultRandom(),
   sourceAssetId: uuid('source_asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
   targetAssetId: uuid('target_asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
@@ -349,6 +371,9 @@ export const workItems = pgTable('work_items', {
 ])
 
 export const workItemCodePlans = pgTable('work_item_code_plans', {
+  // Who linked this work item to the plan. No updatedBy — the row is deleted, not edited.
+  createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
   id: uuid('id').primaryKey().defaultRandom(),
   workItemId: uuid('work_item_id').notNull().references(() => workItems.id, { onDelete: 'cascade' }),
   codePlanId: uuid('code_plan_id').notNull().references(() => codePlans.id, { onDelete: 'cascade' }),
@@ -358,6 +383,11 @@ export const workItemCodePlans = pgTable('work_item_code_plans', {
 ])
 
 export const tasks = pgTable('tasks', {
+  // Explicit attribution; null means the actor was not recorded (never infer from assignee).
+  createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  updatedById: uuid('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByKind: text('updated_by_kind'),
   id: uuid('id').primaryKey().defaultRandom(),
   codePlanId: uuid('code_plan_id').notNull().references(() => codePlans.id, { onDelete: 'cascade' }),
   assetId: uuid('asset_id').references(() => assets.id, { onDelete: 'set null' }),
@@ -392,7 +422,7 @@ export const syncLog = pgTable('sync_log', {
   id: uuid('id').primaryKey().defaultRandom(),
   organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
   connectionId: uuid('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
-  entityType: text('entity_type').notNull(), // 'work_item' | 'task' | 'code_plan' | 'asset' | 'product' | 'release'
+  entityType: text('entity_type').notNull(), // 'work_item' | 'task' | 'code_plan' | 'asset' | 'product' | 'release' | 'asset_dependency' | 'integration'
   entityId: uuid('entity_id').notNull(),
   event: text('event').notNull(),
   // Null when a connection (not a user) is the actor.

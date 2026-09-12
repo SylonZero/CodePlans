@@ -1606,16 +1606,19 @@ function activityPresentation(entityType: string, event: string, payload: Record
   if (entityType === 'task') {
     if (event === 'created') return { type: 'task_created', title: 'added a task' }
     if (event === 'completed') return { type: 'task_completed', title: 'completed a task' }
+    if (event === 'deleted') return { type: 'task_completed', title: 'deleted a task' }
     return null
   }
   if (entityType === 'asset') {
     if (event === 'created') return { type: 'asset_added', title: 'added an asset' }
+    if (event === 'deleted') return { type: 'asset_added', title: 'deleted an asset' }
     if (event === 'capability_graduated') return { type: 'item_resolved', title: 'graduated a capability into an asset record' }
     if (event === 'capability_removed') return { type: 'item_updated', title: 'removed a capability from an asset record' }
     return null
   }
   if (entityType === 'product') {
     if (event === 'created') return { type: 'asset_added', title: 'created a product' }
+    if (event === 'deleted') return { type: 'asset_added', title: 'deleted a product' }
     return null
   }
   if (entityType === 'release') {
@@ -1623,6 +1626,7 @@ function activityPresentation(entityType: string, event: string, payload: Record
     if (event === 'shipped') return { type: 'plan_completed', title: 'shipped a release' }
     if (event === 'plan_attached') return { type: 'plan_updated', title: 'attached a plan to a release' }
     if (event === 'asset_versioned') return { type: 'plan_updated', title: 'stamped an asset version on a release' }
+    if (event === 'deleted') return { type: 'plan_updated', title: 'deleted a release' }
     return { type: 'plan_updated', title: 'updated a release' }
   }
   if (entityType === 'work_item') {

@@ -18,9 +18,48 @@ import {
   assetCapabilities,
   specs,
   specLinks,
+  syncLog,
+  users,
 } from './schema'
 import { eq, and, ne, inArray, or } from 'drizzle-orm'
 import type { WorkItemType, WorkItemStatus, WorkItemSeverity, ReleaseStatus } from '@/lib/types'
+
+// ---------------------------------------------------------------------------
+// Audit log
+// ---------------------------------------------------------------------------
+
+/**
+ * Append an event to sync_log — the activity stream. Lives in the shared
+ * mutation layer (not the UI action layer) so both web server actions and MCP
+ * tools get audit coverage for free, since both call these same functions.
+ * Never throws: audit logging must not fail the mutation it accompanies.
+ * No-ops silently when there's no actor or the actor's organization can't be
+ * resolved — the mutation still succeeds, just unaudited (e.g. a connector's
+ * own sync writes log through lib/integrations/sync.ts's own actorless path).
+ */
+export async function logAudit(entry: {
+  entityType: 'work_item' | 'task' | 'code_plan' | 'asset' | 'product' | 'release' | 'asset_dependency' | 'integration'
+  entityId: string
+  event: string
+  actor?: ArtifactActor
+  payload?: Record<string, unknown>
+}) {
+  if (!entry.actor?.id) return
+  try {
+    const profile = await db.query.users.findFirst({ where: eq(users.id, entry.actor.id) })
+    if (!profile?.organizationId) return
+    await db.insert(syncLog).values({
+      organizationId: profile.organizationId,
+      entityType: entry.entityType,
+      entityId: entry.entityId,
+      event: entry.event,
+      actorId: entry.actor.id,
+      payload: entry.payload ?? {},
+    })
+  } catch (err) {
+    console.error('[audit] log failed:', err)
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Products
@@ -39,9 +78,11 @@ export async function createProduct(data: CreateProductData, userId: string) {
     .insert(products)
     .values({
       ...data,
+      ...createdBy({ id: userId }),
       creatorId: userId,
     })
     .returning()
+  await logAudit({ entityType: 'product', entityId: product.id, event: 'created', actor: { id: userId }, payload: { name: product.name } })
   return product
 }
 
@@ -50,9 +91,10 @@ type UpdateProductData = Partial<Pick<CreateProductData, 'name' | 'description' 
 export async function updateProduct(id: string, data: UpdateProductData, userId: string) {
   const [product] = await db
     .update(products)
-    .set(data)
+    .set({ ...data, ...editedBy({ id: userId }), updatedAt: new Date() })
     .where(and(eq(products.id, id), eq(products.creatorId, userId)))
     .returning()
+  if (product) await logAudit({ entityType: 'product', entityId: product.id, event: 'updated', actor: { id: userId }, payload: { name: product.name } })
   return product ?? null
 }
 
@@ -60,7 +102,8 @@ export async function deleteProduct(id: string, userId: string) {
   const [deleted] = await db
     .delete(products)
     .where(and(eq(products.id, id), eq(products.creatorId, userId)))
-    .returning({ id: products.id })
+    .returning({ id: products.id, name: products.name })
+  if (deleted) await logAudit({ entityType: 'product', entityId: deleted.id, event: 'deleted', actor: { id: userId }, payload: { name: deleted.name } })
   return deleted ?? null
 }
 
@@ -88,6 +131,7 @@ export async function createAsset(data: CreateAssetData, actor?: ArtifactActor) 
   })
   if (existing) return existing
   const [asset] = await db.insert(assets).values({ ...data, ...createdBy(actor) }).returning()
+  await logAudit({ entityType: 'asset', entityId: asset.id, event: 'created', actor, payload: { name: asset.name } })
   return asset
 }
 
@@ -106,24 +150,28 @@ export async function updateAsset(id: string, data: UpdateAssetData, actor?: Art
     .set({ ...data, ...editedBy(actor), updatedAt: new Date() })
     .where(eq(assets.id, id))
     .returning()
+  if (asset) await logAudit({ entityType: 'asset', entityId: asset.id, event: 'updated', actor, payload: { name: asset.name } })
   return asset ?? null
 }
 
-export async function deleteAsset(id: string) {
+export async function deleteAsset(id: string, actor?: ArtifactActor) {
   const [deleted] = await db
     .delete(assets)
     .where(eq(assets.id, id))
-    .returning({ id: assets.id })
-  if (deleted) await db.delete(specLinks).where(and(eq(specLinks.targetType, 'asset'), eq(specLinks.targetId, id)))
+    .returning({ id: assets.id, name: assets.name })
+  if (deleted) {
+    await db.delete(specLinks).where(and(eq(specLinks.targetType, 'asset'), eq(specLinks.targetId, id)))
+    await logAudit({ entityType: 'asset', entityId: deleted.id, event: 'deleted', actor, payload: { name: deleted.name } })
+  }
   return deleted ?? null
 }
 
 /** Replace the full owner set for an asset. */
-export async function setAssetOwners(assetId: string, userIds: string[]) {
+export async function setAssetOwners(assetId: string, userIds: string[], actor?: ArtifactActor) {
   await db.delete(assetOwners).where(eq(assetOwners.assetId, assetId))
   const unique = [...new Set(userIds)]
   if (unique.length > 0) {
-    await db.insert(assetOwners).values(unique.map((userId) => ({ assetId, userId })))
+    await db.insert(assetOwners).values(unique.map((userId) => ({ assetId, userId, ...createdBy(actor) })))
   }
 }
 
@@ -166,6 +214,7 @@ export async function moveAsset(assetId: string, targetProductId: string, actor?
     .where(eq(assets.id, assetId))
     .returning()
   await db.update(workItems).set({ productId: targetProductId, ...editedBy(actor), updatedAt: new Date() }).where(eq(workItems.assetId, assetId))
+  await logAudit({ entityType: 'asset', entityId: assetId, event: 'moved', actor, payload: { name: asset.name, fromProductId: asset.productId, toProductId: targetProductId } })
   return { asset: moved, moved: true as const }
 }
 
@@ -190,7 +239,7 @@ type CreateCodePlanData = {
 // array column was dropped in v0.3.0). Plan assignees aren't a stored link at
 // all — see getCodePlan/getCodePlans, which derive them from task.assigneeId.
 
-async function syncPlanAssets(planId: string, assetIds: string[]) {
+async function syncPlanAssets(planId: string, assetIds: string[], actor?: ArtifactActor) {
   const existing = await db
     .select({ assetId: codePlanAssets.assetId })
     .from(codePlanAssets)
@@ -203,25 +252,29 @@ async function syncPlanAssets(planId: string, assetIds: string[]) {
       await db
         .delete(codePlanAssets)
         .where(and(eq(codePlanAssets.codePlanId, planId), eq(codePlanAssets.assetId, r.assetId)))
+      await logAudit({ entityType: 'code_plan', entityId: planId, event: 'asset_removed', actor, payload: { assetId: r.assetId } })
     }
   }
   const toAdd = assetIds.filter((id) => !current.has(id))
   if (toAdd.length > 0) {
     await db.insert(codePlanAssets).values(toAdd.map((assetId) => ({ codePlanId: planId, assetId })))
+    for (const assetId of toAdd) await logAudit({ entityType: 'code_plan', entityId: planId, event: 'asset_added', actor, payload: { assetId } })
   }
 }
 
 export async function createCodePlan(data: CreateCodePlanData, userId: string, actorKind: 'user' | 'agent' = 'user') {
   const { targetAssetIds, ...columns } = data
+  const actor = { id: userId, kind: actorKind }
   const [plan] = await db
     .insert(codePlans)
     .values({
       ...columns,
-      ...createdBy({ id: userId, kind: actorKind }), creatorId: userId,
+      ...createdBy(actor), creatorId: userId,
       status: 'draft',
     })
     .returning()
-  await syncPlanAssets(plan.id, targetAssetIds)
+  await syncPlanAssets(plan.id, targetAssetIds, actor)
+  await logAudit({ entityType: 'code_plan', entityId: plan.id, event: 'created', actor, payload: { title: plan.title } })
   return plan
 }
 
@@ -240,9 +293,15 @@ export async function updateCodePlan(id: string, data: UpdateCodePlanData, actor
     .returning()
   if (!plan) return null
   if (targetAssetIds !== undefined) {
-    await syncPlanAssets(id, targetAssetIds)
+    await syncPlanAssets(id, targetAssetIds, actor)
     await refreshSpecAssetLinks('code_plan', id)
   }
+  const event =
+    data.status === 'active' ? 'activated'
+    : data.status === 'completed' ? 'completed'
+    : data.status === 'cancelled' ? 'cancelled'
+    : 'updated'
+  await logAudit({ entityType: 'code_plan', entityId: plan.id, event, actor, payload: { title: plan.title } })
   return plan
 }
 
@@ -250,8 +309,11 @@ export async function deleteCodePlan(id: string, userId: string) {
   const [deleted] = await db
     .delete(codePlans)
     .where(and(eq(codePlans.id, id), eq(codePlans.creatorId, userId)))
-    .returning({ id: codePlans.id })
-  if (deleted) await db.delete(specLinks).where(and(eq(specLinks.targetType, 'code_plan'), eq(specLinks.targetId, id)))
+    .returning({ id: codePlans.id, title: codePlans.title })
+  if (deleted) {
+    await db.delete(specLinks).where(and(eq(specLinks.targetType, 'code_plan'), eq(specLinks.targetId, id)))
+    await logAudit({ entityType: 'code_plan', entityId: deleted.id, event: 'deleted', actor: { id: userId }, payload: { title: deleted.title } })
+  }
   return deleted ?? null
 }
 
@@ -272,13 +334,14 @@ type CreateTaskData = {
   estimatedEffort?: number
 }
 
-export async function createTask(data: CreateTaskData) {
+export async function createTask(data: CreateTaskData, actor?: ArtifactActor) {
   // Idempotent by (plan, title) so agent re-runs can't duplicate tasks.
   const existing = await db.query.tasks.findFirst({
     where: and(eq(tasks.codePlanId, data.codePlanId), eq(tasks.title, data.title)),
   })
   if (existing) return existing
-  const [task] = await db.insert(tasks).values(data).returning()
+  const [task] = await db.insert(tasks).values({ ...data, ...createdBy(actor) }).returning()
+  await logAudit({ entityType: 'task', entityId: task.id, event: 'created', actor, payload: { title: task.title } })
   return task
 }
 
@@ -289,7 +352,7 @@ type UpdateTaskData = Partial<Omit<CreateTaskData, 'codePlanId' | 'assigneeId'> 
   assigneeId: string | null
 }>
 
-export async function updateTask(id: string, data: UpdateTaskData) {
+export async function updateTask(id: string, data: UpdateTaskData, actor?: ArtifactActor) {
   const existing = await db.query.tasks.findFirst({ where: eq(tasks.id, id) })
   if (!existing) return null
 
@@ -308,13 +371,14 @@ export async function updateTask(id: string, data: UpdateTaskData) {
 
   const [task] = await db
     .update(tasks)
-    .set({ ...patch, updatedAt: new Date() })
+    .set({ ...patch, ...editedBy(actor), updatedAt: new Date() })
     .where(eq(tasks.id, id))
     .returning()
+  if (task) await logAudit({ entityType: 'task', entityId: task.id, event: 'updated', actor, payload: { title: task.title } })
   return task ?? null
 }
 
-export async function updateTaskStatus(id: string, status: 'not_started' | 'in_progress' | 'done') {
+export async function updateTaskStatus(id: string, status: 'not_started' | 'in_progress' | 'done', actor?: ArtifactActor) {
   const existing = await db.query.tasks.findFirst({ where: eq(tasks.id, id) })
   if (!existing) return null
   // Status is mirrored — close/reopen the issue in the external tracker instead.
@@ -322,27 +386,38 @@ export async function updateTaskStatus(id: string, status: 'not_started' | 'in_p
 
   const [task] = await db
     .update(tasks)
-    .set({ status, updatedAt: new Date() })
+    .set({ status, ...editedBy(actor), updatedAt: new Date() })
     .where(eq(tasks.id, id))
     .returning()
+  if (task) {
+    await logAudit({
+      entityType: 'task',
+      entityId: task.id,
+      event: status === 'done' ? 'completed' : 'status_changed',
+      actor,
+      payload: { title: task.title, status },
+    })
+  }
   return task ?? null
 }
 
 /** Re-home a task on another plan (e.g. deferred to a later iteration). */
-export async function moveTaskToPlan(id: string, codePlanId: string) {
+export async function moveTaskToPlan(id: string, codePlanId: string, actor?: ArtifactActor) {
   const [task] = await db
     .update(tasks)
-    .set({ codePlanId, updatedAt: new Date() })
+    .set({ codePlanId, ...editedBy(actor), updatedAt: new Date() })
     .where(eq(tasks.id, id))
     .returning()
+  if (task) await logAudit({ entityType: 'task', entityId: task.id, event: 'moved', actor, payload: { title: task.title, codePlanId } })
   return task ?? null
 }
 
-export async function deleteTask(id: string) {
+export async function deleteTask(id: string, actor?: ArtifactActor) {
   const [deleted] = await db
     .delete(tasks)
     .where(eq(tasks.id, id))
-    .returning({ id: tasks.id })
+    .returning({ id: tasks.id, title: tasks.title })
+  if (deleted) await logAudit({ entityType: 'task', entityId: deleted.id, event: 'deleted', actor, payload: { title: deleted.title } })
   return deleted ?? null
 }
 
@@ -358,7 +433,7 @@ type LinkPlanScopeData = {
   externalUrl?: string
 }
 
-export async function linkPlanToExternalScope(planId: string, data: LinkPlanScopeData) {
+export async function linkPlanToExternalScope(planId: string, data: LinkPlanScopeData, actor?: ArtifactActor) {
   const [plan] = await db
     .update(codePlans)
     .set({
@@ -367,10 +442,11 @@ export async function linkPlanToExternalScope(planId: string, data: LinkPlanScop
       externalId: data.externalId,
       externalKey: data.externalKey ?? null,
       externalUrl: data.externalUrl ?? null,
-      ...editedBy(), updatedAt: new Date(),
+      ...editedBy(actor), updatedAt: new Date(),
     })
     .where(eq(codePlans.id, planId))
     .returning()
+  if (plan) await logAudit({ entityType: 'code_plan', entityId: plan.id, event: 'linked_external_scope', actor, payload: { scopeTitle: data.externalKey } })
   return plan ?? null
 }
 
@@ -378,7 +454,7 @@ export async function linkPlanToExternalScope(planId: string, data: LinkPlanScop
  * Detach a plan from its external scope. Already-mirrored tasks are converted
  * to native so they stay editable and are no longer touched by sync.
  */
-export async function unlinkPlanFromExternalScope(planId: string) {
+export async function unlinkPlanFromExternalScope(planId: string, actor?: ArtifactActor) {
   await db
     .update(tasks)
     .set({ source: 'native', connectionId: null, externalId: null, updatedAt: new Date() })
@@ -391,10 +467,11 @@ export async function unlinkPlanFromExternalScope(planId: string) {
       externalId: null,
       externalKey: null,
       externalUrl: null,
-      ...editedBy(), updatedAt: new Date(),
+      ...editedBy(actor), updatedAt: new Date(),
     })
     .where(eq(codePlans.id, planId))
     .returning()
+  if (plan) await logAudit({ entityType: 'code_plan', entityId: plan.id, event: 'unlinked_external_scope', actor })
   return plan ?? null
 }
 
@@ -415,10 +492,12 @@ type CreateWorkItemData = {
 }
 
 export async function createWorkItem(data: CreateWorkItemData, userId: string, actorKind: 'user' | 'agent' = 'user') {
+  const actor = { id: userId, kind: actorKind }
   const [item] = await db
     .insert(workItems)
-    .values({ ...data, ...createdBy({ id: userId, kind: actorKind }), reporterId: userId })
+    .values({ ...data, ...createdBy(actor), reporterId: userId })
     .returning()
+  await logAudit({ entityType: 'work_item', entityId: item.id, event: 'created', actor, payload: { title: item.title, type: item.type } })
   return item
 }
 
@@ -447,6 +526,7 @@ export async function updateWorkItem(id: string, data: UpdateWorkItemData, actor
     .where(eq(workItems.id, id))
     .returning()
   if (item && patch.assetId !== undefined) await refreshSpecAssetLinks('work_item', id)
+  if (item) await logAudit({ entityType: 'work_item', entityId: item.id, event: 'updated', actor, payload: { title: item.title } })
   return item ?? null
 }
 
@@ -461,15 +541,19 @@ export async function updateWorkItemStatus(id: string, status: WorkItemStatus, a
     .set({ status, ...editedBy(actor), updatedAt: new Date() })
     .where(eq(workItems.id, id))
     .returning()
+  if (item) await logAudit({ entityType: 'work_item', entityId: item.id, event: 'status_changed', actor, payload: { title: item.title, status } })
   return item ?? null
 }
 
-export async function deleteWorkItem(id: string) {
+export async function deleteWorkItem(id: string, actor?: ArtifactActor) {
   const [deleted] = await db
     .delete(workItems)
     .where(eq(workItems.id, id))
-    .returning({ id: workItems.id })
-  if (deleted) await db.delete(specLinks).where(and(eq(specLinks.targetType, 'work_item'), eq(specLinks.targetId, id)))
+    .returning({ id: workItems.id, title: workItems.title })
+  if (deleted) {
+    await db.delete(specLinks).where(and(eq(specLinks.targetType, 'work_item'), eq(specLinks.targetId, id)))
+    await logAudit({ entityType: 'work_item', entityId: deleted.id, event: 'deleted', actor, payload: { title: deleted.title } })
+  }
   return deleted ?? null
 }
 
@@ -479,21 +563,23 @@ export async function deleteWorkItem(id: string) {
 // Note: the deprecated code_plans.target_asset_ids array is not maintained by
 // these mutations — the join table is the sole source of truth going forward.
 
-export async function addPlanAsset(codePlanId: string, assetId: string) {
+export async function addPlanAsset(codePlanId: string, assetId: string, actor?: ArtifactActor) {
   const existing = await db.query.codePlanAssets.findFirst({
     where: and(eq(codePlanAssets.codePlanId, codePlanId), eq(codePlanAssets.assetId, assetId)),
   })
   if (existing) return existing
   const [row] = await db.insert(codePlanAssets).values({ codePlanId, assetId }).returning()
   await refreshSpecAssetLinks('code_plan', codePlanId)
+  await logAudit({ entityType: 'code_plan', entityId: codePlanId, event: 'asset_added', actor, payload: { assetId } })
   return row
 }
 
-export async function removePlanAsset(codePlanId: string, assetId: string) {
+export async function removePlanAsset(codePlanId: string, assetId: string, actor?: ArtifactActor) {
   const [deleted] = await db
     .delete(codePlanAssets)
     .where(and(eq(codePlanAssets.codePlanId, codePlanId), eq(codePlanAssets.assetId, assetId)))
     .returning({ id: codePlanAssets.id })
+  if (deleted) await logAudit({ entityType: 'code_plan', entityId: codePlanId, event: 'asset_removed', actor, payload: { assetId } })
   return deleted ?? null
 }
 
@@ -504,16 +590,17 @@ type UpdatePlanAssetData = Partial<{
   notes: string | null
 }>
 
-export async function updatePlanAsset(codePlanId: string, assetId: string, data: UpdatePlanAssetData) {
+export async function updatePlanAsset(codePlanId: string, assetId: string, data: UpdatePlanAssetData, actor?: ArtifactActor) {
   const [row] = await db
     .update(codePlanAssets)
     .set({ ...data, updatedAt: new Date() })
     .where(and(eq(codePlanAssets.codePlanId, codePlanId), eq(codePlanAssets.assetId, assetId)))
     .returning()
+  if (row) await logAudit({ entityType: 'code_plan', entityId: codePlanId, event: 'asset_updated', actor, payload: { assetId, prStatus: data.prStatus } })
   return row ?? null
 }
 
-export async function linkWorkItemToPlan(workItemId: string, codePlanId: string) {
+export async function linkWorkItemToPlan(workItemId: string, codePlanId: string, actor?: ArtifactActor) {
   const existing = await db.query.workItemCodePlans.findFirst({
     where: and(
       eq(workItemCodePlans.workItemId, workItemId),
@@ -523,13 +610,14 @@ export async function linkWorkItemToPlan(workItemId: string, codePlanId: string)
   if (existing) return existing
   const [link] = await db
     .insert(workItemCodePlans)
-    .values({ workItemId, codePlanId })
+    .values({ workItemId, codePlanId, ...createdBy(actor) })
     .returning()
   await refreshSpecAssetLinks('work_item', workItemId)
+  await logAudit({ entityType: 'work_item', entityId: workItemId, event: 'linked_to_plan', actor, payload: { codePlanId } })
   return link
 }
 
-export async function unlinkWorkItemFromPlan(workItemId: string, codePlanId: string) {
+export async function unlinkWorkItemFromPlan(workItemId: string, codePlanId: string, actor?: ArtifactActor) {
   const [deleted] = await db
     .delete(workItemCodePlans)
     .where(
@@ -539,6 +627,7 @@ export async function unlinkWorkItemFromPlan(workItemId: string, codePlanId: str
       ),
     )
     .returning({ id: workItemCodePlans.id })
+  if (deleted) await logAudit({ entityType: 'work_item', entityId: workItemId, event: 'unlinked_from_plan', actor, payload: { codePlanId } })
   return deleted ?? null
 }
 
@@ -553,7 +642,7 @@ type CreateAssetDependencyData = {
   description?: string
 }
 
-export async function createAssetDependency(data: CreateAssetDependencyData) {
+export async function createAssetDependency(data: CreateAssetDependencyData, actor?: ArtifactActor) {
   if (data.sourceAssetId === data.targetAssetId) return null
   const existing = await db.query.assetDependencies.findFirst({
     where: and(
@@ -563,15 +652,17 @@ export async function createAssetDependency(data: CreateAssetDependencyData) {
     ),
   })
   if (existing) return existing
-  const [row] = await db.insert(assetDependencies).values(data).returning()
+  const [row] = await db.insert(assetDependencies).values({ ...data, ...createdBy(actor) }).returning()
+  await logAudit({ entityType: 'asset_dependency', entityId: row.id, event: 'created', actor, payload: data })
   return row
 }
 
-export async function deleteAssetDependency(id: string) {
+export async function deleteAssetDependency(id: string, actor?: ArtifactActor) {
   const [deleted] = await db
     .delete(assetDependencies)
     .where(eq(assetDependencies.id, id))
-    .returning({ id: assetDependencies.id })
+    .returning({ id: assetDependencies.id, sourceAssetId: assetDependencies.sourceAssetId, targetAssetId: assetDependencies.targetAssetId })
+  if (deleted) await logAudit({ entityType: 'asset_dependency', entityId: deleted.id, event: 'deleted', actor, payload: deleted })
   return deleted ?? null
 }
 
@@ -588,7 +679,7 @@ type CreateIntegrationData = {
   config: Record<string, unknown>
 }
 
-export async function createIntegration(data: CreateIntegrationData) {
+export async function createIntegration(data: CreateIntegrationData, actor?: ArtifactActor) {
   const { token, ...columns } = data
   let tokenEncrypted: string | undefined
   if (token) {
@@ -596,6 +687,7 @@ export async function createIntegration(data: CreateIntegrationData) {
     tokenEncrypted = encryptToken(token)
   }
   const [row] = await db.insert(integrations).values({ ...columns, tokenEncrypted }).returning()
+  await logAudit({ entityType: 'integration', entityId: row.id, event: 'created', actor, payload: { name: row.name, provider: row.provider } })
   return row
 }
 
@@ -607,7 +699,7 @@ type UpdateIntegrationData = {
   config?: Record<string, unknown>
 }
 
-export async function updateIntegration(id: string, data: UpdateIntegrationData) {
+export async function updateIntegration(id: string, data: UpdateIntegrationData, actor?: ArtifactActor) {
   const { token, ...columns } = data
   const patch: Record<string, unknown> = { ...columns }
   if (token) {
@@ -615,14 +707,16 @@ export async function updateIntegration(id: string, data: UpdateIntegrationData)
     patch.tokenEncrypted = encryptToken(token)
   }
   const [row] = await db.update(integrations).set(patch).where(eq(integrations.id, id)).returning()
+  if (row) await logAudit({ entityType: 'integration', entityId: row.id, event: 'updated', actor, payload: { name: row.name } })
   return row ?? null
 }
 
-export async function deleteIntegration(id: string) {
+export async function deleteIntegration(id: string, actor?: ArtifactActor) {
   const [deleted] = await db
     .delete(integrations)
     .where(eq(integrations.id, id))
-    .returning({ id: integrations.id })
+    .returning({ id: integrations.id, name: integrations.name })
+  if (deleted) await logAudit({ entityType: 'integration', entityId: deleted.id, event: 'deleted', actor, payload: { name: deleted.name } })
   return deleted ?? null
 }
 
@@ -638,10 +732,12 @@ type CreateReleaseData = {
 }
 
 export async function createRelease(data: CreateReleaseData, userId: string, actorKind: 'user' | 'agent' = 'user') {
+  const actor = { id: userId, kind: actorKind }
   const [release] = await db
     .insert(releases)
-    .values({ ...data, ...createdBy({ id: userId, kind: actorKind }), creatorId: userId, status: 'planned' })
+    .values({ ...data, ...createdBy(actor), creatorId: userId, status: 'planned' })
     .returning()
+  await logAudit({ entityType: 'release', entityId: release.id, event: 'created', actor, payload: { name: release.name } })
   return release
 }
 
@@ -658,12 +754,17 @@ export async function updateRelease(id: string, data: UpdateReleaseData, actor?:
   if (data.status === 'shipped') patch.shippedAt = new Date()
   if (data.status && data.status !== 'shipped') patch.shippedAt = null
   const [release] = await db.update(releases).set(patch).where(eq(releases.id, id)).returning()
+  if (release) {
+    const event = data.status === 'shipped' ? 'shipped' : data.status ? 'status_changed' : 'updated'
+    await logAudit({ entityType: 'release', entityId: release.id, event, actor, payload: { name: release.name, status: data.status } })
+  }
   return release ?? null
 }
 
-export async function deleteRelease(id: string) {
+export async function deleteRelease(id: string, actor?: ArtifactActor) {
   // code_plans.releaseId is ON DELETE SET NULL — plans are detached, never deleted.
-  const [deleted] = await db.delete(releases).where(eq(releases.id, id)).returning({ id: releases.id })
+  const [deleted] = await db.delete(releases).where(eq(releases.id, id)).returning({ id: releases.id, name: releases.name })
+  if (deleted) await logAudit({ entityType: 'release', entityId: deleted.id, event: 'deleted', actor, payload: { name: deleted.name } })
   return deleted ?? null
 }
 
@@ -673,45 +774,51 @@ export async function attachPlanToRelease(codePlanId: string, releaseId: string,
     .set({ releaseId, ...editedBy(actor), updatedAt: new Date() })
     .where(eq(codePlans.id, codePlanId))
     .returning()
+  if (plan) await logAudit({ entityType: 'release', entityId: releaseId, event: 'plan_attached', actor, payload: { planId: codePlanId, planTitle: plan.title } })
   return plan ?? null
 }
 
 export async function detachPlanFromRelease(codePlanId: string, actor?: ArtifactActor) {
+  const existing = await db.query.codePlans.findFirst({ where: eq(codePlans.id, codePlanId) })
   const [plan] = await db
     .update(codePlans)
     .set({ releaseId: null, ...editedBy(actor), updatedAt: new Date() })
     .where(eq(codePlans.id, codePlanId))
     .returning()
+  if (plan && existing?.releaseId) await logAudit({ entityType: 'release', entityId: existing.releaseId, event: 'plan_detached', actor, payload: { planId: codePlanId, planTitle: plan.title } })
   return plan ?? null
 }
 
 type SetReleaseAssetData = { version?: string | null; notes?: string | null }
 
 /** Upsert the per-asset version stamp on a release. */
-export async function setReleaseAsset(releaseId: string, assetId: string, data: SetReleaseAssetData = {}) {
+export async function setReleaseAsset(releaseId: string, assetId: string, data: SetReleaseAssetData = {}, actor?: ArtifactActor) {
   const existing = await db.query.releaseAssets.findFirst({
     where: and(eq(releaseAssets.releaseId, releaseId), eq(releaseAssets.assetId, assetId)),
   })
+  let row
   if (existing) {
-    const [row] = await db
+    ;[row] = await db
       .update(releaseAssets)
       .set({ ...data, updatedAt: new Date() })
       .where(eq(releaseAssets.id, existing.id))
       .returning()
-    return row
+  } else {
+    ;[row] = await db
+      .insert(releaseAssets)
+      .values({ releaseId, assetId, version: data.version ?? null, notes: data.notes ?? null })
+      .returning()
   }
-  const [row] = await db
-    .insert(releaseAssets)
-    .values({ releaseId, assetId, version: data.version ?? null, notes: data.notes ?? null })
-    .returning()
+  if (row && data.version) await logAudit({ entityType: 'release', entityId: releaseId, event: 'asset_versioned', actor, payload: { assetId, version: data.version } })
   return row
 }
 
-export async function removeReleaseAsset(releaseId: string, assetId: string) {
+export async function removeReleaseAsset(releaseId: string, assetId: string, actor?: ArtifactActor) {
   const [deleted] = await db
     .delete(releaseAssets)
     .where(and(eq(releaseAssets.releaseId, releaseId), eq(releaseAssets.assetId, assetId)))
     .returning({ id: releaseAssets.id })
+  if (deleted) await logAudit({ entityType: 'release', entityId: releaseId, event: 'asset_removed', actor, payload: { assetId } })
   return deleted ?? null
 }
 
@@ -735,7 +842,8 @@ type CreateDesignNoteData = {
 export async function createDesignNote(data: CreateDesignNoteData) {
   const { revisesSpecId, revisedSpecBody, expectedSpecVersion, ...noteData } = data
   if (!!revisesSpecId !== (revisedSpecBody !== undefined)) throw new Error('A spec revision requires revisesSpecId and revisedSpecBody')
-  return db.transaction(async (tx) => {
+  const actor = data.authorId ? { id: data.authorId, kind: data.authorKind } : undefined
+  const result = await db.transaction(async (tx) => {
     if (revisesSpecId) {
       const spec = await requireSpec(revisesSpecId, tx)
       const links = await tx.select().from(specLinks).where(eq(specLinks.specId, spec.id))
@@ -743,10 +851,12 @@ export async function createDesignNote(data: CreateDesignNoteData) {
         throw new Error('The revised spec must be linked to this asset')
       }
     }
-    const [note] = await tx.insert(assetDesignLog).values({ ...noteData, ...createdBy(data.authorId ? { id: data.authorId, kind: data.authorKind } : undefined), authorKind: data.authorKind ?? 'user' }).returning()
-    const revision = revisesSpecId ? await reviseSpec(tx, revisesSpecId, { body: revisedSpecBody!, expectedVersion: expectedSpecVersion }, note.id, data.authorId ? { id: data.authorId, kind: data.authorKind } : undefined) : undefined
+    const [note] = await tx.insert(assetDesignLog).values({ ...noteData, ...createdBy(actor), authorKind: data.authorKind ?? 'user' }).returning()
+    const revision = revisesSpecId ? await reviseSpec(tx, revisesSpecId, { body: revisedSpecBody!, expectedVersion: expectedSpecVersion }, note.id, actor) : undefined
     return { ...note, specEventId: revision?.events.find((e) => e.assetId === note.assetId)?.id }
   })
+  await logAudit({ entityType: 'asset', entityId: data.assetId, event: 'design_note_added', actor, payload: { title: result.title } })
+  return result
 }
 
 type UpdateDesignNoteData = Partial<Pick<CreateDesignNoteData, 'title' | 'body' | 'releaseId' | 'codePlanId'>>
@@ -757,14 +867,16 @@ export async function updateDesignNote(id: string, data: UpdateDesignNoteData, a
     .set({ ...data, ...editedBy(actor), updatedAt: new Date() })
     .where(eq(assetDesignLog.id, id))
     .returning()
+  if (note) await logAudit({ entityType: 'asset', entityId: note.assetId, event: 'design_note_updated', actor, payload: { title: note.title } })
   return note ?? null
 }
 
-export async function deleteDesignNote(id: string) {
+export async function deleteDesignNote(id: string, actor?: ArtifactActor) {
   const [deleted] = await db
     .delete(assetDesignLog)
     .where(eq(assetDesignLog.id, id))
-    .returning({ id: assetDesignLog.id })
+    .returning({ id: assetDesignLog.id, assetId: assetDesignLog.assetId, title: assetDesignLog.title })
+  if (deleted) await logAudit({ entityType: 'asset', entityId: deleted.assetId, event: 'design_note_deleted', actor, payload: { title: deleted.title } })
   return deleted ?? null
 }
 
@@ -779,7 +891,7 @@ export async function deleteDesignNote(id: string) {
  * per work item (partial unique index on originWorkItemId).
  */
 export async function graduateWorkItem(workItemId: string, sourceSpecId?: string, actor?: ArtifactActor) {
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const item = await tx.query.workItems.findFirst({ where: eq(workItems.id, workItemId) })
     if (!item) return { error: 'Work item not found' as const }
     if (item.status !== 'resolved') return { error: 'Only resolved work items graduate' as const }
@@ -844,6 +956,10 @@ export async function graduateWorkItem(workItemId: string, sourceSpecId?: string
     }
     return { capability, existed: false as const }
   })
+  if (!('error' in result) && !result.existed) {
+    await logAudit({ entityType: 'asset', entityId: result.capability.assetId, event: 'capability_graduated', actor, payload: { title: result.capability.title } })
+  }
+  return result
 }
 
 type UpdateCapabilityData = Partial<{ title: string; description: string; area: string | null }>
@@ -854,6 +970,7 @@ export async function updateCapability(id: string, data: UpdateCapabilityData, a
     .set({ ...data, ...editedBy(actor), updatedAt: new Date() })
     .where(eq(assetCapabilities.id, id))
     .returning()
+  if (row) await logAudit({ entityType: 'asset', entityId: row.assetId, event: 'capability_updated', actor, payload: { title: row.title } })
   return row ?? null
 }
 
@@ -871,5 +988,6 @@ export async function removeCapability(id: string, reason?: string, actor?: Arti
     })
     .where(eq(assetCapabilities.id, id))
     .returning()
+  if (row) await logAudit({ entityType: 'asset', entityId: row.assetId, event: 'capability_removed', actor, payload: { title: row.title } })
   return row
 }
