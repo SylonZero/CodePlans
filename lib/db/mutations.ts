@@ -305,14 +305,20 @@ export async function updateCodePlan(id: string, data: UpdateCodePlanData, actor
   return plan
 }
 
-export async function deleteCodePlan(id: string, userId: string) {
+/**
+ * Authorization (creator or org owner/admin — see lib/db/authz.ts
+ * canDeleteCodePlan) must be checked by the caller before calling this; it
+ * used to filter by creatorId here, which blocked the owner/admin override
+ * the unified delete-authorization rule now requires.
+ */
+export async function deleteCodePlan(id: string, actorId: string) {
   const [deleted] = await db
     .delete(codePlans)
-    .where(and(eq(codePlans.id, id), eq(codePlans.creatorId, userId)))
+    .where(eq(codePlans.id, id))
     .returning({ id: codePlans.id, title: codePlans.title })
   if (deleted) {
     await db.delete(specLinks).where(and(eq(specLinks.targetType, 'code_plan'), eq(specLinks.targetId, id)))
-    await logAudit({ entityType: 'code_plan', entityId: deleted.id, event: 'deleted', actor: { id: userId }, payload: { title: deleted.title } })
+    await logAudit({ entityType: 'code_plan', entityId: deleted.id, event: 'deleted', actor: { id: actorId }, payload: { title: deleted.title } })
   }
   return deleted ?? null
 }

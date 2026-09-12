@@ -240,15 +240,20 @@ describe('plan assignees (derived from task assignment)', () => {
 })
 
 describe('deleteCodePlan', () => {
-  it('deletes plan when userId is creator', async () => {
+  it('deletes the plan by id, regardless of the given actorId', async () => {
+    // Authorization (creator or org owner/admin) is checked by the caller
+    // via lib/db/authz.ts canDeleteCodePlan before this is ever called — see
+    // tests/lib/db/authz.test.ts. This function's job is just the delete +
+    // audit log, keyed only by id.
     const result = await deleteCodePlan(F.planDraft, F.alice)
     expect(result).not.toBeNull()
     expect(result!.id).toBe(F.planDraft)
   })
 
-  it('returns null when userId is not the creator', async () => {
+  it('deletes the plan even when the passed actorId is not the creator (actorId is for audit attribution, not authorization)', async () => {
     const result = await deleteCodePlan(F.planActive, F.bob)
-    expect(result).toBeNull()
+    expect(result).not.toBeNull()
+    expect(result!.id).toBe(F.planActive)
   })
 
   it('returns null for non-existent plan', async () => {

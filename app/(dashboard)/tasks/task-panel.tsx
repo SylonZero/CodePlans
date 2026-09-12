@@ -154,7 +154,11 @@ function TaskEditor({ task, members, onDeleted }: { task: TaskRow; members: Memb
 
   function handleDelete() {
     startTransition(async () => {
-      await deleteTaskAction(task.id, task.codePlanId)
+      const result = await deleteTaskAction(task.id, task.codePlanId)
+      if (result?.error) {
+        toast.error(result.error)
+        return
+      }
       onDeleted()
     })
   }

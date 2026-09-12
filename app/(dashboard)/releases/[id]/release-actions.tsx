@@ -22,6 +22,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Rocket, Play, Undo2, XCircle, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { setReleaseStatusAction, deleteReleaseAction } from '../../actions'
 import type { ReleaseStatus } from '@/lib/types'
 
@@ -62,7 +63,10 @@ export function DeleteReleaseButton({
           <AlertDialogAction
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             disabled={isPending}
-            onClick={() => startTransition(async () => { await deleteReleaseAction(releaseId) })}
+            onClick={() => startTransition(async () => {
+              const result = await deleteReleaseAction(releaseId)
+              if (result?.error) toast.error(result.error)
+            })}
           >
             {isPending ? 'Deleting…' : 'Delete Release'}
           </AlertDialogAction>

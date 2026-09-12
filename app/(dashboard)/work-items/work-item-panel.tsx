@@ -207,7 +207,11 @@ function WorkItemEditor({
 
   function handleDelete() {
     startTransition(async () => {
-      await deleteWorkItemAction(item.id)
+      const result = await deleteWorkItemAction(item.id)
+      if (result?.error) {
+        toast.error(result.error)
+        return
+      }
       onDeleted()
     })
   }
