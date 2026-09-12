@@ -7,9 +7,10 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { GitBranch, GitPullRequest, Plus, X, Pencil, ExternalLink } from 'lucide-react'
+import { GitBranch, GitPullRequest, Plus, Pencil, ExternalLink } from 'lucide-react'
 import type { PlanAsset, PrStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { ConfirmRemoveButton } from '@/components/confirm-remove-button'
 import { addPlanAssetAction, removePlanAssetAction, updatePlanAssetAction } from '../../actions'
 
 const PR_STATUSES: { value: PrStatus; label: string }[] = [
@@ -122,16 +123,14 @@ export function PlanAssetsSection({
                 >
                   <Pencil className="h-3.5 w-3.5" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                  title="Remove asset from plan"
+                <ConfirmRemoveButton
+                  className="h-7 w-7"
+                  label="Remove asset from plan"
+                  title="Remove this asset from the plan?"
+                  description={`This will remove "${pa.assetName}" as a target of this plan, along with its branch/PR tracking. This action cannot be undone.`}
                   disabled={isPending}
-                  onClick={() => startTransition(() => removePlanAssetAction(planId, pa.assetId))}
-                >
-                  <X className="h-3.5 w-3.5" />
-                </Button>
+                  onConfirm={() => startTransition(() => removePlanAssetAction(planId, pa.assetId))}
+                />
               </div>
             </div>
           ),

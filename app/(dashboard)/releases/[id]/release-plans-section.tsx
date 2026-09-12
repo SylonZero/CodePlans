@@ -6,8 +6,9 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, X } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ConfirmRemoveButton } from '@/components/confirm-remove-button'
 import { attachPlanToReleaseAction, detachPlanFromReleaseAction } from '../../actions'
 import type { ReleasePlanRow } from '@/lib/db/queries'
 import type { CodePlanStatus } from '@/lib/types'
@@ -106,9 +107,14 @@ export function ReleasePlansSection({
                         <div className="h-full rounded-full bg-accent" style={{ width: `${progress}%` }} />
                       </div>
                       {editable && (
-                        <Button size="sm" variant="ghost" onClick={() => detach(plan.planId)} disabled={isPending}>
-                          <X className="h-3.5 w-3.5" />
-                        </Button>
+                        <ConfirmRemoveButton
+                          size="sm"
+                          label="Detach plan"
+                          title="Detach this plan from the release?"
+                          description={`This will detach "${plan.title}" from the release. The plan itself is not deleted or changed. This action cannot be undone.`}
+                          disabled={isPending}
+                          onConfirm={() => detach(plan.planId)}
+                        />
                       )}
                     </div>
                   </div>
