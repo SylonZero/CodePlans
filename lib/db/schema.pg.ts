@@ -119,6 +119,14 @@ export const products = pgTable('products', {
   creatorId: uuid('creator_id').notNull().references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  // Soft-delete tombstone (spec "Deletion & Cascade Design for Core Entities", Phase 4) —
+  // archived means archivedAt IS NOT NULL. Highest blast radius in the schema: nothing
+  // beneath a product (assets, plans, releases, work items, specs) is touched or cascaded,
+  // it just becomes unreachable through the normal access-check path. Never hard-deleted
+  // by the normal UI/MCP path; deleteProduct remains for a possible future admin-only purge.
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
+  archivedById: uuid('archived_by_id').references(() => users.id, { onDelete: 'set null' }),
+  archivedByKind: text('archived_by_kind'),
 })
 
 export const assets = pgTable('assets', {

@@ -98,13 +98,51 @@ export async function updateProduct(id: string, data: UpdateProductData, userId:
   return product ?? null
 }
 
-export async function deleteProduct(id: string, userId: string) {
+/**
+ * Hard delete. Not called by the normal UI/MCP path — archiveProduct is the
+ * user-facing "delete" action (spec "Deletion & Cascade Design for Core
+ * Entities", Phase 4). Kept for a possible future admin-only purge.
+ */
+export async function deleteProduct(id: string, actor?: ArtifactActor) {
   const [deleted] = await db
     .delete(products)
-    .where(and(eq(products.id, id), eq(products.creatorId, userId)))
+    .where(eq(products.id, id))
     .returning({ id: products.id, name: products.name })
-  if (deleted) await logAudit({ entityType: 'product', entityId: deleted.id, event: 'deleted', actor: { id: userId }, payload: { name: deleted.name } })
+  if (deleted) await logAudit({ entityType: 'product', entityId: deleted.id, event: 'deleted', actor, payload: { name: deleted.name } })
   return deleted ?? null
+}
+
+/**
+ * Soft-delete tombstone — the product row (and everything beneath it: assets,
+ * plans, releases, work items, specs) is kept, just made unreachable through
+ * productAccessWhere's default (see lib/db/queries.ts). Nothing on those child
+ * rows is touched or flagged — they simply stop resolving through the one
+ * shared access check. Idempotent: archiving an already-archived product just
+ * updates who/when.
+ */
+export async function archiveProduct(id: string, actor?: ArtifactActor) {
+  const [archived] = await db
+    .update(products)
+    .set({
+      archivedAt: new Date(),
+      archivedById: actor?.id ?? null,
+      archivedByKind: actor ? (actor.kind ?? 'user') : null,
+      updatedAt: new Date(),
+    })
+    .where(eq(products.id, id))
+    .returning()
+  if (archived) await logAudit({ entityType: 'product', entityId: archived.id, event: 'archived', actor, payload: { name: archived.name } })
+  return archived ?? null
+}
+
+export async function restoreProduct(id: string, actor?: ArtifactActor) {
+  const [restored] = await db
+    .update(products)
+    .set({ archivedAt: null, archivedById: null, archivedByKind: null, updatedAt: new Date() })
+    .where(eq(products.id, id))
+    .returning()
+  if (restored) await logAudit({ entityType: 'product', entityId: restored.id, event: 'restored', actor, payload: { name: restored.name } })
+  return restored ?? null
 }
 
 // ---------------------------------------------------------------------------

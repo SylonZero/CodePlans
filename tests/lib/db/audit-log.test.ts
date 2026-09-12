@@ -64,7 +64,7 @@ describe('logAudit (via mutations)', () => {
       { name: 'P', slug: 'p-delete', description: '', tags: [] },
       F.alice,
     )
-    await deleteProduct(product.id, F.alice)
+    await deleteProduct(product.id, { id: F.alice })
     const rows = await auditRowsFor(product.id)
     expect(rows.map((r) => r.event)).toEqual(['created', 'deleted'])
   })

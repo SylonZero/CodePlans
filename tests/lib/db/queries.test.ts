@@ -10,6 +10,7 @@ import {
   getOrganization,
   getTeamMembers,
 } from '@/lib/db/queries'
+import { archiveProduct } from '@/lib/db/mutations'
 
 beforeAll(async () => {
   await runMigrations()
@@ -142,6 +143,19 @@ describe('getProducts', () => {
     const prods = await getProducts(F.bob)
     expect(prods.map((p) => p.id)).toContain(F.productShared)
   })
+
+  it('excludes archived products by default', async () => {
+    await archiveProduct(F.productShared)
+    expect(await getProducts(F.alice)).toHaveLength(0)
+  })
+
+  it('includes archived products with includeArchived: true, with archive fields populated', async () => {
+    await archiveProduct(F.productShared, { id: F.alice })
+    const prods = await getProducts(F.alice, undefined, { includeArchived: true })
+    expect(prods).toHaveLength(1)
+    expect(prods[0].archivedAt).not.toBeNull()
+    expect(prods[0].archivedById).toBe(F.alice)
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -181,6 +195,14 @@ describe('getProduct', () => {
     const prod = await getProduct('shared-product', F.alice)
     expect(prod!.activePlanCount).toBe(1)
   })
+
+  it('still resolves an archived product (detail views stay reachable) with archive fields set', async () => {
+    await archiveProduct(F.productShared, { id: F.alice })
+    const prod = await getProduct('shared-product', F.alice)
+    expect(prod).not.toBeNull()
+    expect(prod!.archivedAt).not.toBeNull()
+    expect(prod!.archivedById).toBe(F.alice)
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -216,6 +238,17 @@ describe('getCodePlans', () => {
 
   it('filters by productId', async () => {
     const plans = await getCodePlans(F.alice, { productId: F.productShared })
+    expect(plans).toHaveLength(3)
+  })
+
+  it('excludes plans belonging to an archived product by default', async () => {
+    await archiveProduct(F.productShared)
+    expect(await getCodePlans(F.alice)).toHaveLength(0)
+  })
+
+  it('includeArchived + productId still returns an archived product\'s own plans', async () => {
+    await archiveProduct(F.productShared)
+    const plans = await getCodePlans(F.alice, { productId: F.productShared, includeArchived: true })
     expect(plans).toHaveLength(3)
   })
 
