@@ -157,7 +157,10 @@ async function seed() {
       console.log(`  product exists: ${slug}`)
       return existing.id
     }
-    const [p] = await db.insert(products).values(values).returning()
+    const [p] = await db
+      .insert(products)
+      .values({ ...values, createdById: values.creatorId, createdByKind: 'user' })
+      .returning()
     console.log(`  created product: ${slug}`)
     return p.id
   }
@@ -200,7 +203,12 @@ async function seed() {
       console.log(`  asset exists: ${name}`)
       return existing.id
     }
-    const [a] = await db.insert(assets).values(values).returning()
+    // Assets have no legacy creatorId field — attribute to the org owner (alexId),
+    // matching the org-owner-fallback convention used for the production backfill.
+    const [a] = await db
+      .insert(assets)
+      .values({ createdById: alexId, createdByKind: 'user', ...values })
+      .returning()
     console.log(`  created asset: ${name}`)
     return a.id
   }
@@ -301,7 +309,10 @@ async function seed() {
       return existing.id
     }
     const { targetAssetIds: _t, ...columns } = values
-    const [p] = await db.insert(codePlans).values(columns).returning()
+    const [p] = await db
+      .insert(codePlans)
+      .values({ ...columns, createdById: columns.creatorId, createdByKind: 'user' })
+      .returning()
     const assetIds = (values.targetAssetIds ?? []) as string[]
     if (assetIds.length > 0) {
       await db.insert(codePlanAssets).values(assetIds.map((assetId) => ({ codePlanId: p.id, assetId })))
@@ -410,7 +421,9 @@ async function seed() {
       console.log(`  task exists: ${title}`)
       return
     }
-    await db.insert(tasks).values(values)
+    // Tasks have no creator-equivalent field at all — attribute to the org
+    // owner (alexId), matching the production-backfill fallback for tasks.
+    await db.insert(tasks).values({ createdById: alexId, createdByKind: 'user', ...values })
     console.log(`  created task: ${title}`)
   }
 
@@ -666,7 +679,10 @@ async function seed() {
   ) {
     let row = await db.query.workItems.findFirst({ where: (w, { eq }) => eq(w.title, title) })
     if (!row) {
-      const [created] = await db.insert(workItems).values(values).returning()
+      const [created] = await db
+        .insert(workItems)
+        .values({ ...values, createdById: values.reporterId, createdByKind: 'user' })
+        .returning()
       row = created
       console.log(`  created work item: ${title}`)
     }
@@ -828,7 +844,10 @@ async function seed() {
       console.log(`  release exists: ${name}`)
       return existing.id
     }
-    const [r] = await db.insert(releases).values(values).returning()
+    const [r] = await db
+      .insert(releases)
+      .values({ ...values, createdById: values.creatorId, createdByKind: 'user' })
+      .returning()
     console.log(`  created release: ${name}`)
     return r.id
   }
