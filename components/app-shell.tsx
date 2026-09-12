@@ -38,6 +38,7 @@ import {
   Plug,
   Rocket,
   BookOpen,
+  ShieldCheck,
 } from 'lucide-react'
 import { signOut } from '@/app/(auth)/actions'
 import { setProductScopeAction } from '@/lib/actions/product-scope'
@@ -54,6 +55,18 @@ type AppShellProps = {
   billingEnabled?: boolean
   /** Extra nav items contributed by the private enterprise module, if any. */
   extraNavItems?: NavExtension[]
+}
+
+// Extension points can only reference icons by name (see NavExtension in
+// lib/ee/types.ts) — component references can't cross the server/client
+// boundary from where hooks are read. Add an entry here to make a new icon
+// available; unrecognized names fall back to a generic icon below.
+const EXTRA_NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  ShieldCheck,
+}
+
+function resolveExtraNavIcon(name: string) {
+  return EXTRA_NAV_ICONS[name] ?? Boxes
 }
 
 const navigation = [
@@ -253,6 +266,7 @@ export function AppShell({ children, user, orgName, products, selectedProductId,
               })}
               {extraNavItems.map((item) => {
                 const isActive = pathname === item.href
+                const Icon = resolveExtraNavIcon(item.icon)
                 return (
                   <Link
                     key={item.id}
@@ -264,7 +278,7 @@ export function AppShell({ children, user, orgName, products, selectedProductId,
                         : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
                     )}
                   >
-                    <item.icon className="h-4 w-4" />
+                    <Icon className="h-4 w-4" />
                     {item.name}
                   </Link>
                 )

@@ -3,16 +3,25 @@
 // so the community build has zero compile-time or run-time coupling to
 // proprietary code.
 
-import type { ComponentType } from 'react'
-
-type IconType = ComponentType<{ className?: string }>
-
 /** An item appended to the dashboard sidebar's secondary (settings) navigation. */
 export type NavExtension = {
   id: string
   name: string
   href: string
-  icon: IconType
+  /**
+   * Name of a lucide-react icon (e.g. "ShieldCheck"), resolved client-side
+   * via the allow-list in `components/app-shell.tsx`. Extension points
+   * cannot pass an actual component *reference* here: hooks are read from a
+   * Server Component (`app/(dashboard)/layout.tsx`) and passed as a prop
+   * into the Client Component `AppShell`, and React's server/client
+   * boundary only allows component references that Next.js's own bundler
+   * tagged as Client Components — a plain function from a runtime-loaded
+   * package (like the private enterprise module) is never tagged that way,
+   * so passing one directly throws "Functions cannot be passed directly to
+   * Client Components" at request time. A plain string has no such
+   * restriction.
+   */
+  icon: string
 }
 
 /**

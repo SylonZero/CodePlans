@@ -14,10 +14,16 @@ This document describes the mechanism, not any specific proprietary feature.
    of extension points. Every hook has a no-op default (`[]`, `null`, a
    pass-through), so behavior is identical whether or not an enterprise
    module is installed.
-2. `lib/ee/registry.ts` holds the currently active hooks in memory, starting
-   from the no-op defaults. `registerEnterpriseHooks()` lets a module
-   override any subset of them; `getEnterpriseHooks()` is what OSS code calls
-   to read them.
+2. `lib/ee/registry.ts` holds the currently active hooks, starting from the
+   no-op defaults. `registerEnterpriseHooks()` lets a module override any
+   subset of them; `getEnterpriseHooks()` is what OSS code calls to read
+   them. The active hooks live on `globalThis` rather than a plain
+   module-scope variable — Next.js compiles `instrumentation.ts` (where
+   registration happens once at boot) and the request-handling/SSR bundles
+   (where hooks are read) into separate chunks, each with its own
+   independent copy of this module, so a plain module-scope variable set in
+   one would never be visible from the other. `globalThis` is the one thing
+   guaranteed to be shared across all of them within the same process.
 3. `lib/ee/load.ts` runs once per server boot, from `instrumentation.ts`. If
    `ENTERPRISE_ENABLED=true`, it attempts to `import('@codeplans/enterprise')`
    and call its `register(registerEnterpriseHooks)` export. If the package
@@ -55,7 +61,16 @@ const extraNavItems = getEnterpriseHooks().navItems() // [] unless enabled
 2. Call `getEnterpriseHooks().yourHook(...)` from the one or two places in
    the OSS codebase that need it. Keep the call site itself simple — all
    proprietary logic belongs in the private package, not here.
-3. Add a test in `tests/lib/ee/` covering the default no-op and an
+3. Keep hook return values plain, serializable data (strings, numbers,
+   plain objects/arrays) — never component/function references. Most call
+   sites (like the sidebar) read the hook in a Server Component and pass
+   the result as a prop into a Client Component; React only allows
+   component references across that boundary when the bundler itself
+   tagged them as Client Components, which never happens for anything
+   loaded from a runtime `import()` of an external package. This is why
+   `NavExtension.icon` is a lucide icon *name* (resolved from a small
+   allow-list in `components/app-shell.tsx`) rather than a component.
+4. Add a test in `tests/lib/ee/` covering the default no-op and an
    overridden case, following `registry.test.ts`.
 
 ## The private package contract
@@ -71,7 +86,7 @@ const enterpriseModule: EnterpriseModule = {
   register(register) {
     register({
       navItems: () => [
-        { id: 'audit-log', name: 'Audit Log', href: '/audit-log', icon: ShieldIcon },
+        { id: 'audit-log', name: 'Audit Log', href: '/audit-log', icon: 'ShieldCheck' },
       ],
     })
   },
