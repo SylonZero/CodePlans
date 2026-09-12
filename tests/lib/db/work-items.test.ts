@@ -111,6 +111,16 @@ describe('getWorkItems', () => {
     expect(await getWorkItems(F.carol)).toHaveLength(0)
   })
 
+  it('exposes createdById on both the list and detail projections', async () => {
+    const item = await createFixtureItem()
+    const items = await getWorkItems(F.alice)
+    expect(items[0].createdById).toBe(F.alice)
+    expect(items[0].createdByKind).toBe('user')
+
+    const found = await getWorkItem(item.id, F.alice)
+    expect(found!.createdById).toBe(F.alice)
+  })
+
   it('filters by type and status', async () => {
     await createFixtureItem()
     await createFixtureItem({ type: 'tech_debt', title: 'Legacy ORM calls', severity: 'medium' })

@@ -83,6 +83,18 @@ describe('releases mutations', () => {
 })
 
 describe('getReleases / getRelease', () => {
+  it('exposes createdById on both the list and detail projections', async () => {
+    const release = await seedRelease()
+    const detail = await getRelease(release.id, F.alice)
+    expect(detail!.createdById).toBe(F.alice)
+    expect(detail!.createdByKind).toBe('user')
+
+    const rows = await getReleases(F.alice, { productId: F.productShared })
+    const row = rows.find((r) => r.id === release.id)!
+    expect(row.createdById).toBe(F.alice)
+  })
+
+
   it('rolls up plan counts and derived work items through attached plans', async () => {
     const release = await seedRelease()
     await (db as any).insert(workItems).values([

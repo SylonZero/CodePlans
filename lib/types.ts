@@ -11,6 +11,15 @@ export type WorkItemStatus = 'open' | 'planned' | 'in_progress' | 'resolved' | '
 export type WorkItemSeverity = 'low' | 'medium' | 'high' | 'critical'
 export type ItemSource = 'native' | 'github' | 'gitlab' | 'jira' | 'asana' | 'linear'
 
+/** Who created/last-edited a record. Null means unattributed (predates the
+ * attribution columns, or the mutation didn't have an actor). */
+export interface Attribution {
+  createdById: string | null
+  createdByKind: string | null
+  updatedById: string | null
+  updatedByKind: string | null
+}
+
 export interface User {
   id: string
   email: string
@@ -127,7 +136,7 @@ export interface ReleaseAssetRow {
 }
 
 /** Delivery grouping above code plans: what ships together. */
-export interface Release {
+export interface Release extends Attribution {
   id: string
   productId: string
   name: string
@@ -151,7 +160,7 @@ export interface PlanAsset {
   notes?: string
 }
 
-export interface CodePlan {
+export interface CodePlan extends Attribution {
   id: string
   title: string
   description: string
@@ -179,7 +188,7 @@ export interface CodePlan {
   updatedAt: string
 }
 
-export interface Task {
+export interface Task extends Attribution {
   id: string
   codePlanId: string
   assetId?: string
@@ -206,7 +215,7 @@ export interface Task {
  * tech-debt item. Native by default; when source ≠ native it mirrors an item
  * in an external tracker and its mirrored fields are read-only here.
  */
-export interface WorkItem {
+export interface WorkItem extends Attribution {
   id: string
   productId: string
   assetId?: string

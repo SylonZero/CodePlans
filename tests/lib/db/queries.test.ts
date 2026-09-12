@@ -289,6 +289,28 @@ describe('getCodePlan', () => {
     expect(t1.assigneeId).toBe(F.bob)
     expect(t1.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
   })
+
+  it('exposes createdById/updatedById on the plan and its tasks (null for unattributed fixture rows)', async () => {
+    // seedFixtures never stamps createdById directly — this asserts the field
+    // is actually projected out (previously it was silently dropped even
+    // though the column existed and was populated in real data).
+    const plan = await getCodePlan(F.planActive, F.alice)
+    expect(plan).toHaveProperty('createdById', null)
+    expect(plan).toHaveProperty('createdByKind', null)
+    const t1 = plan!.tasks.find((t) => t.id === F.task1)!
+    expect(t1).toHaveProperty('createdById', null)
+  })
+
+  it('exposes a real createdById for a plan created through the normal mutation path', async () => {
+    const { createCodePlan } = await import('@/lib/db/mutations')
+    const created = await createCodePlan(
+      { title: 'Attributed plan', description: '', productId: F.productShared, type: 'feature', tags: [], targetAssetIds: [] },
+      F.bob,
+    )
+    const plan = await getCodePlan(created.id, F.alice)
+    expect(plan!.createdById).toBe(F.bob)
+    expect(plan!.createdByKind).toBe('user')
+  })
 })
 
 // ---------------------------------------------------------------------------
