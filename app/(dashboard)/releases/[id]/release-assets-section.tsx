@@ -6,8 +6,9 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { GitBranch, Plus, X } from 'lucide-react'
+import { GitBranch, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ConfirmRemoveButton } from '@/components/confirm-remove-button'
 import { setReleaseAssetAction, removeReleaseAssetAction } from '../../actions'
 import type { ReleaseAssetChip } from '@/lib/db/queries'
 import type { PrStatus } from '@/lib/types'
@@ -179,9 +180,14 @@ function AssetVersionRow({
               <Button type="submit" size="sm" variant="outline" disabled={isPending}>
                 {saved ? 'Saved' : 'Save'}
               </Button>
-              <Button type="button" size="sm" variant="ghost" onClick={onRemove} disabled={isPending}>
-                <X className="h-3.5 w-3.5" />
-              </Button>
+              <ConfirmRemoveButton
+                size="sm"
+                label="Remove asset from release"
+                title="Remove this asset from the release?"
+                description={`This will remove "${asset.assetName}" and its version stamp from this release. This action cannot be undone.`}
+                disabled={isPending}
+                onConfirm={onRemove}
+              />
             </form>
           ) : (
             <div className="flex items-center gap-2 shrink-0">

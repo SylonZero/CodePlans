@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowRight, Plus, X, GitFork } from 'lucide-react'
+import { ArrowRight, Plus, GitFork } from 'lucide-react'
 import type { DependencyEdge } from '@/lib/db/queries'
+import { ConfirmRemoveButton } from '@/components/confirm-remove-button'
 import { addAssetDependencyAction, removeAssetDependencyAction } from '../../actions'
 
 const DEPENDENCY_TYPES = [
@@ -147,16 +148,14 @@ export function DependenciesSection({
                       {edge.description && (
                         <span className="text-muted-foreground truncate">— {edge.description}</span>
                       )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 ml-auto text-muted-foreground hover:text-destructive"
-                        title="Remove dependency"
+                      <ConfirmRemoveButton
+                        className="h-6 w-6 ml-auto"
+                        label="Remove dependency"
+                        title="Remove this dependency?"
+                        description={`This will remove the "${dependencyTypeLabel(edge.dependencyType)}" edge from ${group.name} to ${edge.targetAssetName}. This action cannot be undone.`}
                         disabled={isPending}
-                        onClick={() => startTransition(() => removeAssetDependencyAction(edge.id, productSlug))}
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </Button>
+                        onConfirm={() => startTransition(() => removeAssetDependencyAction(edge.id, productSlug))}
+                      />
                     </li>
                   ))}
                 </ul>
