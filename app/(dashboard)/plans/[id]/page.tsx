@@ -22,7 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Calendar, Users, AlertCircle } from 'lucide-react'
 import type { CodePlanStatus, CodePlanType } from '@/lib/types'
 import { cn, formatDate } from '@/lib/utils'
-import { PlanStatusButtons, PlanEditSheet, AddTaskDialog } from './plan-actions'
+import { PlanStatusButtons, PlanEditSheet, AddTaskDialog, DeletePlanButton } from './plan-actions'
 
 const statusStyles: Record<CodePlanStatus, string> = {
   draft: 'bg-muted text-muted-foreground',
@@ -129,6 +129,13 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
           />
           <PlanEditSheet plan={plan} members={teamMembers.map((m) => ({ id: m.userId, name: m.user.name }))} />
           <PlanStatusButtons plan={plan} />
+          <DeletePlanButton
+            planId={plan.id}
+            planTitle={plan.title}
+            taskCount={plan.taskCount}
+            targetAssetCount={plan.planAssets.length}
+            linkedWorkItemCount={linkedItems.length}
+          />
         </div>
       </div>
 

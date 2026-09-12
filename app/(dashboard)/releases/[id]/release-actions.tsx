@@ -10,9 +10,67 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Rocket, Play, Undo2, XCircle } from 'lucide-react'
-import { setReleaseStatusAction } from '../../actions'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import { Rocket, Play, Undo2, XCircle, Trash2 } from 'lucide-react'
+import { setReleaseStatusAction, deleteReleaseAction } from '../../actions'
 import type { ReleaseStatus } from '@/lib/types'
+
+export function DeleteReleaseButton({
+  releaseId,
+  releaseName,
+  assetCount,
+  planCount,
+}: {
+  releaseId: string
+  releaseName: string
+  assetCount: number
+  planCount: number
+}) {
+  const [isPending, startTransition] = useTransition()
+  const parts: string[] = []
+  if (assetCount > 0) parts.push(`${assetCount} version stamp${assetCount === 1 ? '' : 's'}`)
+  if (planCount > 0) parts.push(`detach ${planCount} attached plan${planCount === 1 ? '' : 's'} (not delete them)`)
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button size="sm" variant="outline" className="text-destructive hover:text-destructive">
+          <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+          Delete
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete &ldquo;{releaseName}&rdquo;?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will permanently delete this release{parts.length > 0 ? ` and ${parts.join(', and ')}` : ''}. This
+            action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            disabled={isPending}
+            onClick={() => startTransition(async () => { await deleteReleaseAction(releaseId) })}
+          >
+            {isPending ? 'Deleting…' : 'Delete Release'}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
 
 export function ReleaseActions({
   releaseId,

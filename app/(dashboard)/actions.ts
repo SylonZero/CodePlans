@@ -911,6 +911,7 @@ export async function deleteReleaseAction(id: string) {
   await requireUser()
   await deleteRelease(id, await currentEditor())
   revalidatePath('/releases')
+  redirect('/releases')
 }
 
 export async function attachPlanToReleaseAction(codePlanId: string, releaseId: string) {
