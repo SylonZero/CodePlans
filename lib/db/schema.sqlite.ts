@@ -30,7 +30,7 @@ export type PrStatus = 'none' | 'draft' | 'open' | 'merged' | 'closed'
 // Provider list is intentionally text (not enum) — new connectors must not need a migration.
 export type ItemSource = 'native' | 'github' | 'gitlab' | 'jira' | 'asana' | 'linear'
 export type IntegrationStatus = 'active' | 'paused' | 'error'
-export type SyncEntityType = 'work_item' | 'task' | 'code_plan' | 'asset' | 'product' | 'release'
+export type SyncEntityType = 'work_item' | 'task' | 'code_plan' | 'asset' | 'product' | 'release' | 'asset_dependency' | 'integration'
 export type ReleaseStatus = 'planned' | 'in_progress' | 'shipped' | 'abandoned'
 
 // ---------------------------------------------------------------------------
@@ -51,6 +51,11 @@ export const users = sqliteTable('users', {
 })
 
 export const organizations = sqliteTable('organizations', {
+  // Explicit attribution; null means the actor was not recorded (never infer from owner).
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByKind: text('updated_by_kind'),
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
@@ -58,9 +63,14 @@ export const organizations = sqliteTable('organizations', {
   billingTier: text('billing_tier').$type<BillingTier>().notNull().default('free'),
   productLimit: integer('product_limit').notNull().default(1),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 })
 
 export const organizationMembers = sqliteTable('organization_members', {
+  // Explicit attribution; who added this member. No updatedBy — the row is
+  // replaced (role edits are in-place, but membership itself isn't "edited").
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -89,6 +99,11 @@ export const integrations = sqliteTable('integrations', {
 })
 
 export const products = sqliteTable('products', {
+  // Explicit attribution; null means the actor was not recorded (never infer from owner).
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByKind: text('updated_by_kind'),
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
@@ -97,6 +112,7 @@ export const products = sqliteTable('products', {
   organizationId: text('organization_id').references(() => organizations.id, { onDelete: 'set null' }),
   creatorId: text('creator_id').notNull().references(() => users.id),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 })
 
 export const assets = sqliteTable('assets', {
@@ -129,6 +145,9 @@ export const assets = sqliteTable('assets', {
 // Declared responsibility (like code owners) — routing and visibility, not an ACL.
 // Explicit rather than derived: unlike plan assignees, there is no activity to derive it from.
 export const assetOwners = sqliteTable('asset_owners', {
+  // Who declared this ownership. No updatedBy — the row is deleted, not edited.
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   assetId: text('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -139,6 +158,9 @@ export const assetOwners = sqliteTable('asset_owners', {
 ])
 
 export const assetDependencies = sqliteTable('asset_dependencies', {
+  // Who recorded this edge. No updatedBy — the row is deleted, not edited.
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   sourceAssetId: text('source_asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
   targetAssetId: text('target_asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
@@ -342,6 +364,9 @@ export const workItems = sqliteTable('work_items', {
 ])
 
 export const workItemCodePlans = sqliteTable('work_item_code_plans', {
+  // Who linked this work item to the plan. No updatedBy — the row is deleted, not edited.
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   workItemId: text('work_item_id').notNull().references(() => workItems.id, { onDelete: 'cascade' }),
   codePlanId: text('code_plan_id').notNull().references(() => codePlans.id, { onDelete: 'cascade' }),
@@ -351,6 +376,11 @@ export const workItemCodePlans = sqliteTable('work_item_code_plans', {
 ])
 
 export const tasks = sqliteTable('tasks', {
+  // Explicit attribution; null means the actor was not recorded (never infer from assignee).
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByKind: text('updated_by_kind'),
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   codePlanId: text('code_plan_id').notNull().references(() => codePlans.id, { onDelete: 'cascade' }),
   assetId: text('asset_id').references(() => assets.id, { onDelete: 'set null' }),

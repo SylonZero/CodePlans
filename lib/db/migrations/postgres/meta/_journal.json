@@ -134,6 +134,13 @@
       "when": 1788838931659,
       "tag": "0018_wiki_attribution",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1789238901597,
+      "tag": "0019_deletion_phase0_attribution",
+      "breakpoints": true
     }
   ]
 }

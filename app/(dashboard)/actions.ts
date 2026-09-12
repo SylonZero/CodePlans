@@ -1,12 +1,13 @@
 'use server'
 
 import { getSpec, linkSpec } from '@/lib/db/specs'
+import { createdBy } from '@/lib/db/attribution'
 import { getWorkItem } from '@/lib/db/queries'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { authAdapter } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { users, organizationMembers, organizations, emailVerificationTokens, workItems, syncLog } from '@/lib/db/schema'
+import { users, organizationMembers, organizations, emailVerificationTokens } from '@/lib/db/schema'
 import { eq, and, gt } from 'drizzle-orm'
 import {
   updateIntegration,
@@ -88,33 +89,6 @@ async function getUserProfile(userId: string) {
   return db.query.users.findFirst({ where: eq(users.id, userId) })
 }
 
-/**
- * Append an event to sync_log — the activity stream. Never throws: activity
- * logging must not fail the mutation it accompanies.
- */
-async function logActivity(entry: {
-  entityType: 'work_item' | 'task' | 'code_plan' | 'asset' | 'product' | 'release'
-  entityId: string
-  event: string
-  actorId: string
-  payload?: Record<string, unknown>
-}) {
-  try {
-    const profile = await getUserProfile(entry.actorId)
-    if (!profile?.organizationId) return
-    await db.insert(syncLog).values({
-      organizationId: profile.organizationId,
-      entityType: entry.entityType,
-      entityId: entry.entityId,
-      event: entry.event,
-      actorId: entry.actorId,
-      payload: entry.payload ?? {},
-    })
-  } catch (err) {
-    console.error('[activity] log failed:', err)
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Products
 // ---------------------------------------------------------------------------
@@ -139,13 +113,6 @@ export async function createProductAction(formData: FormData) {
     authUser.id,
   )
 
-  await logActivity({
-    entityType: 'product',
-    entityId: product.id,
-    event: 'created',
-    actorId: authUser.id,
-    payload: { name: product.name },
-  })
   redirect(`/products/${product.slug}`)
 }
 
@@ -175,7 +142,7 @@ export async function deleteProductAction(id: string, slug: string) {
 // ---------------------------------------------------------------------------
 
 export async function createAssetAction(productId: string, productSlug: string, formData: FormData) {
-  const authUser = await requireUser()
+  await requireUser()
 
   const name = formData.get('name') as string
   const type = formData.get('type') as 'app' | 'service' | 'library' | 'datastore' | 'platform'
@@ -195,13 +162,6 @@ export async function createAssetAction(productId: string, productSlug: string, 
     repoPath,
     documentationUrl,
   }, await currentEditor())
-  await logActivity({
-    entityType: 'asset',
-    entityId: asset.id,
-    event: 'created',
-    actorId: authUser.id,
-    payload: { name: asset.name },
-  })
 
   revalidatePath(`/products/${productSlug}`)
 }
@@ -239,7 +199,7 @@ export async function updateAssetAction(id: string, productSlug: string, formDat
 
 export async function deleteAssetAction(id: string, productSlug: string) {
   await requireUser()
-  await deleteAsset(id)
+  await deleteAsset(id, await currentEditor())
   revalidatePath(`/products/${productSlug}`)
 }
 
@@ -247,7 +207,7 @@ export async function setAssetOwnersAction(assetId: string, productSlug: string,
   const authUser = await requireUser()
   const accessible = await getAssetOptions(authUser.id)
   if (!accessible.some((a) => a.id === assetId)) throw new Error('Asset not found or not accessible')
-  await setAssetOwners(assetId, userIds)
+  await setAssetOwners(assetId, userIds, await currentEditor())
   revalidatePath(`/products/${productSlug}`)
   revalidatePath(`/assets/${assetId}`)
   revalidatePath('/my-work')
@@ -297,13 +257,6 @@ export async function createCodePlanAction(formData: FormData) {
   )
 
   if (specId) await linkSpec(specId, 'code_plan', plan.id, 'references', authUser.id)
-  await logActivity({
-    entityType: 'code_plan',
-    entityId: plan.id,
-    event: 'created',
-    actorId: authUser.id,
-    payload: { title: plan.title },
-  })
   redirect(`/plans/${plan.id}`)
 }
 
@@ -324,31 +277,15 @@ export async function updateCodePlanAction(id: string, formData: FormData) {
 }
 
 export async function activatePlanAction(id: string) {
-  const authUser = await requireUser()
-  const plan = await updateCodePlan(id, { status: 'active' }, await currentEditor())
-  if (plan) {
-    await logActivity({
-      entityType: 'code_plan',
-      entityId: id,
-      event: 'activated',
-      actorId: authUser.id,
-      payload: { title: plan.title },
-    })
-  }
+  await requireUser()
+  await updateCodePlan(id, { status: 'active' }, await currentEditor())
   revalidatePath(`/plans/${id}`)
 }
 
 export async function completePlanAction(id: string) {
-  const authUser = await requireUser()
+  await requireUser()
   const plan = await updateCodePlan(id, { status: 'completed' }, await currentEditor())
   if (plan) {
-    await logActivity({
-      entityType: 'code_plan',
-      entityId: id,
-      event: 'completed',
-      actorId: authUser.id,
-      payload: { title: plan.title },
-    })
     // Write-back: comment on mirrored tracker issues linked to this plan.
     const { notifyPlanCompleted } = await import('@/lib/integrations/writeback')
     await notifyPlanCompleted(id)
@@ -369,13 +306,13 @@ export async function deleteCodePlanAction(id: string) {
 
 export async function addPlanAssetAction(codePlanId: string, assetId: string) {
   await requireUser()
-  await addPlanAsset(codePlanId, assetId)
+  await addPlanAsset(codePlanId, assetId, await currentEditor())
   revalidatePath(`/plans/${codePlanId}`)
 }
 
 export async function removePlanAssetAction(codePlanId: string, assetId: string) {
   await requireUser()
-  await removePlanAsset(codePlanId, assetId)
+  await removePlanAsset(codePlanId, assetId, await currentEditor())
   revalidatePath(`/plans/${codePlanId}`)
 }
 
@@ -386,7 +323,7 @@ export async function updatePlanAssetAction(codePlanId: string, assetId: string,
     prUrl: (formData.get('prUrl') as string) || null,
     prStatus: (formData.get('prStatus') as 'none' | 'draft' | 'open' | 'merged' | 'closed') || 'none',
     notes: (formData.get('notes') as string) || null,
-  })
+  }, await currentEditor())
   revalidatePath(`/plans/${codePlanId}`)
 }
 
@@ -395,7 +332,7 @@ export async function updatePlanAssetAction(codePlanId: string, assetId: string,
 // ---------------------------------------------------------------------------
 
 export async function createTaskAction(codePlanId: string, formData: FormData) {
-  const authUser = await requireUser()
+  await requireUser()
 
   const title = formData.get('title') as string
   const description = (formData.get('description') as string) || ''
@@ -405,7 +342,7 @@ export async function createTaskAction(codePlanId: string, formData: FormData) {
   const assigneeId = (formData.get('assigneeId') as string) || undefined
   const assetId = (formData.get('assetId') as string) || undefined
 
-  const task = await createTask({
+  await createTask({
     codePlanId,
     title,
     description,
@@ -416,14 +353,7 @@ export async function createTaskAction(codePlanId: string, formData: FormData) {
     assetId: assetId || undefined,
     startDate: (formData.get('startDate') as string) || undefined,
     endDate: (formData.get('endDate') as string) || undefined,
-  })
-  await logActivity({
-    entityType: 'task',
-    entityId: task.id,
-    event: 'created',
-    actorId: authUser.id,
-    payload: { title: task.title },
-  })
+  }, await currentEditor())
 
   revalidatePath(`/plans/${codePlanId}`)
   revalidatePath('/tasks')
@@ -453,7 +383,7 @@ export async function updateTaskAction(id: string, formData: FormData) {
     percentComplete: formData.get('percentComplete') ? parseInt(formData.get('percentComplete') as string, 10) : undefined,
     startDate: (formData.get('startDate') as string) || undefined,
     endDate: (formData.get('endDate') as string) || undefined,
-  })
+  }, await currentEditor())
 
   revalidatePath('/tasks')
   revalidatePath('/plans/[id]', 'page')
@@ -461,17 +391,8 @@ export async function updateTaskAction(id: string, formData: FormData) {
 }
 
 export async function updateTaskStatusAction(id: string, status: 'not_started' | 'in_progress' | 'done') {
-  const authUser = await requireUser()
-  const task = await updateTaskStatus(id, status)
-  if (task && status === 'done') {
-    await logActivity({
-      entityType: 'task',
-      entityId: id,
-      event: 'completed',
-      actorId: authUser.id,
-      payload: { title: task.title },
-    })
-  }
+  await requireUser()
+  await updateTaskStatus(id, status, await currentEditor())
   revalidatePath('/tasks')
   revalidatePath('/plans/[id]', 'page')
   revalidatePath('/plans')
@@ -479,7 +400,7 @@ export async function updateTaskStatusAction(id: string, status: 'not_started' |
 
 export async function deleteTaskAction(id: string, planId: string) {
   await requireUser()
-  await deleteTask(id)
+  await deleteTask(id, await currentEditor())
   revalidatePath(`/plans/${planId}`)
   revalidatePath('/tasks')
 }
@@ -510,6 +431,7 @@ export async function inviteMemberAction(formData: FormData) {
     organizationId: profile.organizationId,
     role,
     joinedAt: new Date(),
+    ...createdBy({ id: authUser.id }),
   })
 
   revalidatePath('/team')
@@ -689,19 +611,12 @@ export async function createWorkItemAction(formData: FormData) {
   )
 
   if (specId) await linkSpec(specId, 'work_item', item.id, undefined, authUser.id)
-  await logActivity({
-    entityType: 'work_item',
-    entityId: item.id,
-    event: 'created',
-    actorId: authUser.id,
-    payload: { title: item.title, type: item.type },
-  })
   revalidatePath('/work-items')
   return { id: item.id }
 }
 
 export async function updateWorkItemAction(id: string, formData: FormData) {
-  const authUser = await requireUser()
+  await requireUser()
 
   const item = await updateWorkItem(id, {
     title: formData.get('title') as string,
@@ -717,72 +632,32 @@ export async function updateWorkItemAction(id: string, formData: FormData) {
   }, await currentEditor())
   if (!item) return { error: 'Work item not found.' }
 
-  await logActivity({
-    entityType: 'work_item',
-    entityId: id,
-    event: 'updated',
-    actorId: authUser.id,
-    payload: { title: item.title },
-  })
   revalidatePath('/work-items')
   return { id }
 }
 
 export async function updateWorkItemStatusAction(id: string, status: WorkItemStatus) {
-  const authUser = await requireUser()
-  const item = await updateWorkItemStatus(id, status, await currentEditor())
-  if (item) {
-    await logActivity({
-      entityType: 'work_item',
-      entityId: id,
-      event: 'status_changed',
-      actorId: authUser.id,
-      payload: { title: item.title, status },
-    })
-  }
+  await requireUser()
+  await updateWorkItemStatus(id, status, await currentEditor())
   revalidatePath('/work-items')
 }
 
 export async function deleteWorkItemAction(id: string) {
-  const authUser = await requireUser()
-  const item = await db.query.workItems.findFirst({ where: eq(workItems.id, id) })
-  const deleted = await deleteWorkItem(id)
-  if (deleted) {
-    await logActivity({
-      entityType: 'work_item',
-      entityId: id,
-      event: 'deleted',
-      actorId: authUser.id,
-      payload: { title: item?.title },
-    })
-  }
+  await requireUser()
+  await deleteWorkItem(id, await currentEditor())
   revalidatePath('/work-items')
 }
 
 export async function linkWorkItemToPlanAction(workItemId: string, codePlanId: string) {
-  const authUser = await requireUser()
-  await linkWorkItemToPlan(workItemId, codePlanId)
-  await logActivity({
-    entityType: 'work_item',
-    entityId: workItemId,
-    event: 'linked_to_plan',
-    actorId: authUser.id,
-    payload: { codePlanId },
-  })
+  await requireUser()
+  await linkWorkItemToPlan(workItemId, codePlanId, await currentEditor())
   revalidatePath('/work-items')
   revalidatePath(`/plans/${codePlanId}`)
 }
 
 export async function unlinkWorkItemFromPlanAction(workItemId: string, codePlanId: string) {
-  const authUser = await requireUser()
-  await unlinkWorkItemFromPlan(workItemId, codePlanId)
-  await logActivity({
-    entityType: 'work_item',
-    entityId: workItemId,
-    event: 'unlinked_from_plan',
-    actorId: authUser.id,
-    payload: { codePlanId },
-  })
+  await requireUser()
+  await unlinkWorkItemFromPlan(workItemId, codePlanId, await currentEditor())
   revalidatePath('/work-items')
   revalidatePath(`/plans/${codePlanId}`)
 }
@@ -800,13 +675,13 @@ export async function addAssetDependencyAction(productSlug: string, formData: Fo
       (formData.get('dependencyType') as 'depends_on' | 'integrates_with' | 'aggregates') ||
       'depends_on',
     description: (formData.get('description') as string) || undefined,
-  })
+  }, await currentEditor())
   revalidatePath(`/products/${productSlug}`)
 }
 
 export async function removeAssetDependencyAction(id: string, productSlug: string) {
   await requireUser()
-  await deleteAssetDependency(id)
+  await deleteAssetDependency(id, await currentEditor())
   revalidatePath(`/products/${productSlug}`)
 }
 
@@ -837,7 +712,7 @@ export async function createIntegrationAction(formData: FormData) {
     authRef,
     token,
     config: { repo, baseUrl, productId },
-  })
+  }, await currentEditor())
 
   revalidatePath('/integrations')
   return {}
@@ -862,14 +737,14 @@ export async function updateIntegrationAction(id: string, formData: FormData) {
     token,
     ...(authRef !== undefined ? { authRef } : {}),
     config: { repo, baseUrl, productId },
-  })
+  }, await currentEditor())
   revalidatePath('/integrations')
   return { ok: true as const }
 }
 
 export async function deleteIntegrationAction(id: string) {
   await requireUser()
-  await deleteIntegration(id)
+  await deleteIntegration(id, await currentEditor())
   revalidatePath('/integrations')
 }
 
@@ -918,7 +793,7 @@ export async function linkPlanScopeAction(
   scopeTitle: string,
   scopeUrl?: string,
 ) {
-  const authUser = await requireUser()
+  await requireUser()
   const { integrations } = await import('@/lib/db/schema')
   const integration = await db.query.integrations.findFirst({
     where: eq(integrations.id, connectionId),
@@ -931,14 +806,7 @@ export async function linkPlanScopeAction(
     externalId: scopeId,
     externalKey: scopeTitle,
     externalUrl: scopeUrl,
-  })
-  await logActivity({
-    entityType: 'code_plan',
-    entityId: planId,
-    event: 'linked_external_scope',
-    actorId: authUser.id,
-    payload: { scopeTitle },
-  })
+  }, await currentEditor())
 
   // Pull the scope's tasks immediately for instant feedback.
   const { syncConnection } = await import('@/lib/integrations/sync')
@@ -950,14 +818,8 @@ export async function linkPlanScopeAction(
 }
 
 export async function unlinkPlanScopeAction(planId: string) {
-  const authUser = await requireUser()
-  await unlinkPlanFromExternalScope(planId)
-  await logActivity({
-    entityType: 'code_plan',
-    entityId: planId,
-    event: 'unlinked_external_scope',
-    actorId: authUser.id,
-  })
+  await requireUser()
+  await unlinkPlanFromExternalScope(planId, await currentEditor())
   revalidatePath(`/plans/${planId}`)
   revalidatePath('/tasks')
 }
@@ -986,7 +848,7 @@ export async function revokeApiKeyAction(id: string) {
 // Narrow row-level edits (inline list editing)
 export async function updateTaskPriorityAction(id: string, priority: 'low' | 'medium' | 'high' | 'critical') {
   await requireUser()
-  await updateTask(id, { priority })
+  await updateTask(id, { priority }, await currentEditor())
   revalidatePath('/tasks')
   revalidatePath('/plans/[id]', 'page')
   revalidatePath('/plans')
@@ -995,7 +857,7 @@ export async function updateTaskPriorityAction(id: string, priority: 'low' | 'me
 export async function moveTaskToPlanAction(id: string, codePlanId: string) {
   await requireUser()
   const { moveTaskToPlan } = await import('@/lib/db/mutations')
-  await moveTaskToPlan(id, codePlanId)
+  await moveTaskToPlan(id, codePlanId, await currentEditor())
   revalidatePath('/tasks')
   revalidatePath('/plans/[id]', 'page')
   revalidatePath('/plans')
@@ -1003,7 +865,7 @@ export async function moveTaskToPlanAction(id: string, codePlanId: string) {
 
 export async function updateTaskAssigneeAction(id: string, assigneeId: string | null) {
   await requireUser()
-  await updateTask(id, { assigneeId })
+  await updateTask(id, { assigneeId }, await currentEditor())
   revalidatePath('/tasks')
   revalidatePath('/plans/[id]', 'page')
 }
@@ -1023,13 +885,6 @@ export async function createReleaseAction(formData: FormData) {
     },
     authUser.id,
   )
-  await logActivity({
-    entityType: 'release',
-    entityId: release.id,
-    event: 'created',
-    actorId: authUser.id,
-    payload: { name: release.name },
-  })
   revalidatePath('/releases')
   return release.id
 }
@@ -1046,39 +901,21 @@ export async function updateReleaseAction(id: string, formData: FormData) {
 }
 
 export async function setReleaseStatusAction(id: string, status: 'planned' | 'in_progress' | 'shipped' | 'abandoned') {
-  const authUser = await requireUser()
-  const release = await updateRelease(id, { status }, await currentEditor())
-  if (release) {
-    await logActivity({
-      entityType: 'release',
-      entityId: id,
-      event: status === 'shipped' ? 'shipped' : 'status_changed',
-      actorId: authUser.id,
-      payload: { name: release.name, status },
-    })
-  }
+  await requireUser()
+  await updateRelease(id, { status }, await currentEditor())
   revalidatePath(`/releases/${id}`)
   revalidatePath('/releases')
 }
 
 export async function deleteReleaseAction(id: string) {
   await requireUser()
-  await deleteRelease(id)
+  await deleteRelease(id, await currentEditor())
   revalidatePath('/releases')
 }
 
 export async function attachPlanToReleaseAction(codePlanId: string, releaseId: string) {
-  const authUser = await requireUser()
-  const plan = await attachPlanToRelease(codePlanId, releaseId, await currentEditor())
-  if (plan) {
-    await logActivity({
-      entityType: 'release',
-      entityId: releaseId,
-      event: 'plan_attached',
-      actorId: authUser.id,
-      payload: { planId: codePlanId, planTitle: plan.title },
-    })
-  }
+  await requireUser()
+  await attachPlanToRelease(codePlanId, releaseId, await currentEditor())
   revalidatePath(`/releases/${releaseId}`)
   revalidatePath(`/plans/${codePlanId}`)
 }
@@ -1091,25 +928,16 @@ export async function detachPlanFromReleaseAction(codePlanId: string, releaseId:
 }
 
 export async function setReleaseAssetAction(releaseId: string, assetId: string, formData: FormData) {
-  const authUser = await requireUser()
+  await requireUser()
   const version = ((formData.get('version') as string) || '').trim()
   const notes = ((formData.get('notes') as string) || '').trim()
-  await setReleaseAsset(releaseId, assetId, { version: version || null, notes: notes || null })
-  if (version) {
-    await logActivity({
-      entityType: 'release',
-      entityId: releaseId,
-      event: 'asset_versioned',
-      actorId: authUser.id,
-      payload: { assetId, version },
-    })
-  }
+  await setReleaseAsset(releaseId, assetId, { version: version || null, notes: notes || null }, await currentEditor())
   revalidatePath(`/releases/${releaseId}`)
 }
 
 export async function removeReleaseAssetAction(releaseId: string, assetId: string) {
   await requireUser()
-  await removeReleaseAsset(releaseId, assetId)
+  await removeReleaseAsset(releaseId, assetId, await currentEditor())
   revalidatePath(`/releases/${releaseId}`)
 }
 
@@ -1121,7 +949,7 @@ export async function addDesignNoteAction(assetId: string, formData: FormData) {
   const authUser = await requireUser()
   const releaseId = (formData.get('releaseId') as string) || undefined
   const codePlanId = (formData.get('codePlanId') as string) || undefined
-  const note = await createDesignNote({
+  await createDesignNote({
     assetId,
     title: formData.get('title') as string,
     body: (formData.get('body') as string) || '',
@@ -1130,19 +958,12 @@ export async function addDesignNoteAction(assetId: string, formData: FormData) {
     authorKind: 'user',
     authorId: authUser.id,
   })
-  await logActivity({
-    entityType: 'asset',
-    entityId: assetId,
-    event: 'design_note_added',
-    actorId: authUser.id,
-    payload: { title: note.title },
-  })
   revalidatePath(`/assets/${assetId}`)
 }
 
 export async function deleteDesignNoteAction(noteId: string, assetId: string) {
   await requireUser()
-  await deleteDesignNote(noteId)
+  await deleteDesignNote(noteId, await currentEditor())
   revalidatePath(`/assets/${assetId}`)
 }
 
@@ -1151,18 +972,9 @@ export async function deleteDesignNoteAction(noteId: string, assetId: string) {
 // ---------------------------------------------------------------------------
 
 export async function setPlanReleaseAction(codePlanId: string, releaseId: string | null) {
-  const authUser = await requireUser()
+  await requireUser()
   if (releaseId) {
-    const plan = await attachPlanToRelease(codePlanId, releaseId, await currentEditor())
-    if (plan) {
-      await logActivity({
-        entityType: 'release',
-        entityId: releaseId,
-        event: 'plan_attached',
-        actorId: authUser.id,
-        payload: { planId: codePlanId, planTitle: plan.title },
-      })
-    }
+    await attachPlanToRelease(codePlanId, releaseId, await currentEditor())
     revalidatePath(`/releases/${releaseId}`)
   } else {
     await detachPlanFromRelease(codePlanId, await currentEditor())
@@ -1224,15 +1036,6 @@ export async function graduateWorkItemAction(workItemId: string, assetId: string
   if (!item || item.assetId !== assetId) throw new Error('Work item not found or not accessible on this asset')
   const result = await graduateWorkItem(workItemId, sourceSpecId, await currentEditor())
   if ('error' in result) throw new Error(result.error)
-  if (!result.existed) {
-    await logActivity({
-      entityType: 'asset',
-      entityId: assetId,
-      event: 'capability_graduated',
-      actorId: authUser.id,
-      payload: { title: result.capability.title },
-    })
-  }
   revalidatePath(`/assets/${assetId}`)
   revalidatePath('/work-items')
 }
@@ -1248,16 +1051,7 @@ export async function updateCapabilityAction(id: string, assetId: string, formDa
 }
 
 export async function removeCapabilityAction(id: string, assetId: string, reason: string) {
-  const authUser = await requireUser()
-  const removed = await removeCapability(id, reason.trim() || undefined, await currentEditor())
-  if (removed) {
-    await logActivity({
-      entityType: 'asset',
-      entityId: assetId,
-      event: 'capability_removed',
-      actorId: authUser.id,
-      payload: { title: removed.title },
-    })
-  }
+  await requireUser()
+  await removeCapability(id, reason.trim() || undefined, await currentEditor())
   revalidatePath(`/assets/${assetId}`)
 }
