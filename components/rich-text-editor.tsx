@@ -21,6 +21,7 @@ import {
   Table as TableIcon,
   Undo,
   Redo,
+  Workflow,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -141,6 +142,21 @@ function Toolbar({ editor }: { editor: Editor }) {
       </ToolbarButton>
       <ToolbarButton title="Code block" active={editor.isActive('codeBlock')} onClick={() => c().toggleCodeBlock().run()}>
         <SquareCode className="h-3.5 w-3.5" />
+      </ToolbarButton>
+      <ToolbarButton
+        title="Mermaid diagram"
+        active={editor.isActive('codeBlock', { language: 'mermaid' })}
+        onClick={() =>
+          c()
+            .insertContent({
+              type: 'codeBlock',
+              attrs: { language: 'mermaid' },
+              content: [{ type: 'text', text: 'flowchart TD\n  A[Start] --> B[End]' }],
+            })
+            .run()
+        }
+      >
+        <Workflow className="h-3.5 w-3.5" />
       </ToolbarButton>
       <ToolbarButton
         title="Insert table"
