@@ -28,5 +28,6 @@ describe('MarkdownContent', () => {
     expect(html).toContain('flowchart TD')
     expect(html).toContain('A --&gt; B')
     expect(html).not.toContain('language-mermaid')
+    expect(html).not.toContain('Expand')
   })
 })
