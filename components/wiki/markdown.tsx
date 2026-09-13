@@ -2,6 +2,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
 import { remarkWikiAnchors, resolveWikiLink } from '@/lib/wiki/markdown'
+import { markdownPreWithMermaid } from '@/components/mermaid-diagram'
 export function WikiMarkdown({
   body,
   sourceUrl,
@@ -58,6 +59,7 @@ export function WikiMarkdown({
               <table {...props} />
             </div>
           ),
+          pre: markdownPreWithMermaid,
         }}
       >
         {body}

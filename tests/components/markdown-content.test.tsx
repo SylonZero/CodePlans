@@ -22,4 +22,11 @@ describe('MarkdownContent', () => {
     expect(html).toContain('const x = 1\n\n  x + 1')
     expect(html).not.toContain('href="javascript:')
   })
+  it('renders mermaid fences through the diagram widget, showing source before client-side render', () => {
+    const html = renderToStaticMarkup(createElement(MarkdownContent, { children: '```mermaid\nflowchart TD\n  A --> B\n```' }))
+    expect(html).toContain('Diagram')
+    expect(html).toContain('flowchart TD')
+    expect(html).toContain('A --&gt; B')
+    expect(html).not.toContain('language-mermaid')
+  })
 })
