@@ -22,6 +22,7 @@ export const {
   products,
   assets,
   assetOwners,
+  productMembers,
   assetDependencies,
   codePlans,
   codePlanAssets,

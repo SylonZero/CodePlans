@@ -1137,3 +1137,35 @@ export async function removeCapabilityAction(id: string, assetId: string, reason
   await removeCapability(id, reason.trim() || undefined, await currentEditor())
   revalidatePath(`/assets/${assetId}`)
 }
+
+// ---------------------------------------------------------------------------
+// Product responsibilities (engineering manager / architect / contributor)
+// ---------------------------------------------------------------------------
+
+export async function addProductMemberAction(productId: string, productSlug: string, formData: FormData) {
+  const authUser = await requireUser()
+  const { addProductMember, isResponsibility } = await import('@/lib/db/responsibilities')
+  const responsibility = String(formData.get('responsibility') ?? '')
+  const userId = String(formData.get('userId') ?? '')
+  if (!userId) return { error: 'Choose a person.' }
+  if (!isResponsibility(responsibility)) return { error: 'Choose a responsibility.' }
+  try {
+    await addProductMember({ productId, userId, responsibility, area: (formData.get('area') as string) || null }, { id: authUser.id })
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Could not add responsibility.' }
+  }
+  revalidatePath(`/products/${productSlug}`)
+  return {}
+}
+
+export async function removeProductMemberAction(id: string, productSlug: string) {
+  const authUser = await requireUser()
+  const { removeProductMember } = await import('@/lib/db/responsibilities')
+  try {
+    await removeProductMember(id, { id: authUser.id })
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Could not remove responsibility.' }
+  }
+  revalidatePath(`/products/${productSlug}`)
+  return {}
+}

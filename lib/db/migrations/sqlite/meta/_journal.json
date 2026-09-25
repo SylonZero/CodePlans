@@ -176,6 +176,13 @@
       "when": 1790377210127,
       "tag": "0024_spec_revisions",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1790377443668,
+      "tag": "0025_product_members",
+      "breakpoints": true
     }
   ]
 }

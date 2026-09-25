@@ -32,6 +32,7 @@ export type ItemSource = 'native' | 'github' | 'gitlab' | 'jira' | 'asana' | 'li
 export type IntegrationStatus = 'active' | 'paused' | 'error'
 export type SyncEntityType = 'work_item' | 'task' | 'code_plan' | 'asset' | 'product' | 'release' | 'asset_dependency' | 'integration' | 'spec'
 export type ActorKind = 'user' | 'agent' | 'connector'
+export type ProductResponsibility = 'eng_manager' | 'architect' | 'contributor'
 export type ReleaseStatus = 'planned' | 'in_progress' | 'shipped' | 'abandoned'
 
 // ---------------------------------------------------------------------------
@@ -171,6 +172,24 @@ export const assetOwners = sqliteTable('asset_owners', {
 }, (t) => [
   uniqueIndex('asset_owners_asset_user_idx').on(t.assetId, t.userId),
   index('asset_owners_user_idx').on(t.userId),
+])
+
+// Scoped engineering responsibilities on a product. These route reviews,
+// notifications and My Work; they never grant permissions (org role does).
+// Code owners live in asset_owners; developers follow from task assignment.
+// area '' means the whole product (kept non-null so the unique index holds).
+export const productMembers = sqliteTable('product_members', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  productId: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  responsibility: text('responsibility').$type<ProductResponsibility>().notNull(),
+  area: text('area').notNull().default(''),
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('product_members_unique_idx').on(t.productId, t.userId, t.responsibility, t.area),
+  index('product_members_user_idx').on(t.userId),
 ])
 
 export const assetDependencies = sqliteTable('asset_dependencies', {

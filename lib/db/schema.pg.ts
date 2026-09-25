@@ -178,6 +178,24 @@ export const assetOwners = pgTable('asset_owners', {
   index('asset_owners_user_idx').on(t.userId),
 ])
 
+// Scoped engineering responsibilities on a product. These route reviews,
+// notifications and My Work; they never grant permissions (org role does).
+// Code owners live in asset_owners; developers follow from task assignment.
+// area '' means the whole product (kept non-null so the unique index holds).
+export const productMembers = pgTable('product_members', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  responsibility: text('responsibility').notNull(), // 'eng_manager' | 'architect' | 'contributor'
+  area: text('area').notNull().default(''),
+  createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('product_members_unique_idx').on(t.productId, t.userId, t.responsibility, t.area),
+  index('product_members_user_idx').on(t.userId),
+])
+
 export const assetDependencies = pgTable('asset_dependencies', {
   // Who recorded this edge. No updatedBy — the row is deleted, not edited.
   createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),

@@ -292,6 +292,46 @@ const handler = createMcpHandler(
     )
 
     server.tool(
+      'list_product_people',
+      "Who holds which responsibility on a product: engineering managers, architects (optionally per area), contributors, and code owners derived from asset owners. Responsibilities route reviews and notifications; they don't grant permissions.",
+      { productId: z.string() },
+      async ({ productId }, extra) => {
+        const { getProductPeople } = await import('@/lib/db/responsibilities')
+        return json(await getProductPeople(productId, uid(extra)))
+      },
+    )
+
+    server.tool(
+      'assign_responsibility',
+      "Give a workspace member a responsibility on a product: eng_manager, architect (area optional, matching specs.area) or contributor. Code owners are set per asset with update_asset ownerEmails. Only org owners/admins and the product's engineering managers may assign.",
+      {
+        productId: z.string(),
+        email: z.string(),
+        responsibility: z.enum(['eng_manager', 'architect', 'contributor']),
+        area: z.string().optional(),
+      },
+      async ({ productId, email, responsibility, area }, extra) => {
+        requireWrite(extra)
+        const userId = uid(extra)
+        const { addProductMember } = await import('@/lib/db/responsibilities')
+        const memberId = await resolveAssigneeEmail(userId, email)
+        if (!memberId) return json({ error: `No workspace member with email ${email}` })
+        return json(await addProductMember({ productId, userId: memberId, responsibility, area }, { id: userId, kind: 'agent' }))
+      },
+    )
+
+    server.tool(
+      'remove_responsibility',
+      'Remove a responsibility assignment by its id (from list_product_people).',
+      { id: z.string() },
+      async ({ id }, extra) => {
+        requireWrite(extra)
+        const { removeProductMember } = await import('@/lib/db/responsibilities')
+        return json((await removeProductMember(id, { id: uid(extra), kind: 'agent' })) ?? { error: 'Assignment not found' })
+      },
+    )
+
+    server.tool(
       'restore_product',
       'Restore a previously archived product, making it and everything beneath it visible and writable again. Same authorization as archive_product.',
       { id: z.string() },
