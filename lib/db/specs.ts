@@ -1,8 +1,8 @@
 import { createdBy, editedBy, type ArtifactActor } from './attribution'
-import { and, eq, inArray, isNull, or } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from './index'
-import { assets, codePlans, codePlanAssets, products, specs, specLinks, specEvents, workItems, workItemCodePlans } from './schema'
+import { assets, codePlans, codePlanAssets, products, specs, specLinks, specEvents, specRevisions, users, workItems, workItemCodePlans } from './schema'
 import { productAccessWhere } from './queries'
 import { assertCanWrite } from './authz'
 import { logAudit } from './audit'
@@ -24,13 +24,25 @@ export const specUpdateFields = {
   body: z.string().max(500_000).optional(),
   status: z.enum(['draft', 'active', 'archived']).optional(),
   expectedVersion: z.number().int().positive().optional(),
+  changeSummary: z.string().trim().max(500).optional(),
 }
-export const specUpdateInput = z.object(specUpdateFields).refine((d) => Object.entries(d).some(([key, value]) => key !== 'expectedVersion' && value !== undefined), 'Provide body or status or metadata')
+export const specUpdateInput = z.object(specUpdateFields).refine((d) => Object.entries(d).some(([key, value]) => key !== 'expectedVersion' && key !== 'changeSummary' && value !== undefined), 'Provide body or status or metadata')
 export type SpecTargetType = z.infer<typeof specTargetType>
 export type SpecRelationshipType = z.infer<typeof specRelationshipType>
 export type Spec = typeof specs.$inferSelect
 export type SpecLink = typeof specLinks.$inferSelect
 export type SpecDb = Pick<typeof db, 'select' | 'insert' | 'update' | 'delete'>
+export type SpecRevision = typeof specRevisions.$inferSelect
+
+/** Snapshot the spec's content as of its current version. Call inside the writing transaction. */
+export async function recordRevision(d: SpecDb, spec: Spec, actor?: ArtifactActor, changeSummary?: string) {
+  const [row] = await d.insert(specRevisions).values({
+    specId: spec.id, version: spec.version, title: spec.title, body: spec.body, specType: spec.specType,
+    area: spec.area, status: spec.status, changeSummary: changeSummary ?? null,
+    createdById: actor?.id ?? null, createdByKind: actor ? (actor.kind ?? 'user') : null,
+  }).returning()
+  return row
+}
 
 export async function assertSpecProductAccess(userId: string, productId: string) {
   const [row] = await db.select({ id: products.id }).from(products)
@@ -98,8 +110,13 @@ export async function createSpec(input: z.input<typeof specInput>, userId: strin
   const data = specInput.parse(input)
   if (data.sourceType === 'git_import' && !data.sourceUrl) throw new Error('Git imports require sourceUrl')
   await assertSpecProductWrite(userId, data.productId)
-  const [row] = await db.insert(specs).values({ ...data, authorType, ...createdBy({ id: userId, kind: authorType }) }).returning()
-  await auditSpec(row, 'created', { id: userId, kind: authorType })
+  const actor = { id: userId, kind: authorType }
+  const row = await db.transaction(async (tx) => {
+    const [created] = await tx.insert(specs).values({ ...data, authorType, ...createdBy(actor) }).returning()
+    await recordRevision(tx, created, actor)
+    return created
+  })
+  await auditSpec(row, 'created', actor)
   return row
 }
 
@@ -131,6 +148,7 @@ export async function reviseSpec(d: SpecDb, id: string, input: z.input<typeof sp
     ...editedBy(actor), version: old.version + 1, updatedAt: new Date(),
   }).where(and(eq(specs.id, id), eq(specs.version, old.version), eq(specs.status, old.status))).returning()
   if (!row) throw new Error('Spec changed; reload before saving')
+  await recordRevision(d, row, actor, data.changeSummary)
   const links = await d.select().from(specLinks).where(eq(specLinks.specId, id))
   const events = await emitSpecEvents(d, row, links, 'spec_updated', old.version, noteId)
   return { spec: row, events }
@@ -192,6 +210,7 @@ export async function supersedeSpec(oldId: string, newBody: string, title: strin
   const next = await db.transaction(async (tx) => {
     if (old.status === 'superseded' || old.supersededBy) throw new Error('Spec is already superseded')
     const [next] = await tx.insert(specs).values({ ...data, ...createdBy({ id: userId, kind: authorType }), supersedes: oldId, authorType, needsReview: old.needsReview }).returning()
+    await recordRevision(tx, next, actor, `Replaces "${old.title}" v${old.version}`)
     const [changed] = await tx.update(specs).set({ status: 'superseded', supersededBy: next.id, ...editedBy({ id: userId, kind: authorType }), updatedAt: new Date() })
       .where(and(eq(specs.id, oldId), eq(specs.version, old.version), isNull(specs.supersededBy))).returning()
     if (!changed) throw new Error('Spec changed; reload before superseding')
@@ -210,6 +229,24 @@ export async function getSpec(id: string, userId: string) {
   await assertSpecProductAccess(userId, spec.productId)
   const links = await db.select().from(specLinks).where(eq(specLinks.specId, id))
   return { ...spec, links }
+}
+
+/** Version history, newest first, with author names. Bodies included: specs are small and diffs need them. */
+export async function listSpecRevisions(specId: string, userId: string) {
+  const spec = await requireSpec(specId)
+  await assertSpecProductAccess(userId, spec.productId)
+  return db.select({ revision: specRevisions, authorName: users.name }).from(specRevisions)
+    .leftJoin(users, eq(specRevisions.createdById, users.id))
+    .where(eq(specRevisions.specId, specId)).orderBy(desc(specRevisions.version))
+    .then((rows) => rows.map((r) => ({ ...r.revision, authorName: r.authorName })))
+}
+
+/** The document as it read at a pinned version, or null when that version predates retention. */
+export async function getSpecRevision(specId: string, version: number, userId: string) {
+  const spec = await requireSpec(specId)
+  await assertSpecProductAccess(userId, spec.productId)
+  const [row] = await db.select().from(specRevisions).where(and(eq(specRevisions.specId, specId), eq(specRevisions.version, version)))
+  return row ?? null
 }
 
 export async function listSpecs(userId: string, filters: { productId?: string; targetType?: SpecTargetType; targetId?: string; specType?: string } = {}) {

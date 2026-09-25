@@ -84,6 +84,7 @@ export function SpecEditor({ spec }: { spec: Spec }) {
   const [specType, setSpecType] = useState(spec.specType)
   const [area, setArea] = useState(spec.area ?? '')
   const [needsReview, setNeedsReview] = useState(spec.needsReview)
+  const [changeSummary, setChangeSummary] = useState('')
   const [error, setError] = useState('')
   const [pending, start] = useTransition()
   const router = useRouter()
@@ -92,7 +93,7 @@ export function SpecEditor({ spec }: { spec: Spec }) {
     setError('')
     try {
       if (replace) { const next = await supersedeSpecAction(spec.id, body, title); router.push(`/specs/${next.id}`) }
-      else { await updateSpecAction(spec.id, { body, title, specType, area: area || null, needsReview, status: status as 'draft' | 'active' | 'archived', expectedVersion: spec.version }); router.refresh() }
+      else { await updateSpecAction(spec.id, { body, title, specType, area: area || null, needsReview, status: status as 'draft' | 'active' | 'archived', expectedVersion: spec.version, changeSummary: changeSummary.trim() || undefined }); router.refresh() }
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not save') }
   }) }
   return <details className="rounded-lg border p-4"><summary className="cursor-pointer font-medium">Edit or replace this spec</summary><div className="mt-4 space-y-4">
@@ -102,6 +103,7 @@ export function SpecEditor({ spec }: { spec: Spec }) {
     {spec.sourceType === 'git_import' && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={needsReview} onChange={(e) => setNeedsReview(e.target.checked)} />Needs import review</label>}
     <RichTextEditor value={spec.body} onChange={setBody} size="tall" />
     <label className="block text-sm">Status<select aria-label="Spec status" className={selectClass} value={status} onChange={(e) => setStatus(e.target.value)}><option value="draft">Draft</option><option value="active">Active</option><option value="archived">Archived</option></select></label>
+    <Input aria-label="Change summary" placeholder="What changed in this version? (optional)" value={changeSummary} onChange={(e) => setChangeSummary(e.target.value)} maxLength={500} />
     <Button disabled={pending || !title.trim() || !specType.trim()} onClick={() => save(false)}>Save as v{spec.version + 1}</Button>
     <div className="space-y-2 border-t pt-4"><p className="text-sm text-muted-foreground">Changed the approach? Replace this spec with a new draft. Existing delivery receipts stay with this version.</p>
     <Button variant="outline" disabled={pending || !title.trim()} onClick={() => save(true)}>Supersede with new spec</Button></div>

@@ -1,4 +1,4 @@
-import { createSpec, updateSpec, supersedeSpec, linkSpec, unlinkSpec, getSpec, listSpecs, specInput, specUpdateInput, specUpdateFields, specTargetType, specRelationshipType } from '@/lib/db/specs'
+import { createSpec, updateSpec, supersedeSpec, linkSpec, unlinkSpec, getSpec, listSpecs, listSpecRevisions, getSpecRevision, specInput, specUpdateInput, specUpdateFields, specTargetType, specRelationshipType } from '@/lib/db/specs'
 import { createMcpHandler, withMcpAuth } from 'mcp-handler'
 import { z } from 'zod'
 import { verifyApiKey } from '@/lib/mcp/auth'
@@ -108,6 +108,11 @@ const handler = createMcpHandler(
       async ({ specLinkId }, extra) => { requireWrite(extra); return json(await unlinkSpec(specLinkId, uid(extra))) })
     server.tool('get_spec', 'Read a spec body, current version, provenance, supersession pointers, and all associations.', { id: z.string() },
       async ({ id }, extra) => json(await getSpec(id, uid(extra))))
+    server.tool('list_spec_revisions', 'List every retained version of a spec, newest first: version, status, change summary, author and time. Versions created before history was retained are absent.', { id: z.string() },
+      async ({ id }, extra) => json((await listSpecRevisions(id, uid(extra))).map(({ body: _body, ...meta }) => meta)))
+    server.tool('get_spec_revision', 'Read a spec exactly as it was at a pinned version (for example the sourceSpecVersion on a capability). Returns an error when that version predates retained history.', {
+      id: z.string(), version: z.number().int().positive(),
+    }, async ({ id, version }, extra) => json((await getSpecRevision(id, version, uid(extra))) ?? { error: `Version ${version} of this spec was not retained` }))
     server.tool('list_specs', 'List visible specs, optionally filtered by product, exact target association, or open specType taxonomy. targetType and targetId must be supplied together.', {
       productId: z.string().optional(), targetType: specTargetType.optional(), targetId: z.string().optional(), specType: z.string().optional(),
     }, async (filters, extra) => json(await listSpecs(uid(extra), filters)))

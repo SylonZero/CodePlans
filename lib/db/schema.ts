@@ -13,6 +13,7 @@ const _schema: typeof import('./schema.pg') =
 export const {
   specs,
   specLinks,
+  specRevisions,
   specEvents,
   users,
   organizations,

@@ -1,7 +1,7 @@
 import { and, eq, isNotNull, isNull } from 'drizzle-orm'
 import { db } from './index'
 import { codePlans, workItems, products, specs, specLinks } from './schema'
-import { linkSpecInTransaction } from './specs'
+import { linkSpecInTransaction, recordRevision } from './specs'
 import { fetchSpecMarkdown } from '@/lib/specs'
 
 export const IMPORT_PLACEHOLDER = 'Content not yet imported — see sourceUrl.'
@@ -49,6 +49,7 @@ export async function migrateLegacySpecs(productId: string, options: {
         }).onConflictDoNothing().returning()
         const row = existing ?? created ?? (await tx.select().from(specs).where(where))[0]
         if (!row) throw new Error('Could not create or resolve imported spec')
+        if (created) await recordRevision(tx, created, undefined, `Imported from ${sourceUrl}`)
         for (const source of sources) {
           const [linked] = await tx.select({ id: specLinks.id }).from(specLinks).where(and(eq(specLinks.specId, row.id), eq(specLinks.targetType, source.targetType), eq(specLinks.targetId, source.id)))
           if (!linked) await linkSpecInTransaction(tx, row.id, source.targetType, source.id, source.targetType === 'code_plan' ? 'creates' : undefined)

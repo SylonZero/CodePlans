@@ -169,6 +169,13 @@
       "when": 1790376915043,
       "tag": "0023_audit_product_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1790377210127,
+      "tag": "0024_spec_revisions",
+      "breakpoints": true
     }
   ]
 }

@@ -497,6 +497,24 @@ export const specs = sqliteTable('specs', {
     .where(sql`${t.sourceType} = 'git_import' AND ${t.supersedes} IS NULL`),
 ])
 
+// Append-only snapshot of every spec version's content, written in the same
+// transaction that creates the version. A pinned version number is only
+// evidence if the document it names can still be read.
+export const specRevisions = sqliteTable('spec_revisions', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  specId: text('spec_id').notNull().references(() => specs.id, { onDelete: 'cascade' }),
+  version: integer('version').notNull(),
+  title: text('title').notNull(),
+  body: text('body').notNull(),
+  specType: text('spec_type').notNull(),
+  area: text('area'),
+  status: text('status').notNull(),
+  changeSummary: text('change_summary'),
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [uniqueIndex('spec_revisions_version_idx').on(t.specId, t.version)])
+
 // Target ownership and existence are checked by the spec service.
 export const specLinks = sqliteTable('spec_links', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
