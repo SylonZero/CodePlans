@@ -30,7 +30,8 @@ export type PrStatus = 'none' | 'draft' | 'open' | 'merged' | 'closed'
 // Provider list is intentionally text (not enum) — new connectors must not need a migration.
 export type ItemSource = 'native' | 'github' | 'gitlab' | 'jira' | 'asana' | 'linear'
 export type IntegrationStatus = 'active' | 'paused' | 'error'
-export type SyncEntityType = 'work_item' | 'task' | 'code_plan' | 'asset' | 'product' | 'release' | 'asset_dependency' | 'integration'
+export type SyncEntityType = 'work_item' | 'task' | 'code_plan' | 'asset' | 'product' | 'release' | 'asset_dependency' | 'integration' | 'spec'
+export type ActorKind = 'user' | 'agent' | 'connector'
 export type ReleaseStatus = 'planned' | 'in_progress' | 'shipped' | 'abandoned'
 
 // ---------------------------------------------------------------------------
@@ -435,10 +436,15 @@ export const syncLog = sqliteTable('sync_log', {
   event: text('event').notNull(),
   // Null when a connection (not a user) is the actor.
   actorId: text('actor_id').references(() => users.id, { onDelete: 'set null' }),
+  actorKind: text('actor_kind').$type<ActorKind>(),
+  // The product the entity belonged to when the event happened (null for org-level
+  // entities like integrations). No FK: history outlives a purged product.
+  productId: text('product_id'),
   payload: text('payload', { mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 }, (t) => [
   index('sync_log_org_created_idx').on(t.organizationId, t.createdAt),
+  index('sync_log_product_created_idx').on(t.productId, t.createdAt),
 ])
 
 export const apiKeys = sqliteTable('api_keys', {

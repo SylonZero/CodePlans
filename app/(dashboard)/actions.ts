@@ -800,7 +800,7 @@ export async function updateIntegrationAction(id: string, formData: FormData) {
   const profile = await getUserProfile(authUser.id)
   if (!profile?.organizationId) return { error: 'No workspace found.' }
   const existing = await requireIntegration(id, authUser.id, 'admin')
-  if ('error' in existing) return existing
+  if ('error' in existing) return { error: existing.error }
 
   const name = formData.get('name') as string
   const repo = (formData.get('repo') as string) || undefined

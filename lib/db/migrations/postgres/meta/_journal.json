@@ -162,6 +162,13 @@
       "when": 1789430000000,
       "tag": "0022_phase4_product_archive",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1790376915043,
+      "tag": "0023_audit_product_scope",
+      "breakpoints": true
     }
   ]
 }

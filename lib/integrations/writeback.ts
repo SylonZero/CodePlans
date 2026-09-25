@@ -69,6 +69,8 @@ export async function notifyPlanCompleted(planId: string): Promise<number> {
           entityId: item.workItemId,
           event: 'writeback_comment',
           actorId: null,
+          actorKind: 'connector',
+          productId: plan.productId,
           payload: { planId, planTitle: plan.title, externalKey: item.externalKey },
         })
       } catch (err) {

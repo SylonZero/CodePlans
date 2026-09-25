@@ -5,6 +5,7 @@ import { db } from './index'
 import { assets, codePlans, codePlanAssets, products, specs, specLinks, specEvents, workItems, workItemCodePlans } from './schema'
 import { productAccessWhere } from './queries'
 import { assertCanWrite } from './authz'
+import { logAudit } from './audit'
 
 export const specTargetType = z.enum(['asset', 'work_item', 'code_plan'])
 export const specRelationshipType = z.enum(['creates', 'revises', 'references'])
@@ -98,7 +99,20 @@ export async function createSpec(input: z.input<typeof specInput>, userId: strin
   if (data.sourceType === 'git_import' && !data.sourceUrl) throw new Error('Git imports require sourceUrl')
   await assertSpecProductWrite(userId, data.productId)
   const [row] = await db.insert(specs).values({ ...data, authorType, ...createdBy({ id: userId, kind: authorType }) }).returning()
+  await auditSpec(row, 'created', { id: userId, kind: authorType })
   return row
+}
+
+/** Spec lifecycle events go to the shared activity stream with the spec's product. */
+export async function auditSpec(spec: Pick<Spec, 'id' | 'title' | 'productId' | 'version' | 'specType'>, event: string, actor?: ArtifactActor, payload: Record<string, unknown> = {}) {
+  await logAudit({ entityType: 'spec', entityId: spec.id, event, actor, productId: spec.productId,
+    payload: { title: spec.title, specType: spec.specType, version: spec.version, ...payload } })
+}
+
+/** Name the revision for the activity feed: a status change reads differently from an edit. */
+export function revisionEvent(before: Pick<Spec, 'status'>, after: Pick<Spec, 'status'>) {
+  if (before.status === after.status) return 'revised'
+  return after.status === 'active' ? 'activated' : after.status === 'archived' ? 'archived' : 'status_changed'
 }
 
 // Compare-and-swap protects concurrent edits and keeps version/event snapshots consistent.
@@ -125,7 +139,10 @@ export async function reviseSpec(d: SpecDb, id: string, input: z.input<typeof sp
 export async function updateSpec(id: string, input: z.input<typeof specUpdateInput>, userId: string, actorKind: 'user' | 'agent' = 'user') {
   const old = await requireSpec(id)
   await assertSpecProductWrite(userId, old.productId)
-  return db.transaction(async (tx) => (await reviseSpec(tx, id, input, undefined, { id: userId, kind: actorKind })).spec)
+  const actor = { id: userId, kind: actorKind }
+  const spec = await db.transaction(async (tx) => (await reviseSpec(tx, id, input, undefined, actor)).spec)
+  await auditSpec(spec, revisionEvent(old, spec), actor, { fromVersion: old.version, toVersion: spec.version, fromStatus: old.status, status: spec.status })
+  return spec
 }
 
 export async function linkSpecInTransaction(d: SpecDb, specId: string, targetType: SpecTargetType, targetId: string, relationshipType?: SpecRelationshipType) {
@@ -150,15 +167,20 @@ export async function linkSpecInTransaction(d: SpecDb, specId: string, targetTyp
 }
 
 export async function linkSpec(specId: string, targetType: SpecTargetType, targetId: string, relationshipType: SpecRelationshipType | undefined, userId: string) {
-  await assertSpecProductWrite(userId, (await requireSpec(specId)).productId)
-  return db.transaction((tx) => linkSpecInTransaction(tx, specId, targetType, targetId, relationshipType))
+  const spec = await requireSpec(specId)
+  await assertSpecProductWrite(userId, spec.productId)
+  const link = await db.transaction((tx) => linkSpecInTransaction(tx, specId, targetType, targetId, relationshipType))
+  await auditSpec(spec, 'linked', { id: userId }, { targetType, targetId, relationshipType: link.relationshipType })
+  return link
 }
 
 export async function unlinkSpec(specLinkId: string, userId: string) {
   const [link] = await db.select().from(specLinks).where(eq(specLinks.id, specLinkId))
   if (!link) throw new Error('Spec link not found')
-  await assertSpecProductWrite(userId, (await requireSpec(link.specId)).productId)
+  const spec = await requireSpec(link.specId)
+  await assertSpecProductWrite(userId, spec.productId)
   await db.delete(specLinks).where(eq(specLinks.id, specLinkId))
+  await auditSpec(spec, 'unlinked', { id: userId }, { targetType: link.targetType, targetId: link.targetId })
   return { id: specLinkId }
 }
 
@@ -166,7 +188,8 @@ export async function supersedeSpec(oldId: string, newBody: string, title: strin
   const old = await requireSpec(oldId)
   await assertSpecProductWrite(userId, old.productId)
   const data = specInput.parse({ ...old, area: old.area ?? undefined, sourceUrl: old.sourceUrl ?? undefined, title: title ?? old.title, body: newBody })
-  return db.transaction(async (tx) => {
+  const actor = { id: userId, kind: authorType }
+  const next = await db.transaction(async (tx) => {
     if (old.status === 'superseded' || old.supersededBy) throw new Error('Spec is already superseded')
     const [next] = await tx.insert(specs).values({ ...data, ...createdBy({ id: userId, kind: authorType }), supersedes: oldId, authorType, needsReview: old.needsReview }).returning()
     const [changed] = await tx.update(specs).set({ status: 'superseded', supersededBy: next.id, ...editedBy({ id: userId, kind: authorType }), updatedAt: new Date() })
@@ -177,6 +200,9 @@ export async function supersedeSpec(oldId: string, newBody: string, title: strin
     for (const link of links) await linkSpecInTransaction(tx, next.id, link.targetType as SpecTargetType, link.targetId, link.relationshipType as SpecRelationshipType | undefined)
     return next
   })
+  await auditSpec(old, 'superseded', actor, { supersededBy: next.id })
+  await auditSpec(next, 'created', actor, { supersedes: oldId })
+  return next
 }
 
 export async function getSpec(id: string, userId: string) {

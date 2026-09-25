@@ -437,15 +437,20 @@ export const syncLog = pgTable('sync_log', {
   id: uuid('id').primaryKey().defaultRandom(),
   organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
   connectionId: uuid('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
-  entityType: text('entity_type').notNull(), // 'work_item' | 'task' | 'code_plan' | 'asset' | 'product' | 'release' | 'asset_dependency' | 'integration'
+  entityType: text('entity_type').notNull(), // 'work_item' | 'task' | 'code_plan' | 'asset' | 'product' | 'release' | 'asset_dependency' | 'integration' | 'spec'
   entityId: uuid('entity_id').notNull(),
   event: text('event').notNull(),
   // Null when a connection (not a user) is the actor.
   actorId: uuid('actor_id').references(() => users.id, { onDelete: 'set null' }),
+  actorKind: text('actor_kind'), // 'user' | 'agent' | 'connector'
+  // The product the entity belonged to when the event happened (null for org-level
+  // entities like integrations). No FK: history outlives a purged product.
+  productId: uuid('product_id'),
   payload: jsonb('payload').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('sync_log_org_created_idx').on(t.organizationId, t.createdAt),
+  index('sync_log_product_created_idx').on(t.productId, t.createdAt),
 ])
 
 export const apiKeys = pgTable('api_keys', {

@@ -276,6 +276,7 @@ export interface ActivityItem {
     | 'item_resolved'
     | 'item_linked'
     | 'item_updated'
+    | 'spec_updated'
   title: string
   description: string
   userId: string

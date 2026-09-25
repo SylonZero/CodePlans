@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { productIdFor } from '@/lib/db/authz'
 import { editedBy } from '@/lib/db/attribution'
 import { integrations, workItems, codePlans, codePlanAssets, tasks, syncLog } from '@/lib/db/schema'
 import { eq, and, isNotNull } from 'drizzle-orm'
@@ -250,6 +251,8 @@ async function syncPrStatuses(
         entityId: row.codePlanId,
         event: 'pr_status_changed',
         actorId: null,
+        actorKind: 'connector',
+        productId: await productIdFor({ codePlanId: row.codePlanId }),
         payload: { prUrl: row.prUrl, prStatus: status },
       })
     } catch (err) {
@@ -268,6 +271,8 @@ async function logSyncEvent(integration: IntegrationRow, workItemId: string, eve
       entityId: workItemId,
       event,
       actorId: null, // the connection is the actor
+      actorKind: 'connector',
+      productId: await productIdFor({ workItemId }),
       payload: { title: item.title, externalKey: item.externalKey },
     })
   } catch (err) {

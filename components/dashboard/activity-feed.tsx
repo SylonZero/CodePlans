@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { FileCode2, CheckSquare, Package, UserPlus, Trophy, Play, ClipboardList, CircleCheck, Link2, Pencil } from 'lucide-react'
+import { FileCode2, CheckSquare, Package, UserPlus, Trophy, Play, ClipboardList, CircleCheck, Link2, Pencil, FileText } from 'lucide-react'
 import type { ActivityItem } from '@/lib/types'
 import { cn, formatDateShort } from '@/lib/utils'
 
@@ -19,6 +19,7 @@ const activityIcons: Record<ActivityItem['type'], typeof FileCode2> = {
   item_resolved: CircleCheck,
   item_linked: Link2,
   item_updated: Pencil,
+  spec_updated: FileText,
 }
 
 const activityStyles: Record<ActivityItem['type'], string> = {
@@ -34,6 +35,7 @@ const activityStyles: Record<ActivityItem['type'], string> = {
   item_resolved: 'bg-accent/20 text-accent',
   item_linked: 'bg-chart-4/20 text-chart-4',
   item_updated: 'bg-muted text-muted-foreground',
+  spec_updated: 'bg-chart-3/20 text-chart-3',
 }
 
 function formatTimeAgo(timestamp: string): string {

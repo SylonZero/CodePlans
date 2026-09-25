@@ -1724,10 +1724,20 @@ function activityPresentation(entityType: string, event: string, payload: Record
     if (event === 'deleted') return { type: 'item_updated', title: 'deleted a work item' }
     return { type: 'item_updated', title: 'updated a work item' }
   }
+  if (entityType === 'spec') {
+    const v = typeof payload.version === 'number' ? ` (v${payload.version})` : ''
+    if (event === 'created') return { type: 'spec_updated', title: 'created a spec' }
+    if (event === 'revised') return { type: 'spec_updated', title: `revised a spec${v}` }
+    if (event === 'activated') return { type: 'spec_updated', title: `activated a spec${v}` }
+    if (event === 'superseded') return { type: 'spec_updated', title: 'superseded a spec' }
+    if (event === 'linked') return { type: 'item_linked', title: 'linked a spec' }
+    if (event === 'archived' || event === 'status_changed') return { type: 'spec_updated', title: 'changed a spec\'s status' }
+    return null
+  }
   return null
 }
 
-export async function getActivityFeed(userId: string, limit = 15): Promise<ActivityItem[]> {
+export async function getActivityFeed(userId: string, limit = 15, opts: { productId?: string } = {}): Promise<ActivityItem[]> {
   const memberships = await db
     .select({ organizationId: organizationMembers.organizationId })
     .from(organizationMembers)
@@ -1747,7 +1757,7 @@ export async function getActivityFeed(userId: string, limit = 15): Promise<Activ
     })
     .from(syncLog)
     .leftJoin(users, eq(syncLog.actorId, users.id))
-    .where(inArray(syncLog.organizationId, orgIds))
+    .where(and(inArray(syncLog.organizationId, orgIds), opts.productId ? eq(syncLog.productId, opts.productId) : undefined))
     .orderBy(desc(syncLog.createdAt))
     .limit(limit * 2) // headroom: some rows don't map to a feed entry
 

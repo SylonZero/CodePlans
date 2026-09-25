@@ -27,7 +27,7 @@ export default async function DashboardPage() {
     getCodePlans(user.id, { productId: scope ?? undefined }),
     db.query.users.findFirst({ where: eq(users.id, user.id) }),
     scope ? getProducts(user.id, scope) : Promise.resolve([]),
-    getActivityFeed(user.id),
+    getActivityFeed(user.id, 15, { productId: scope ?? undefined }),
     getAnalytics(user.id, scope ?? undefined),
   ])
 
