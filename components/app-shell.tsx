@@ -48,7 +48,7 @@ import type { NavExtension } from '@/lib/ee/types'
 
 type AppShellProps = {
   children: React.ReactNode
-  user: { name: string; email: string; billingTier: BillingTier | string }
+  user: { name: string; email: string; billingTier: BillingTier | string; viewOnly?: boolean }
   orgName: string | null
   products: { id: string; name: string; slug: string }[]
   selectedProductId: string | null
@@ -310,6 +310,14 @@ export function AppShell({ children, user, orgName, products, selectedProductId,
           </div>
 
           <div className="ml-auto flex items-center gap-2">
+            {user.viewOnly && (
+              <span
+                className="hidden rounded-md border border-border bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground sm:inline-block"
+                title="Your role in this workspace is viewer. Ask an owner or admin for editor access to make changes."
+              >
+                View only
+              </span>
+            )}
             <ThemeToggle />
 
             <Button variant="ghost" size="icon" className="relative">

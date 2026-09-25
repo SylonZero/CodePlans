@@ -2,7 +2,10 @@ import { createSpec, updateSpec, supersedeSpec, linkSpec, unlinkSpec, getSpec, l
 import { createMcpHandler, withMcpAuth } from 'mcp-handler'
 import { z } from 'zod'
 import { verifyApiKey } from '@/lib/mcp/auth'
-import { canDeleteCodePlan, canDeleteRelease, canDeleteWorkItem, canDeleteTask, canDeleteAsset, canDeleteProduct } from '@/lib/db/authz'
+import {
+  canDeleteCodePlan, canDeleteRelease, canDeleteWorkItem, canDeleteTask, canDeleteAsset, canDeleteProduct,
+  assertCanWrite, canCreateProductIn, VIEW_ONLY_MESSAGE, type WriteTarget,
+} from '@/lib/db/authz'
 import {
   getProducts,
   getProduct,
@@ -76,6 +79,12 @@ function requireWrite(extra: ToolExtra) {
   if (!extra.authInfo?.scopes?.includes('write')) {
     throw new Error('This API key is read-only — a key with write scope is required.')
   }
+}
+
+/** Write scope on the key, plus editor-or-above on every target's product. */
+async function requireWriteTo(extra: ToolExtra, ...targets: WriteTarget[]) {
+  requireWrite(extra)
+  await assertCanWrite(uid(extra), ...targets)
 }
 
 function json(data: unknown) {
@@ -229,6 +238,7 @@ const handler = createMcpHandler(
         const { users } = await import('@/lib/db/schema')
         const { eq } = await import('drizzle-orm')
         const profile = await db.query.users.findFirst({ where: eq(users.id, userId) })
+        if (!(await canCreateProductIn(userId, profile?.organizationId))) return json({ error: VIEW_ONLY_MESSAGE })
         const finalSlug = slug ?? name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
         return json(await createProduct(
           { name, slug: finalSlug, organizationId: profile?.organizationId ?? undefined, ...rest },
@@ -242,7 +252,7 @@ const handler = createMcpHandler(
       'Update a product you created (name, description, tags).',
       { id: z.string(), name: z.string().optional(), description: z.string().optional(), tags: z.array(z.string()).optional() },
       async ({ id, ...data }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { productId: id })
         const row = await updateProduct(id, data, uid(extra))
         return json(row ?? { error: 'Not found, or only the product creator can update it' })
       },
@@ -253,7 +263,7 @@ const handler = createMcpHandler(
       "Archive a product — the delete-equivalent action for products, and the highest blast radius in the schema. Hides the product and everything beneath it (assets, code plans, releases, work items, specs) from lists, pickers, and Atlas — none of them are deleted, modified, or unlinked, they simply stop resolving through the normal access check until restored. An archived product also stops accepting new writes (create_asset, create_code_plan, etc. will report it as not found). Reversible via restore_product. Only the product's creator, or an org owner/admin, may archive it.",
       { id: z.string() },
       async ({ id }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { productId: id })
         const userId = uid(extra)
         const visible = await getProducts(userId, id)
         if (visible.length === 0) return json({ error: 'Product not found, not accessible, or already archived' })
@@ -283,7 +293,11 @@ const handler = createMcpHandler(
       async ({ id }, extra) => {
         requireWrite(extra)
         const userId = uid(extra)
-        if (!(await canDeleteProduct(userId, id))) {
+        const { db } = await import('@/lib/db')
+        const { products } = await import('@/lib/db/schema')
+        const { eq } = await import('drizzle-orm')
+        const archived = await db.query.products.findFirst({ where: eq(products.id, id) })
+        if (!(await canDeleteProduct(userId, id)) || !(await canCreateProductIn(userId, archived?.organizationId))) {
           return json({ error: "Only the product's creator, or an org owner/admin, can restore it." })
         }
         const restored = await restoreProduct(id, { id: userId, kind: 'agent' })
@@ -307,7 +321,7 @@ const handler = createMcpHandler(
         ownerEmails: z.array(z.string()).optional(),
       },
       async ({ ownerEmails, ...args }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { productId: args.productId })
         await assertProductAccess(uid(extra), args.productId)
         const asset = await createAsset(args, { id: uid(extra), kind: 'agent' })
         if (ownerEmails !== undefined) {
@@ -336,7 +350,7 @@ const handler = createMcpHandler(
         ownerEmails: z.array(z.string()).optional(),
       },
       async ({ id, ownerEmails, ...data }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { assetId: id })
         const options = await getAssetOptions(uid(extra))
         if (!options.some((a) => a.id === id)) return json({ error: 'Asset not found or not accessible' })
         if (ownerEmails !== undefined) {
@@ -352,7 +366,7 @@ const handler = createMcpHandler(
       'Move an asset to another product — model refactoring for when a boundary was drawn wrong. Blocked while draft/active plans target the asset (the error lists them; retarget or complete first). Work items follow the asset; history (release stamps, completed-plan links, capabilities, design log) is preserved untouched.',
       { assetId: z.string(), targetProductId: z.string() },
       async ({ assetId, targetProductId }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { assetId }, { productId: targetProductId })
         const userId = uid(extra)
         const options = await getAssetOptions(userId)
         if (!options.some((a) => a.id === assetId)) return json({ error: 'Asset not found or not accessible' })
@@ -377,7 +391,7 @@ const handler = createMcpHandler(
       "Archive an asset — the delete-equivalent action for assets. Hides it from asset lists/pickers and Atlas, but does NOT delete it or touch anything referencing it: work items, tasks, dependency edges, plan/release links all keep their reference (they just can no longer be newly assigned to it). Reversible via restore_asset. Only the asset's creator/owner, or an org owner/admin, may archive it.",
       { id: z.string(), reason: z.string().optional() },
       async ({ id, reason }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { assetId: id })
         const userId = uid(extra)
         const options = await getAssetOptions(userId)
         if (!options.some((a) => a.id === id)) return json({ error: 'Asset not found, not accessible, or already archived' })
@@ -414,7 +428,7 @@ const handler = createMcpHandler(
       'Restore a previously archived asset, making it visible again in lists, pickers, and Atlas. Same authorization as archive_asset.',
       { id: z.string() },
       async ({ id }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { assetId: id })
         const userId = uid(extra)
         if (!(await canDeleteAsset(userId, id))) {
           return json({ error: "Only the asset's creator/owner, or an org owner/admin, can restore it." })
@@ -434,7 +448,7 @@ const handler = createMcpHandler(
         description: z.string().optional(),
       },
       async (args, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { assetId: args.sourceAssetId }, { assetId: args.targetAssetId })
         const options = await getAssetOptions(uid(extra))
         const ids = new Set(options.map((a) => a.id))
         if (!ids.has(args.sourceAssetId) || !ids.has(args.targetAssetId)) {
@@ -450,7 +464,7 @@ const handler = createMcpHandler(
       'Remove a dependency edge by its id (see get_product dependencies).',
       { id: z.string() },
       async ({ id }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { assetDependencyId: id })
         return json((await deleteAssetDependency(id, { id: uid(extra), kind: 'agent' })) ?? { error: 'Edge not found' })
       },
     )
@@ -469,7 +483,7 @@ const handler = createMcpHandler(
         ownerEmail: z.string().nullable().optional(),
       },
       async ({ id, ownerEmail, ...data }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { codePlanId: id })
         if (!(await getCodePlan(id, uid(extra)))) return json({ error: 'Plan not found or not accessible' })
         const ownerId =
           ownerEmail === undefined ? undefined
@@ -484,7 +498,7 @@ const handler = createMcpHandler(
       'Move a draft code plan to active.',
       { id: z.string() },
       async ({ id }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { codePlanId: id })
         if (!(await getCodePlan(id, uid(extra)))) return json({ error: 'Plan not found or not accessible' })
         return json(await updateCodePlan(id, { status: 'active' }, { id: uid(extra), kind: 'agent' }))
       },
@@ -495,7 +509,7 @@ const handler = createMcpHandler(
       'Mark a code plan completed. Also posts completion comments to mirrored tracker issues linked to it.',
       { id: z.string() },
       async ({ id }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { codePlanId: id })
         if (!(await getCodePlan(id, uid(extra)))) return json({ error: 'Plan not found or not accessible' })
         const plan = await updateCodePlan(id, { status: 'completed' }, { id: uid(extra), kind: 'agent' })
         const { notifyPlanCompleted } = await import('@/lib/integrations/writeback')
@@ -509,7 +523,7 @@ const handler = createMcpHandler(
       'Permanently delete a code plan, including its tasks and target-asset/PR tracking. Linked work items are unlinked, not deleted. Returns what was affected. Cannot be undone; only the plan creator, or an org owner/admin, may delete it.',
       { id: z.string() },
       async ({ id }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { codePlanId: id })
         const userId = uid(extra)
         const plan = await getCodePlan(id, userId)
         if (!plan) return json({ error: 'Plan not found or not accessible' })
@@ -534,7 +548,7 @@ const handler = createMcpHandler(
       'Add a target asset to an existing plan (creates its branch/PR row).',
       { codePlanId: z.string(), assetId: z.string() },
       async ({ codePlanId, assetId }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { codePlanId }, { assetId })
         if (!(await getCodePlan(codePlanId, uid(extra)))) return json({ error: 'Plan not found or not accessible' })
         return json(await addPlanAsset(codePlanId, assetId, { id: uid(extra), kind: 'agent' }))
       },
@@ -545,7 +559,7 @@ const handler = createMcpHandler(
       'Remove a target asset from a plan.',
       { codePlanId: z.string(), assetId: z.string() },
       async ({ codePlanId, assetId }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { codePlanId }, { assetId })
         return json((await removePlanAsset(codePlanId, assetId, { id: uid(extra), kind: 'agent' })) ?? { error: 'Not a target of this plan' })
       },
     )
@@ -566,7 +580,7 @@ const handler = createMcpHandler(
         tags: z.array(z.string()).optional(),
       },
       async ({ id, ownerEmail, ...data }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { workItemId: id }, ...(data.assetId ? [{ assetId: data.assetId }] : []))
         const ownerId =
           ownerEmail === undefined ? undefined
           : ownerEmail === null ? null
@@ -580,7 +594,7 @@ const handler = createMcpHandler(
       'Remove a work item ↔ plan link.',
       { workItemId: z.string(), codePlanId: z.string() },
       async ({ workItemId, codePlanId }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { workItemId }, { codePlanId })
         return json((await unlinkWorkItemFromPlan(workItemId, codePlanId, { id: uid(extra), kind: 'agent' })) ?? { error: 'Link not found' })
       },
     )
@@ -601,7 +615,7 @@ const handler = createMcpHandler(
         tags: z.array(z.string()).default([]),
       },
       async ({ ownerEmail, ...args }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { productId: args.productId }, ...(args.assetId ? [{ assetId: args.assetId }] : []))
         const ownerId = ownerEmail ? await resolveAssigneeEmail(uid(extra), ownerEmail) : undefined
         return json(await createWorkItem({ ...args, ownerId }, uid(extra), 'agent'))
       },
@@ -612,7 +626,7 @@ const handler = createMcpHandler(
       'Set a native work item status. Mirrored items must be changed in their external tracker.',
       { id: z.string(), status: z.enum(['open', 'planned', 'in_progress', 'resolved', 'wont_do']) },
       async ({ id, status }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { workItemId: id })
         const item = await updateWorkItemStatus(id, status, { id: uid(extra), kind: 'agent' })
         return json(item ?? { error: 'Not found, or mirrored from an external tracker — change it there.' })
       },
@@ -623,7 +637,7 @@ const handler = createMcpHandler(
       'Permanently delete a work item — unlinks it from any plans and specs first. Returns how many plan links and spec links were removed. Cannot be undone; only the reporter/owner, or an org owner/admin, may delete it. Consider whether the item should be marked wont_do instead.',
       { id: z.string() },
       async ({ id }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { workItemId: id })
         const userId = uid(extra)
         const { getWorkItem } = await import('@/lib/db/queries')
         const item = await getWorkItem(id, userId)
@@ -649,7 +663,7 @@ const handler = createMcpHandler(
       'Link a work item to a code plan (many-to-many).',
       { workItemId: z.string(), codePlanId: z.string() },
       async ({ workItemId, codePlanId }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { workItemId }, { codePlanId })
         return json(await linkWorkItemToPlan(workItemId, codePlanId, { id: uid(extra), kind: 'agent' }))
       },
     )
@@ -669,7 +683,7 @@ const handler = createMcpHandler(
         workItemIds: z.array(z.string()).default([]),
       },
       async ({ workItemIds, ownerEmail, ...data }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { productId: data.productId }, ...data.targetAssetIds.map((assetId) => ({ assetId })), ...workItemIds.map((workItemId) => ({ workItemId })))
         const ownerId = ownerEmail ? await resolveAssigneeEmail(uid(extra), ownerEmail) : undefined
         const plan = await createCodePlan({ ...data, ownerId }, uid(extra), 'agent')
         for (const workItemId of workItemIds) await linkWorkItemToPlan(workItemId, plan.id, { id: uid(extra), kind: 'agent' })
@@ -693,7 +707,7 @@ const handler = createMcpHandler(
         tags: z.array(z.string()).default([]),
       },
       async ({ assigneeEmail, ...args }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { codePlanId: args.codePlanId }, ...(args.assetId ? [{ assetId: args.assetId }] : []))
         const assigneeId = assigneeEmail
           ? await resolveAssigneeEmail(uid(extra), assigneeEmail)
           : undefined
@@ -719,7 +733,7 @@ const handler = createMcpHandler(
         tags: z.array(z.string()).optional(),
       },
       async ({ id, assigneeEmail, ...data }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { taskId: id })
         const assigneeId =
           assigneeEmail === undefined
             ? undefined
@@ -736,7 +750,7 @@ const handler = createMcpHandler(
       'Set a native task status. Mirrored tasks must be changed in their external tracker.',
       { id: z.string(), status: z.enum(['not_started', 'in_progress', 'done']) },
       async ({ id, status }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { taskId: id })
         const task = await updateTaskStatus(id, status, { id: uid(extra), kind: 'agent' })
         return json(task ?? { error: 'Not found, or mirrored from an external tracker — change it there.' })
       },
@@ -747,7 +761,7 @@ const handler = createMcpHandler(
       'Permanently delete a task from its plan. Cannot be undone; only the assignee/creator, or an org owner/admin, may delete it.',
       { id: z.string() },
       async ({ id }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { taskId: id })
         const userId = uid(extra)
         const { db } = await import('@/lib/db')
         const { tasks } = await import('@/lib/db/schema')
@@ -774,7 +788,7 @@ const handler = createMcpHandler(
         notes: z.string().optional(),
       },
       async ({ codePlanId, assetId, ...data }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { codePlanId }, { assetId })
         const row = await updatePlanAsset(codePlanId, assetId, data, { id: uid(extra), kind: 'agent' })
         return json(row ?? { error: 'Asset is not a target of this plan — add it in the plan first.' })
       },
@@ -814,7 +828,7 @@ const handler = createMcpHandler(
         tags: z.array(z.string()).optional(),
       },
       async ({ productId, ...data }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { productId })
         const userId = uid(extra)
         await assertProductAccess(userId, productId)
         return json(await createRelease({ productId, ...data }, userId, 'agent'))
@@ -832,7 +846,7 @@ const handler = createMcpHandler(
         status: z.enum(['planned', 'in_progress', 'abandoned']).optional(),
       },
       async ({ id, ...data }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { releaseId: id })
         const release = await getRelease(id, uid(extra))
         if (!release) return json({ error: 'Release not found or not accessible' })
         if (release.status === 'shipped') {
@@ -847,7 +861,7 @@ const handler = createMcpHandler(
       'Mark a release shipped, recording it in each stamped asset’s history. Warns about assets without a version stamp.',
       { id: z.string() },
       async ({ id }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { releaseId: id })
         const release = await getRelease(id, uid(extra))
         if (!release) return json({ error: 'Release not found or not accessible' })
         const unversioned = release.assets.filter((a) => !a.version).map((a) => a.assetName)
@@ -866,7 +880,7 @@ const handler = createMcpHandler(
       'Permanently delete a release, including its per-asset version stamps. Attached plans are detached, not deleted. Returns what was affected. Cannot be undone; only the release creator, or an org owner/admin, may delete it.',
       { id: z.string() },
       async ({ id }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { releaseId: id })
         const userId = uid(extra)
         const release = await getRelease(id, userId)
         if (!release) return json({ error: 'Release not found or not accessible' })
@@ -884,7 +898,7 @@ const handler = createMcpHandler(
       'Attach a code plan to a release (a plan ships in at most one release). Its linked work items join the release’s derived rollup.',
       { codePlanId: z.string(), releaseId: z.string() },
       async ({ codePlanId, releaseId }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { codePlanId }, { releaseId })
         const release = await getRelease(releaseId, uid(extra))
         if (!release) return json({ error: 'Release not found or not accessible' })
         const plan = await attachPlanToRelease(codePlanId, releaseId, { id: uid(extra), kind: 'agent' })
@@ -897,7 +911,7 @@ const handler = createMcpHandler(
       'Detach a code plan from its release. The plan itself is untouched.',
       { codePlanId: z.string() },
       async ({ codePlanId }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { codePlanId })
         const plan = await detachPlanFromRelease(codePlanId, { id: uid(extra), kind: 'agent' })
         return json(plan ?? { error: 'Plan not found' })
       },
@@ -913,7 +927,7 @@ const handler = createMcpHandler(
         notes: z.string().optional(),
       },
       async ({ releaseId, assetId, ...data }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { releaseId }, { assetId })
         const release = await getRelease(releaseId, uid(extra))
         if (!release) return json({ error: 'Release not found or not accessible' })
         if (release.status === 'shipped') {
@@ -947,7 +961,7 @@ const handler = createMcpHandler(
         codePlanId: z.string().optional(),
       },
       async ({ assetId, ...data }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { assetId })
         const userId = uid(extra)
         const asset = await getAssetDetail(assetId, userId)
         if (!asset) return json({ error: 'Asset not found or not accessible' })
@@ -970,7 +984,7 @@ const handler = createMcpHandler(
       "Graduate a resolved feature/enhancement work item into its asset's record as a capability, carrying delivery lineage (work item, plan, release). Idempotent — re-graduating returns the existing capability. Pins the linked spec version at graduation; when several specs are linked, sourceSpecId is required. Fails for unresolved items, bugs/debt, or items without a target asset.",
       { workItemId: z.string(), sourceSpecId: z.string().optional() },
       async ({ workItemId, sourceSpecId }, extra) => {
-        requireWrite(extra)
+        await requireWriteTo(extra, { workItemId })
         const { getWorkItem } = await import('@/lib/db/queries')
         if (!await getWorkItem(workItemId, uid(extra))) return json({ error: 'Work item not found or not accessible' })
         return json(await graduateWorkItem(workItemId, sourceSpecId, { id: uid(extra), kind: 'agent' }))

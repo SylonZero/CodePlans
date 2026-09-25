@@ -7,11 +7,12 @@ import { Toaster } from '@/components/ui/sonner'
 import { config } from '@/lib/config'
 import { getProductScope } from '@/lib/product-scope'
 import { getEnterpriseHooks } from '@/lib/ee/registry'
+import { canCreateProductIn } from '@/lib/db/authz'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const authUser = await authAdapter.getUser()
 
-  let shellUser: { name: string; email: string; billingTier: 'free' | 'pro' | 'team' | 'enterprise' } = { name: '', email: '', billingTier: 'free' }
+  let shellUser: { name: string; email: string; billingTier: 'free' | 'pro' | 'team' | 'enterprise'; viewOnly?: boolean } = { name: '', email: '', billingTier: 'free' }
   let orgName: string | null = null
   let productList: { id: string; name: string; slug: string }[] = []
 
@@ -23,6 +24,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
         name: profile.name || authUser.email.split('@')[0] || '',
         email: profile.email,
         billingTier: profile.billingTier,
+        // Current workspace role; per-product enforcement lives in lib/db/authz.ts.
+        viewOnly: profile.organizationId ? !(await canCreateProductIn(authUser.id, profile.organizationId)) : false,
       }
 
       if (profile.organizationId) {

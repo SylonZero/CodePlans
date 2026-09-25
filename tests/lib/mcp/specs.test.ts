@@ -33,11 +33,32 @@ describe('native spec MCP tools', () => {
   })
   it('guards graduation access and records separate note revisions', async () => {
     await (db as any).insert(workItems).values({ id: 'mcp-item', productId: F.productShared, assetId: F.assetApi, title: 'Feature', type: 'feature', status: 'resolved' })
-    expect(unpack(await call('graduate_work_item', { workItemId: 'mcp-item' }, F.carol))).toHaveProperty('error')
+    await expect(call('graduate_work_item', { workItemId: 'mcp-item' }, F.carol)).rejects.toThrow('accessible')
     const spec = await createSpec({ productId: F.productShared, title: 'MCP spec', body: 'first', specType: 'feature' }, F.alice)
     await call('link_spec', { specId: spec.id, targetType: 'work_item', targetId: 'mcp-item' })
     const note = unpack(await call('record_design_note', { assetId: F.assetApi, title: 'Change', revisesSpecId: spec.id, revisedSpecBody: 'second', expectedSpecVersion: 1 }))
     expect(note.specEventId).toBeTruthy()
     expect(unpack(await call('graduate_work_item', { workItemId: 'mcp-item' })).capability).toMatchObject({ sourceSpecId: spec.id, sourceSpecVersion: 2 })
+  })
+})
+
+describe('MCP write authorization', () => {
+  const DAVE = 'user-dave-mcp'
+  beforeEach(async () => {
+    const { users, organizationMembers } = await import('@/lib/db/schema.sqlite')
+    await (db as any).insert(users).values({ id: DAVE, email: 'dave-mcp@test.local', name: 'Dave', billingTier: 'free', role: 'viewer', organizationId: F.org, featureFlags: {} })
+    await (db as any).insert(organizationMembers).values({ id: 'member-dave-mcp', organizationId: F.org, userId: DAVE, role: 'viewer', joinedAt: new Date() })
+  })
+
+  it('blocks a viewer holding a write-scoped key from changing product data', async () => {
+    await expect(call('create_asset', { productId: F.productShared, name: 'X', type: 'service', description: '', tags: [] }, DAVE)).rejects.toThrow('view-only')
+    await expect(call('update_task_status', { id: F.task1, status: 'done' }, DAVE)).rejects.toThrow('view-only')
+    await expect(call('create_product', { name: 'Viewer product', description: '', tags: [] }, DAVE)).resolves.toMatchObject({ content: [{ text: expect.stringContaining('view-only') }] })
+  })
+
+  it('lets an editor write and hides other products entirely', async () => {
+    const task = unpack(await call('update_task_status', { id: F.task1, status: 'done' }, F.bob))
+    expect(task).toMatchObject({ status: 'done' })
+    await expect(call('update_task_status', { id: F.task1, status: 'done' }, F.carol)).rejects.toThrow('not accessible')
   })
 })

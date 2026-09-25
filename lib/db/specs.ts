@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { db } from './index'
 import { assets, codePlans, codePlanAssets, products, specs, specLinks, specEvents, workItems, workItemCodePlans } from './schema'
 import { productAccessWhere } from './queries'
+import { assertCanWrite } from './authz'
 
 export const specTargetType = z.enum(['asset', 'work_item', 'code_plan'])
 export const specRelationshipType = z.enum(['creates', 'revises', 'references'])
@@ -34,6 +35,11 @@ export async function assertSpecProductAccess(userId: string, productId: string)
   const [row] = await db.select({ id: products.id }).from(products)
     .where(and(eq(products.id, productId), await productAccessWhere(userId)))
   if (!row) throw new Error('Product not found or not accessible')
+}
+
+/** Writes need editor-or-above on the spec's product, not just visibility. */
+export async function assertSpecProductWrite(userId: string, productId: string) {
+  await assertCanWrite(userId, { productId })
 }
 
 export async function requireSpec(id: string, d: SpecDb = db) {
@@ -90,7 +96,7 @@ export async function emitSpecEvents(d: SpecDb, spec: Spec, links: SpecLink[], k
 export async function createSpec(input: z.input<typeof specInput>, userId: string, authorType: 'user' | 'agent' = 'user') {
   const data = specInput.parse(input)
   if (data.sourceType === 'git_import' && !data.sourceUrl) throw new Error('Git imports require sourceUrl')
-  await assertSpecProductAccess(userId, data.productId)
+  await assertSpecProductWrite(userId, data.productId)
   const [row] = await db.insert(specs).values({ ...data, authorType, ...createdBy({ id: userId, kind: authorType }) }).returning()
   return row
 }
@@ -118,7 +124,7 @@ export async function reviseSpec(d: SpecDb, id: string, input: z.input<typeof sp
 
 export async function updateSpec(id: string, input: z.input<typeof specUpdateInput>, userId: string, actorKind: 'user' | 'agent' = 'user') {
   const old = await requireSpec(id)
-  await assertSpecProductAccess(userId, old.productId)
+  await assertSpecProductWrite(userId, old.productId)
   return db.transaction(async (tx) => (await reviseSpec(tx, id, input, undefined, { id: userId, kind: actorKind })).spec)
 }
 
@@ -144,21 +150,21 @@ export async function linkSpecInTransaction(d: SpecDb, specId: string, targetTyp
 }
 
 export async function linkSpec(specId: string, targetType: SpecTargetType, targetId: string, relationshipType: SpecRelationshipType | undefined, userId: string) {
-  await assertSpecProductAccess(userId, (await requireSpec(specId)).productId)
+  await assertSpecProductWrite(userId, (await requireSpec(specId)).productId)
   return db.transaction((tx) => linkSpecInTransaction(tx, specId, targetType, targetId, relationshipType))
 }
 
 export async function unlinkSpec(specLinkId: string, userId: string) {
   const [link] = await db.select().from(specLinks).where(eq(specLinks.id, specLinkId))
   if (!link) throw new Error('Spec link not found')
-  await assertSpecProductAccess(userId, (await requireSpec(link.specId)).productId)
+  await assertSpecProductWrite(userId, (await requireSpec(link.specId)).productId)
   await db.delete(specLinks).where(eq(specLinks.id, specLinkId))
   return { id: specLinkId }
 }
 
 export async function supersedeSpec(oldId: string, newBody: string, title: string | undefined, userId: string, authorType: 'user' | 'agent' = 'user') {
   const old = await requireSpec(oldId)
-  await assertSpecProductAccess(userId, old.productId)
+  await assertSpecProductWrite(userId, old.productId)
   const data = specInput.parse({ ...old, area: old.area ?? undefined, sourceUrl: old.sourceUrl ?? undefined, title: title ?? old.title, body: newBody })
   return db.transaction(async (tx) => {
     if (old.status === 'superseded' || old.supersededBy) throw new Error('Spec is already superseded')
