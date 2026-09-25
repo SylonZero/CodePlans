@@ -92,7 +92,7 @@ export function SpecsClient({ specs, showProduct }: { specs: SpecListRow[]; show
       {visible.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">No specs match these filters.</p>
       ) : (
-        <Card className="bg-card border-border">
+        <Card className="bg-card border-border py-0">
           <CardContent className="p-0">
             <ul className="divide-y divide-border">
               {visible.map((s) => (

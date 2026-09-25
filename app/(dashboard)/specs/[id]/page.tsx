@@ -6,6 +6,20 @@ import { canWriteProduct } from '@/lib/db/authz'
 import { SpecEditor } from '@/components/native-specs'
 import { SpecHistory, SpecDiff } from '@/components/spec-history'
 import { MarkdownContent } from '@/components/markdown-content'
+import { db } from '@/lib/db'
+import { assets, codePlans, workItems } from '@/lib/db/schema'
+import { inArray } from 'drizzle-orm'
+
+/** Display names for a spec's link targets (all in the spec's product, which the viewer can already see). */
+async function linkTargetNames(links: { targetType: string; targetId: string }[]) {
+  const ids = (type: string) => links.filter((l) => l.targetType === type).map((l) => l.targetId)
+  const [a, p, w] = await Promise.all([
+    ids('asset').length ? db.select({ id: assets.id, name: assets.name }).from(assets).where(inArray(assets.id, ids('asset'))) : [],
+    ids('code_plan').length ? db.select({ id: codePlans.id, name: codePlans.title }).from(codePlans).where(inArray(codePlans.id, ids('code_plan'))) : [],
+    ids('work_item').length ? db.select({ id: workItems.id, name: workItems.title }).from(workItems).where(inArray(workItems.id, ids('work_item'))) : [],
+  ])
+  return new Map([...a, ...p, ...w].map((r) => [r.id, r.name]))
+}
 
 export default async function SpecPage({ params, searchParams }: {
   params: Promise<{ id: string }>
@@ -17,7 +31,7 @@ export default async function SpecPage({ params, searchParams }: {
   const { v, diff } = await searchParams
   const spec = await getSpec(id, user.id).catch(() => null)
   if (!spec) notFound()
-  const [revisions, canEdit] = await Promise.all([listSpecRevisions(id, user.id), canWriteProduct(user.id, spec.productId)])
+  const [revisions, canEdit, targetNames] = await Promise.all([listSpecRevisions(id, user.id), canWriteProduct(user.id, spec.productId), linkTargetNames(spec.links)])
 
   const requested = v ? Number.parseInt(v, 10) : undefined
   const viewing = requested && requested !== spec.version ? revisions.find((r) => r.version === requested) : undefined
@@ -41,10 +55,10 @@ export default async function SpecPage({ params, searchParams }: {
     {spec.supersedes && <p>Replaces <Link className="underline" href={`/specs/${spec.supersedes}`}>previous spec</Link></p>}
     {spec.supersededBy && <p>Superseded by <Link className="underline" href={`/specs/${spec.supersededBy}`}>replacement spec</Link></p>}
     {showDiff
-      ? <SpecDiff before={previous} after={shown} />
+      ? <><SpecDiff before={previous} after={shown} /><Link className="text-sm underline" href={viewing ? `/specs/${id}?v=${shown.version}` : `/specs/${id}`}>Show v{shown.version} in full</Link></>
       : <article className="prose dark:prose-invert max-w-none rounded-lg border bg-card p-6"><MarkdownContent>{viewing?.body ?? spec.body}</MarkdownContent></article>}
-    {!viewing && canEdit && <SpecEditor key={`${spec.id}:${spec.version}`} spec={spec} />}
+    {!viewing && !showDiff && canEdit && <SpecEditor key={`${spec.id}:${spec.version}`} spec={spec} />}
     <SpecHistory specId={id} revisions={revisions} currentVersion={spec.version} viewing={shown?.version} />
-    <section className="space-y-2"><h2 className="font-semibold">Linked assets, plans and work items</h2><ul>{spec.links.map((l) => <li key={l.id}><Link className="text-sm underline" href={l.targetType === 'asset' ? `/assets/${l.targetId}` : l.targetType === 'code_plan' ? `/plans/${l.targetId}` : `/work-items?item=${l.targetId}`}>{l.targetType.replace('_', ' ')}{l.relationshipType ? ` · ${l.relationshipType}` : ''}</Link></li>)}</ul></section>
+    <section className="space-y-2"><h2 className="font-semibold">Linked assets, plans and work items</h2><ul>{spec.links.map((l) => <li key={l.id}><Link className="text-sm underline" href={l.targetType === 'asset' ? `/assets/${l.targetId}` : l.targetType === 'code_plan' ? `/plans/${l.targetId}` : `/work-items?item=${l.targetId}`}>{targetNames.get(l.targetId) ?? l.targetType.replace('_', ' ')}</Link> <span className="text-xs text-muted-foreground">{l.targetType.replace('_', ' ')}{l.relationshipType ? ` · ${l.relationshipType}` : ''}</span></li>)}</ul>{spec.links.length === 0 && <p className="text-sm text-muted-foreground">Not linked yet.</p>}</section>
   </div>
 }

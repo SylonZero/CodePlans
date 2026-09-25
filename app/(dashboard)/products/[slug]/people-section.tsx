@@ -74,7 +74,7 @@ export function PeopleSection({
 
       {canManage && (
         <Card className="bg-card border-border">
-          <CardContent className="pt-6">
+          <CardContent>
             <p className="text-sm font-medium mb-3">Assign a responsibility</p>
             <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
               <Select value={userId} onValueChange={setUserId}>
@@ -118,7 +118,7 @@ export function PeopleSection({
           const rows = members.filter((m) => m.responsibility === g.value)
           return (
             <Card key={g.value} className="bg-card border-border">
-              <CardContent className="pt-6">
+              <CardContent>
                 <div className="flex items-baseline justify-between gap-2">
                   <h3 className="font-semibold">{g.label}</h3>
                   <span className="text-xs text-muted-foreground">{rows.length}</span>
@@ -153,7 +153,7 @@ export function PeopleSection({
         })}
 
         <Card className="bg-card border-border">
-          <CardContent className="pt-6">
+          <CardContent>
             <div className="flex items-baseline justify-between gap-2">
               <h3 className="font-semibold">Code owners</h3>
               <span className="text-xs text-muted-foreground">{codeOwners.length}</span>
