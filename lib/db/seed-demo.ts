@@ -980,6 +980,74 @@ async function seed() {
   }
   console.log(`  ensured ${designNotes.length} design notes`)
 
+  // ── Specs with revision history ───────────────────────────────────────────
+  // Created through the spec service so revisions, spec events and audit rows
+  // are written exactly as the app writes them.
+  console.log('\nCreating specs...')
+
+  type SeedSpec = {
+    productId: string; title: string; specType: string; area?: string; authorId: string
+    versions: { body: string; summary?: string; status?: 'draft' | 'active'; by?: string }[]
+    links: { targetType: 'asset' | 'code_plan'; targetId: string; relationshipType?: 'creates' | 'revises' | 'references' }[]
+  }
+  const seedSpecs: SeedSpec[] = [
+    {
+      productId: platformId, title: 'Real-time collaboration protocol', specType: 'architecture', area: 'sync', authorId: alexId,
+      versions: [
+        { body: '## Goal\n\nLet several people edit a plan at once without losing changes.\n\n## Approach\n\n- Clients send full plan snapshots on every edit.\n- Last write wins.' },
+        { body: '## Goal\n\nLet several people edit a plan at once without losing changes.\n\n## Approach\n\n- Clients send operations, not snapshots.\n- The server orders operations per plan.\n- Presence is broadcast every 5 seconds.', summary: 'Switch from snapshots to operations', by: sarahId },
+        { body: '## Goal\n\nLet several people edit a plan at once without losing changes.\n\n## Approach\n\n- Clients send operations, not snapshots.\n- The server orders operations per plan and rejects stale bases.\n- Presence is broadcast every 5 seconds.\n\n## Limits\n\n- At most 20 concurrent editors per plan.', summary: 'Reject stale bases; cap editors at 20', status: 'active' },
+      ],
+      links: [{ targetType: 'code_plan', targetId: collabPlanId, relationshipType: 'creates' }, { targetType: 'asset', targetId: webAppId }],
+    },
+    {
+      productId: platformId, title: 'Auth session model', specType: 'schema', area: 'schema', authorId: alexId,
+      versions: [
+        { body: '## Sessions\n\n| column | type |\n|---|---|\n| id | uuid |\n| user_id | uuid |\n| expires_at | timestamptz |' },
+        { body: '## Sessions\n\n| column | type |\n|---|---|\n| id | uuid |\n| user_id | uuid |\n| expires_at | timestamptz |\n| rotated_from | uuid |\n\nRotate the session id on every OAuth callback.', summary: 'Rotate session ids on OAuth callback', status: 'active' },
+      ],
+      links: [{ targetType: 'asset', targetId: authSvcId }],
+    },
+    {
+      productId: apiId, title: 'API Gateway v2 contract', specType: 'api', authorId: sarahId,
+      versions: [
+        { body: '## Versioning\n\nAll routes move under `/v2`. `/v1` stays for 6 months.\n\n## Rate limits\n\n100 requests per minute per key.' },
+        { body: '## Versioning\n\nAll routes move under `/v2`. `/v1` stays for 12 months.\n\n## Rate limits\n\n100 requests per minute per key, 1000 for enterprise keys.', summary: 'Longer v1 window; enterprise limits', by: alexId },
+      ],
+      links: [{ targetType: 'code_plan', targetId: apiV2PlanId, relationshipType: 'creates' }, { targetType: 'asset', targetId: apiGatewayId }],
+    },
+    {
+      productId: mobileId, title: 'Push notification preferences', specType: 'ux', authorId: lisaId,
+      versions: [{ body: '## Preferences\n\nUsers choose per event whether to get a push, an email, or nothing.' }],
+      links: [{ targetType: 'code_plan', targetId: pushPlanId, relationshipType: 'creates' }],
+    },
+  ]
+  const { createSpec, updateSpec, linkSpec } = await import('./specs')
+  const { specs: specsTable } = await import('./schema')
+  for (const def of seedSpecs) {
+    const existing = await db.query.specs.findFirst({ where: (t, { and, eq }) => and(eq(t.productId, def.productId), eq(t.title, def.title)) })
+    if (existing) continue
+    const [first, ...rest] = def.versions
+    const spec = await createSpec({ productId: def.productId, title: def.title, body: first.body, specType: def.specType, area: def.area }, def.authorId)
+    for (const v of rest) await updateSpec(spec.id, { body: v.body, changeSummary: v.summary, status: v.status }, v.by ?? def.authorId)
+    for (const l of def.links) await linkSpec(spec.id, l.targetType, l.targetId, l.relationshipType, def.authorId)
+  }
+  console.log(`  ensured ${seedSpecs.length} specs (${(await db.select().from(specsTable)).length} total)`)
+
+  // ── Product responsibilities ──────────────────────────────────────────────
+  console.log('\nAssigning product responsibilities...')
+  const { productMembers } = await import('./schema')
+  const responsibilityData: [string, string, 'eng_manager' | 'architect' | 'contributor', string][] = [
+    [platformId, alexId, 'eng_manager', ''], [platformId, sarahId, 'architect', 'schema'], [platformId, lisaId, 'architect', ''],
+    [platformId, mikeId, 'contributor', ''],
+    [apiId, sarahId, 'eng_manager', ''], [apiId, alexId, 'architect', 'api'],
+    [mobileId, lisaId, 'eng_manager', ''], [mobileId, mikeId, 'contributor', ''],
+  ]
+  for (const [productId, userId, responsibility, area] of responsibilityData) {
+    await db.insert(productMembers).values({ productId, userId, responsibility, area }).onConflictDoNothing()
+  }
+  console.log(`  ensured ${responsibilityData.length} responsibilities`)
+
   // ── Activity events (sync_log) ────────────────────────────────────────────
   // History timelines prefer sync_log 'completed' events for plan dates, and
   // the dashboard activity feed renders these directly.
