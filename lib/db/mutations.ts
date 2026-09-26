@@ -1,6 +1,10 @@
 import { createdBy, editedBy, type ArtifactActor } from './attribution'
 import { db } from './index'
-import { requireSpec, reviseSpec, specAssetAnchors, refreshSpecAssetLinks } from './specs'
+import { requireSpec, reviseSpec, specAssetAnchors, refreshSpecAssetLinks, auditSpec } from './specs'
+import { logAudit } from './audit'
+import { bumpPlanRevision, decisionIsCurrent, lastApprovedVersion, onSubjectRevised, subjectVersion } from './review-state'
+import { assertActivationAllowed } from './workflow'
+import { productIdFor } from './authz'
 import {
   products,
   assets,
@@ -18,8 +22,6 @@ import {
   assetCapabilities,
   specs,
   specLinks,
-  syncLog,
-  users,
 } from './schema'
 import { eq, and, ne, inArray, or } from 'drizzle-orm'
 import type { WorkItemType, WorkItemStatus, WorkItemSeverity, ReleaseStatus } from '@/lib/types'
@@ -28,38 +30,7 @@ import type { WorkItemType, WorkItemStatus, WorkItemSeverity, ReleaseStatus } fr
 // Audit log
 // ---------------------------------------------------------------------------
 
-/**
- * Append an event to sync_log — the activity stream. Lives in the shared
- * mutation layer (not the UI action layer) so both web server actions and MCP
- * tools get audit coverage for free, since both call these same functions.
- * Never throws: audit logging must not fail the mutation it accompanies.
- * No-ops silently when there's no actor or the actor's organization can't be
- * resolved — the mutation still succeeds, just unaudited (e.g. a connector's
- * own sync writes log through lib/integrations/sync.ts's own actorless path).
- */
-export async function logAudit(entry: {
-  entityType: 'work_item' | 'task' | 'code_plan' | 'asset' | 'product' | 'release' | 'asset_dependency' | 'integration'
-  entityId: string
-  event: string
-  actor?: ArtifactActor
-  payload?: Record<string, unknown>
-}) {
-  if (!entry.actor?.id) return
-  try {
-    const profile = await db.query.users.findFirst({ where: eq(users.id, entry.actor.id) })
-    if (!profile?.organizationId) return
-    await db.insert(syncLog).values({
-      organizationId: profile.organizationId,
-      entityType: entry.entityType,
-      entityId: entry.entityId,
-      event: entry.event,
-      actorId: entry.actor.id,
-      payload: entry.payload ?? {},
-    })
-  } catch (err) {
-    console.error('[audit] log failed:', err)
-  }
-}
+export { logAudit } from './audit'
 
 // ---------------------------------------------------------------------------
 // Products
@@ -107,8 +78,8 @@ export async function deleteProduct(id: string, actor?: ArtifactActor) {
   const [deleted] = await db
     .delete(products)
     .where(eq(products.id, id))
-    .returning({ id: products.id, name: products.name })
-  if (deleted) await logAudit({ entityType: 'product', entityId: deleted.id, event: 'deleted', actor, payload: { name: deleted.name } })
+    .returning({ id: products.id, name: products.name, organizationId: products.organizationId })
+  if (deleted) await logAudit({ entityType: 'product', entityId: deleted.id, event: 'deleted', actor, payload: { name: deleted.name }, productId: deleted.id, organizationId: deleted.organizationId })
   return deleted ?? null
 }
 
@@ -202,10 +173,10 @@ export async function deleteAsset(id: string, actor?: ArtifactActor) {
   const [deleted] = await db
     .delete(assets)
     .where(eq(assets.id, id))
-    .returning({ id: assets.id, name: assets.name })
+    .returning({ id: assets.id, name: assets.name, productId: assets.productId })
   if (deleted) {
     await db.delete(specLinks).where(and(eq(specLinks.targetType, 'asset'), eq(specLinks.targetId, id)))
-    await logAudit({ entityType: 'asset', entityId: deleted.id, event: 'deleted', actor, payload: { name: deleted.name } })
+    await logAudit({ entityType: 'asset', entityId: deleted.id, event: 'deleted', actor, payload: { name: deleted.name }, productId: deleted.productId })
   }
   return deleted ?? null
 }
@@ -316,7 +287,9 @@ type CreateCodePlanData = {
 // array column was dropped in v0.3.0). Plan assignees aren't a stored link at
 // all — see getCodePlan/getCodePlans, which derive them from task.assigneeId.
 
+/** Returns true when the plan's targets changed. */
 async function syncPlanAssets(planId: string, assetIds: string[], actor?: ArtifactActor) {
+  let changed = false
   const existing = await db
     .select({ assetId: codePlanAssets.assetId })
     .from(codePlanAssets)
@@ -330,13 +303,16 @@ async function syncPlanAssets(planId: string, assetIds: string[], actor?: Artifa
         .delete(codePlanAssets)
         .where(and(eq(codePlanAssets.codePlanId, planId), eq(codePlanAssets.assetId, r.assetId)))
       await logAudit({ entityType: 'code_plan', entityId: planId, event: 'asset_removed', actor, payload: { assetId: r.assetId } })
+      changed = true
     }
   }
   const toAdd = assetIds.filter((id) => !current.has(id))
   if (toAdd.length > 0) {
     await db.insert(codePlanAssets).values(toAdd.map((assetId) => ({ codePlanId: planId, assetId })))
     for (const assetId of toAdd) await logAudit({ entityType: 'code_plan', entityId: planId, event: 'asset_added', actor, payload: { assetId } })
+    changed = true
   }
+  return changed
 }
 
 export async function createCodePlan(data: CreateCodePlanData, userId: string, actorKind: 'user' | 'agent' = 'user') {
@@ -363,16 +339,22 @@ type UpdateCodePlanData = Partial<
 
 export async function updateCodePlan(id: string, data: UpdateCodePlanData, actor?: ArtifactActor) {
   const { targetAssetIds, ...columns } = data
+  const before = await db.query.codePlans.findFirst({ where: eq(codePlans.id, id) })
+  if (before && actor && data.status === 'active' && before.status !== 'active') {
+    await assertActivationAllowed({ subjectType: 'code_plan', subjectId: id, transition: 'activate', actor })
+  }
   const [plan] = await db
     .update(codePlans)
     .set({ ...columns, ...editedBy(actor), updatedAt: new Date() })
     .where(eq(codePlans.id, id))
     .returning()
   if (!plan) return null
+  let scopeChanged = columns.description !== undefined && before?.description !== plan.description
   if (targetAssetIds !== undefined) {
-    await syncPlanAssets(id, targetAssetIds, actor)
+    scopeChanged = (await syncPlanAssets(id, targetAssetIds, actor)) || scopeChanged
     await refreshSpecAssetLinks('code_plan', id)
   }
+  if (scopeChanged) await bumpPlanRevision(id, actor?.id)
   const event =
     data.status === 'active' ? 'activated'
     : data.status === 'completed' ? 'completed'
@@ -392,10 +374,10 @@ export async function deleteCodePlan(id: string, actorId: string) {
   const [deleted] = await db
     .delete(codePlans)
     .where(eq(codePlans.id, id))
-    .returning({ id: codePlans.id, title: codePlans.title })
+    .returning({ id: codePlans.id, title: codePlans.title, productId: codePlans.productId })
   if (deleted) {
     await db.delete(specLinks).where(and(eq(specLinks.targetType, 'code_plan'), eq(specLinks.targetId, id)))
-    await logAudit({ entityType: 'code_plan', entityId: deleted.id, event: 'deleted', actor: { id: actorId }, payload: { title: deleted.title } })
+    await logAudit({ entityType: 'code_plan', entityId: deleted.id, event: 'deleted', actor: { id: actorId }, payload: { title: deleted.title }, productId: deleted.productId })
   }
   return deleted ?? null
 }
@@ -425,6 +407,7 @@ export async function createTask(data: CreateTaskData, actor?: ArtifactActor) {
   if (existing) return existing
   const [task] = await db.insert(tasks).values({ ...data, ...createdBy(actor) }).returning()
   await logAudit({ entityType: 'task', entityId: task.id, event: 'created', actor, payload: { title: task.title } })
+  if (task.assigneeId) await logAudit({ entityType: 'task', entityId: task.id, event: 'assigned', actor, payload: { title: task.title, assigneeId: task.assigneeId } })
   return task
 }
 
@@ -451,6 +434,9 @@ export async function updateTask(id: string, data: UpdateTaskData, actor?: Artif
           actualEffort: data.actualEffort,
         }
       : data
+  if (actor && patch.status === 'in_progress' && existing.status === 'not_started') {
+    await assertActivationAllowed({ subjectType: 'code_plan', subjectId: existing.codePlanId, transition: 'start_task', taskId: id, actor })
+  }
 
   const [task] = await db
     .update(tasks)
@@ -458,6 +444,9 @@ export async function updateTask(id: string, data: UpdateTaskData, actor?: Artif
     .where(eq(tasks.id, id))
     .returning()
   if (task) await logAudit({ entityType: 'task', entityId: task.id, event: 'updated', actor, payload: { title: task.title } })
+  if (task?.assigneeId && task.assigneeId !== existing.assigneeId) {
+    await logAudit({ entityType: 'task', entityId: task.id, event: 'assigned', actor, payload: { title: task.title, assigneeId: task.assigneeId } })
+  }
   return task ?? null
 }
 
@@ -466,6 +455,10 @@ export async function updateTaskStatus(id: string, status: 'not_started' | 'in_p
   if (!existing) return null
   // Status is mirrored — close/reopen the issue in the external tracker instead.
   if (existing.source !== 'native') return null
+  // Starting work is an activation: an extension may require the plan to be approved first.
+  if (actor && status !== 'not_started' && existing.status === 'not_started') {
+    await assertActivationAllowed({ subjectType: 'code_plan', subjectId: existing.codePlanId, transition: 'start_task', taskId: id, actor })
+  }
 
   const [task] = await db
     .update(tasks)
@@ -499,8 +492,8 @@ export async function deleteTask(id: string, actor?: ArtifactActor) {
   const [deleted] = await db
     .delete(tasks)
     .where(eq(tasks.id, id))
-    .returning({ id: tasks.id, title: tasks.title })
-  if (deleted) await logAudit({ entityType: 'task', entityId: deleted.id, event: 'deleted', actor, payload: { title: deleted.title } })
+    .returning({ id: tasks.id, title: tasks.title, codePlanId: tasks.codePlanId })
+  if (deleted) await logAudit({ entityType: 'task', entityId: deleted.id, event: 'deleted', actor, payload: { title: deleted.title, codePlanId: deleted.codePlanId }, productId: await productIdFor({ codePlanId: deleted.codePlanId }) })
   return deleted ?? null
 }
 
@@ -581,6 +574,7 @@ export async function createWorkItem(data: CreateWorkItemData, userId: string, a
     .values({ ...data, ...createdBy(actor), reporterId: userId })
     .returning()
   await logAudit({ entityType: 'work_item', entityId: item.id, event: 'created', actor, payload: { title: item.title, type: item.type } })
+  if (item.ownerId) await logAudit({ entityType: 'work_item', entityId: item.id, event: 'assigned', actor, payload: { title: item.title, ownerId: item.ownerId } })
   return item
 }
 
@@ -610,6 +604,9 @@ export async function updateWorkItem(id: string, data: UpdateWorkItemData, actor
     .returning()
   if (item && patch.assetId !== undefined) await refreshSpecAssetLinks('work_item', id)
   if (item) await logAudit({ entityType: 'work_item', entityId: item.id, event: 'updated', actor, payload: { title: item.title } })
+  if (item?.ownerId && item.ownerId !== existing.ownerId) {
+    await logAudit({ entityType: 'work_item', entityId: item.id, event: 'assigned', actor, payload: { title: item.title, ownerId: item.ownerId } })
+  }
   return item ?? null
 }
 
@@ -632,10 +629,10 @@ export async function deleteWorkItem(id: string, actor?: ArtifactActor) {
   const [deleted] = await db
     .delete(workItems)
     .where(eq(workItems.id, id))
-    .returning({ id: workItems.id, title: workItems.title })
+    .returning({ id: workItems.id, title: workItems.title, productId: workItems.productId })
   if (deleted) {
     await db.delete(specLinks).where(and(eq(specLinks.targetType, 'work_item'), eq(specLinks.targetId, id)))
-    await logAudit({ entityType: 'work_item', entityId: deleted.id, event: 'deleted', actor, payload: { title: deleted.title } })
+    await logAudit({ entityType: 'work_item', entityId: deleted.id, event: 'deleted', actor, payload: { title: deleted.title }, productId: deleted.productId })
   }
   return deleted ?? null
 }
@@ -654,6 +651,7 @@ export async function addPlanAsset(codePlanId: string, assetId: string, actor?: 
   const [row] = await db.insert(codePlanAssets).values({ codePlanId, assetId }).returning()
   await refreshSpecAssetLinks('code_plan', codePlanId)
   await logAudit({ entityType: 'code_plan', entityId: codePlanId, event: 'asset_added', actor, payload: { assetId } })
+  await bumpPlanRevision(codePlanId, actor?.id)
   return row
 }
 
@@ -662,7 +660,10 @@ export async function removePlanAsset(codePlanId: string, assetId: string, actor
     .delete(codePlanAssets)
     .where(and(eq(codePlanAssets.codePlanId, codePlanId), eq(codePlanAssets.assetId, assetId)))
     .returning({ id: codePlanAssets.id })
-  if (deleted) await logAudit({ entityType: 'code_plan', entityId: codePlanId, event: 'asset_removed', actor, payload: { assetId } })
+  if (deleted) {
+    await logAudit({ entityType: 'code_plan', entityId: codePlanId, event: 'asset_removed', actor, payload: { assetId } })
+    await bumpPlanRevision(codePlanId, actor?.id)
+  }
   return deleted ?? null
 }
 
@@ -697,6 +698,7 @@ export async function linkWorkItemToPlan(workItemId: string, codePlanId: string,
     .returning()
   await refreshSpecAssetLinks('work_item', workItemId)
   await logAudit({ entityType: 'work_item', entityId: workItemId, event: 'linked_to_plan', actor, payload: { codePlanId } })
+  await bumpPlanRevision(codePlanId, actor?.id)
   return link
 }
 
@@ -710,7 +712,10 @@ export async function unlinkWorkItemFromPlan(workItemId: string, codePlanId: str
       ),
     )
     .returning({ id: workItemCodePlans.id })
-  if (deleted) await logAudit({ entityType: 'work_item', entityId: workItemId, event: 'unlinked_from_plan', actor, payload: { codePlanId } })
+  if (deleted) {
+    await logAudit({ entityType: 'work_item', entityId: workItemId, event: 'unlinked_from_plan', actor, payload: { codePlanId } })
+    await bumpPlanRevision(codePlanId, actor?.id)
+  }
   return deleted ?? null
 }
 
@@ -745,7 +750,7 @@ export async function deleteAssetDependency(id: string, actor?: ArtifactActor) {
     .delete(assetDependencies)
     .where(eq(assetDependencies.id, id))
     .returning({ id: assetDependencies.id, sourceAssetId: assetDependencies.sourceAssetId, targetAssetId: assetDependencies.targetAssetId })
-  if (deleted) await logAudit({ entityType: 'asset_dependency', entityId: deleted.id, event: 'deleted', actor, payload: deleted })
+  if (deleted) await logAudit({ entityType: 'asset_dependency', entityId: deleted.id, event: 'deleted', actor, payload: deleted, productId: await productIdFor({ assetId: deleted.sourceAssetId }) })
   return deleted ?? null
 }
 
@@ -798,8 +803,8 @@ export async function deleteIntegration(id: string, actor?: ArtifactActor) {
   const [deleted] = await db
     .delete(integrations)
     .where(eq(integrations.id, id))
-    .returning({ id: integrations.id, name: integrations.name })
-  if (deleted) await logAudit({ entityType: 'integration', entityId: deleted.id, event: 'deleted', actor, payload: { name: deleted.name } })
+    .returning({ id: integrations.id, name: integrations.name, organizationId: integrations.organizationId })
+  if (deleted) await logAudit({ entityType: 'integration', entityId: deleted.id, event: 'deleted', actor, payload: { name: deleted.name }, organizationId: deleted.organizationId })
   return deleted ?? null
 }
 
@@ -846,8 +851,8 @@ export async function updateRelease(id: string, data: UpdateReleaseData, actor?:
 
 export async function deleteRelease(id: string, actor?: ArtifactActor) {
   // code_plans.releaseId is ON DELETE SET NULL — plans are detached, never deleted.
-  const [deleted] = await db.delete(releases).where(eq(releases.id, id)).returning({ id: releases.id, name: releases.name })
-  if (deleted) await logAudit({ entityType: 'release', entityId: deleted.id, event: 'deleted', actor, payload: { name: deleted.name } })
+  const [deleted] = await db.delete(releases).where(eq(releases.id, id)).returning({ id: releases.id, name: releases.name, productId: releases.productId })
+  if (deleted) await logAudit({ entityType: 'release', entityId: deleted.id, event: 'deleted', actor, payload: { name: deleted.name }, productId: deleted.productId })
   return deleted ?? null
 }
 
@@ -936,10 +941,15 @@ export async function createDesignNote(data: CreateDesignNoteData) {
     }
     const [note] = await tx.insert(assetDesignLog).values({ ...noteData, ...createdBy(actor), authorKind: data.authorKind ?? 'user' }).returning()
     const revision = revisesSpecId ? await reviseSpec(tx, revisesSpecId, { body: revisedSpecBody!, expectedVersion: expectedSpecVersion }, note.id, actor) : undefined
-    return { ...note, specEventId: revision?.events.find((e) => e.assetId === note.assetId)?.id }
+    return { ...note, revision, specEventId: revision?.events.find((e) => e.assetId === note.assetId)?.id }
   })
   await logAudit({ entityType: 'asset', entityId: data.assetId, event: 'design_note_added', actor, payload: { title: result.title } })
-  return result
+  const { revision, ...note } = result
+  if (revision) {
+    await onSubjectRevised('spec', revision.spec.id, actor?.id)
+    await auditSpec(revision.spec, 'revised', actor, { fromVersion: revision.spec.version - 1, toVersion: revision.spec.version, noteId: note.id })
+  }
+  return note
 }
 
 type UpdateDesignNoteData = Partial<Pick<CreateDesignNoteData, 'title' | 'body' | 'releaseId' | 'codePlanId'>>
@@ -973,7 +983,25 @@ export async function deleteDesignNote(id: string, actor?: ArtifactActor) {
  * release) as FKs plus originSummary text that survives FK nulling. Idempotent
  * per work item (partial unique index on originWorkItemId).
  */
-export async function graduateWorkItem(workItemId: string, sourceSpecId?: string, actor?: ArtifactActor) {
+/**
+ * Which version of a spec a delivery should pin by default: the current one
+ * when an approval still covers its content, otherwise the latest approved
+ * version (the agreed intent the work was built against), otherwise the
+ * current one. Computed before the graduation transaction opens.
+ */
+async function defaultPinnedVersions(workItemId: string) {
+  const linked = await db.select({ specId: specLinks.specId }).from(specLinks)
+    .where(and(eq(specLinks.targetType, 'work_item'), eq(specLinks.targetId, workItemId)))
+  const pins = new Map<string, number | null>()
+  for (const { specId } of linked) {
+    const [approved, v] = await Promise.all([lastApprovedVersion('spec', specId), subjectVersion('spec', specId)])
+    pins.set(specId, approved === null || decisionIsCurrent(approved, v) ? null : approved)
+  }
+  return pins
+}
+
+export async function graduateWorkItem(workItemId: string, sourceSpecId?: string, actor?: ArtifactActor, opts: { sourceSpecVersion?: number } = {}) {
+  const approvedPins = await defaultPinnedVersions(workItemId)
   const result = await db.transaction(async (tx) => {
     const item = await tx.query.workItems.findFirst({ where: eq(workItems.id, workItemId) })
     if (!item) return { error: 'Work item not found' as const }
@@ -994,6 +1022,10 @@ export async function graduateWorkItem(workItemId: string, sourceSpecId?: string
     if (!sourceSpecId && linkedSpecs.length > 1) return { error: 'Multiple specs are linked; choose sourceSpecId explicitly' as const }
     const sourceSpec = sourceSpecId ? linkedSpecs.find((r) => r.spec.id === sourceSpecId)?.spec : linkedSpecs[0]?.spec
     if (sourceSpecId && !sourceSpec) return { error: 'sourceSpecId must be linked to this work item in its product' as const }
+    if (opts.sourceSpecVersion !== undefined && (!sourceSpec || opts.sourceSpecVersion < 1 || opts.sourceSpecVersion > sourceSpec.version)) {
+      return { error: 'sourceSpecVersion must be between 1 and the spec\'s current version' as const }
+    }
+    const pinnedVersion = sourceSpec ? opts.sourceSpecVersion ?? approvedPins.get(sourceSpec.id) ?? sourceSpec.version : undefined
 
     const link = await tx.query.workItemCodePlans.findFirst({
       where: eq(workItemCodePlans.workItemId, workItemId),
@@ -1024,7 +1056,7 @@ export async function graduateWorkItem(workItemId: string, sourceSpecId?: string
         area: item.area ?? undefined,
         source: 'graduated',
         sourceSpecId: sourceSpec?.id,
-        sourceSpecVersion: sourceSpec?.version,
+        sourceSpecVersion: pinnedVersion,
         originWorkItemId: item.id,
         originCodePlanId: plan?.id,
         originReleaseId: release?.id,

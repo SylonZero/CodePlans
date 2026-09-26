@@ -14,6 +14,7 @@ import {
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
+import type { CommentSubjectType, CommentKind, CommentAnchor, ReviewSubjectType, ReviewState, ReviewReason, ReviewDecision, WorkflowLevel, NotificationChannelKind, NotificationChannelStatus, NotificationDeliveryStatus } from './schema.sqlite'
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -178,6 +179,24 @@ export const assetOwners = pgTable('asset_owners', {
   index('asset_owners_user_idx').on(t.userId),
 ])
 
+// Scoped engineering responsibilities on a product. These route reviews,
+// notifications and My Work; they never grant permissions (org role does).
+// Code owners live in asset_owners; developers follow from task assignment.
+// area '' means the whole product (kept non-null so the unique index holds).
+export const productMembers = pgTable('product_members', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  responsibility: text('responsibility').notNull(), // 'eng_manager' | 'architect' | 'contributor'
+  area: text('area').notNull().default(''),
+  createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('product_members_unique_idx').on(t.productId, t.userId, t.responsibility, t.area),
+  index('product_members_user_idx').on(t.userId),
+])
+
 export const assetDependencies = pgTable('asset_dependencies', {
   // Who recorded this edge. No updatedBy — the row is deleted, not edited.
   createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
@@ -214,6 +233,9 @@ export const codePlans = pgTable('code_plans', {
   specUrl: text('spec_url'),
   // A plan ships in at most one release; detaching a release never touches its plans.
   releaseId: uuid('release_id').references((): AnyPgColumn => releases.id, { onDelete: 'set null' }),
+  // Bumped when scope (targets, addressed work items), linked specs or the description change.
+  // Plan reviews pin to it the way spec reviews pin to specs.version.
+  revision: integer('revision').notNull().default(1),
   source: text('source').notNull().default('native'),
   connectionId: uuid('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
   externalId: text('external_id'),
@@ -437,15 +459,20 @@ export const syncLog = pgTable('sync_log', {
   id: uuid('id').primaryKey().defaultRandom(),
   organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
   connectionId: uuid('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
-  entityType: text('entity_type').notNull(), // 'work_item' | 'task' | 'code_plan' | 'asset' | 'product' | 'release' | 'asset_dependency' | 'integration'
+  entityType: text('entity_type').notNull(), // 'work_item' | 'task' | 'code_plan' | 'asset' | 'product' | 'release' | 'asset_dependency' | 'integration' | 'spec'
   entityId: uuid('entity_id').notNull(),
   event: text('event').notNull(),
   // Null when a connection (not a user) is the actor.
   actorId: uuid('actor_id').references(() => users.id, { onDelete: 'set null' }),
+  actorKind: text('actor_kind'), // 'user' | 'agent' | 'connector'
+  // The product the entity belonged to when the event happened (null for org-level
+  // entities like integrations). No FK: history outlives a purged product.
+  productId: uuid('product_id'),
   payload: jsonb('payload').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('sync_log_org_created_idx').on(t.organizationId, t.createdAt),
+  index('sync_log_product_created_idx').on(t.productId, t.createdAt),
 ])
 
 export const apiKeys = pgTable('api_keys', {
@@ -498,6 +525,24 @@ export const specs = pgTable('specs', {
     .where(sql`${t.sourceType} = 'git_import' AND ${t.supersedes} IS NULL`),
 ])
 
+// Append-only snapshot of every spec version's content, written in the same
+// transaction that creates the version. A pinned version number is only
+// evidence if the document it names can still be read.
+export const specRevisions = pgTable('spec_revisions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  specId: uuid('spec_id').notNull().references(() => specs.id, { onDelete: 'cascade' }),
+  version: integer('version').notNull(),
+  title: text('title').notNull(),
+  body: text('body').notNull(),
+  specType: text('spec_type').notNull(),
+  area: text('area'),
+  status: text('status').notNull(),
+  changeSummary: text('change_summary'),
+  createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex('spec_revisions_version_idx').on(t.specId, t.version)])
+
 // Target ownership and existence are checked by the spec service.
 export const specLinks = pgTable('spec_links', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -526,3 +571,205 @@ export const specEvents = pgTable('spec_events', {
   noteId: uuid('note_id').references(() => assetDesignLog.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('spec_events_asset_idx').on(t.assetId)])
+
+
+// ---------------------------------------------------------------------------
+// Collaboration: comments and reviews
+// ---------------------------------------------------------------------------
+
+// Feedback threads on specs, plans, work items, releases and assets. A comment
+// is pinned to the subject version it was written against so anchored remarks
+// can be shown as outdated once the text moves on.
+export const comments = pgTable('comments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  subjectType: text('subject_type').$type<CommentSubjectType>().notNull(),
+  subjectId: uuid('subject_id').notNull(),
+  subjectVersion: integer('subject_version'),
+  // One level of threading: replies point at a top-level comment.
+  parentId: uuid('parent_id').references((): AnyPgColumn => comments.id, { onDelete: 'cascade' }),
+  // Set when the comment is the note attached to a review decision.
+  reviewId: uuid('review_id').references((): AnyPgColumn => reviews.id, { onDelete: 'set null' }),
+  // { quote, prefix, suffix } for inline spec comments; re-matched after revisions.
+  anchor: jsonb('anchor').$type<CommentAnchor | null>(),
+  body: text('body').notNull(),
+  kind: text('kind').$type<CommentKind>().notNull().default('comment'),
+  authorId: uuid('author_id').references(() => users.id, { onDelete: 'set null' }),
+  authorType: text('author_type').$type<'user' | 'agent'>().notNull().default('user'),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  resolvedById: uuid('resolved_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  editedAt: timestamp('edited_at', { withTimezone: true }),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+}, (t) => [
+  index('comments_subject_idx').on(t.subjectType, t.subjectId, t.createdAt),
+  index('comments_parent_idx').on(t.parentId),
+])
+
+export const commentMentions = pgTable('comment_mentions', {
+  commentId: uuid('comment_id').notNull().references(() => comments.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('comment_mentions_pk').on(t.commentId, t.userId),
+  index('comment_mentions_user_idx').on(t.userId),
+])
+
+// A review is an attestation on a pinned subject version: approving v3 says
+// nothing about v4. While open, decisions count only at the subject's current
+// version; once approved, a later revision marks the review stale.
+export const reviews = pgTable('reviews', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  subjectType: text('subject_type').$type<ReviewSubjectType>().notNull(),
+  subjectId: uuid('subject_id').notNull(),
+  // Version when requested; approvedVersion is the version that was approved.
+  subjectVersion: integer('subject_version').notNull(),
+  approvedVersion: integer('approved_version'),
+  requestedById: uuid('requested_by_id').references(() => users.id, { onDelete: 'set null' }),
+  requestedByKind: text('requested_by_kind').$type<'user' | 'agent'>().notNull().default('user'),
+  note: text('note'),
+  dueAt: text('due_at'),
+  state: text('state').$type<ReviewState>().notNull().default('open'),
+  requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
+  closedAt: timestamp('closed_at', { withTimezone: true }),
+}, (t) => [
+  index('reviews_subject_idx').on(t.subjectType, t.subjectId, t.requestedAt),
+  index('reviews_product_state_idx').on(t.productId, t.state),
+])
+
+export const reviewParticipants = pgTable('review_participants', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  reviewId: uuid('review_id').notNull().references(() => reviews.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // The responsibility held when added; kept even if it changes later.
+  reason: text('reason').$type<ReviewReason>().notNull(),
+  required: boolean('required').notNull().default(false),
+  decision: text('decision').$type<ReviewDecision>().notNull().default('pending'),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+  decidedAtVersion: integer('decided_at_version'),
+}, (t) => [
+  uniqueIndex('review_participants_user_idx').on(t.reviewId, t.userId),
+  index('review_participants_pending_idx').on(t.userId, t.decision),
+])
+
+// First org-level configuration storage. One row per org, created on demand.
+export const orgSettings = pgTable('org_settings', {
+  organizationId: uuid('organization_id').primaryKey().references(() => organizations.id, { onDelete: 'cascade' }),
+  workflowDefault: text('workflow_default').$type<WorkflowLevel>().notNull().default('open'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedById: uuid('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+})
+
+// Per-product overrides. A null workflow level inherits the org default.
+export const productSettings = pgTable('product_settings', {
+  productId: uuid('product_id').primaryKey().references(() => products.id, { onDelete: 'cascade' }),
+  workflowLevel: text('workflow_level').$type<WorkflowLevel>(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedById: uuid('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+})
+
+// In-app notifications: one row per recipient per event. State items in My Work
+// (tasks, triage, evidence gaps) are derived by query; only events live here.
+export const notifications = pgTable('notifications', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // The sync_log row that caused it, when there is one.
+  eventId: uuid('event_id'),
+  eventType: text('event_type').notNull(),
+  productId: uuid('product_id').references(() => products.id, { onDelete: 'cascade' }),
+  subjectType: text('subject_type').notNull(),
+  subjectId: uuid('subject_id').notNull(),
+  // Why this person was told: 'mentioned', 'reviewer', 'code_owner:<assetName>', ...
+  reason: text('reason').notNull(),
+  // Rendered when created so the bell reads the same after the subject changes.
+  title: text('title').notNull(),
+  summary: text('summary').notNull().default(''),
+  url: text('url').notNull(),
+  actorId: uuid('actor_id').references(() => users.id, { onDelete: 'set null' }),
+  actorKind: text('actor_kind'),
+  readAt: timestamp('read_at', { withTimezone: true }),
+  doneAt: timestamp('done_at', { withTimezone: true }),
+  snoozedUntil: timestamp('snoozed_until', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('notifications_user_idx').on(t.userId, t.doneAt, t.createdAt),
+  // Delivery is idempotent per event and person.
+  uniqueIndex('notifications_event_user_idx').on(t.eventId, t.userId),
+])
+
+// Where email and Slack notifications go. One channel per kind per org; the
+// secret (API key / webhook URL) is encrypted like integration tokens, with an
+// env-var reference as the fallback for self-hosted setups.
+export const notificationChannels = pgTable('notification_channels', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  kind: text('kind').$type<NotificationChannelKind>().notNull(),
+  name: text('name').notNull(),
+  // { fromAddress, replyTo } for email; { channelLabel } for Slack.
+  config: jsonb('config').$type<Record<string, string>>().notNull().default({}),
+  secretEncrypted: text('secret_encrypted'),
+  authRef: text('auth_ref'),
+  status: text('status').$type<NotificationChannelStatus>().notNull().default('active'),
+  lastError: text('last_error'),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+}, (t) => [
+  uniqueIndex('notification_channels_org_kind_idx').on(t.organizationId, t.kind),
+])
+
+// Admin overrides of the event catalog's defaults. No row means catalog defaults.
+export const notificationRules = pgTable('notification_rules', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  eventType: text('event_type').notNull(),
+  enabled: boolean('enabled').notNull().default(true),
+  inApp: boolean('in_app').notNull().default(true),
+  email: boolean('email').notNull().default(false),
+  slack: boolean('slack').notNull().default(false),
+  // Whether events done by AI agents (via MCP) notify at all.
+  includeAgents: boolean('include_agents').notNull().default(true),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedById: uuid('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+}, (t) => [
+  uniqueIndex('notification_rules_org_event_idx').on(t.organizationId, t.eventType),
+])
+
+// A person's email opt-outs. eventType '*' covers every event. Preferences
+// only narrow what admins turned on; they never add a channel.
+export const notificationPreferences = pgTable('notification_preferences', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  eventType: text('event_type').notNull(),
+  email: boolean('email'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('notification_preferences_user_event_idx').on(t.userId, t.eventType),
+])
+
+// Outbox for email and Slack. One row per event, channel and target; sent
+// after the response and retried with backoff by /api/cron/notifications.
+export const notificationDeliveries = pgTable('notification_deliveries', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  // The sync_log event, or the notification row for events without one.
+  eventId: text('event_id').notNull(),
+  eventType: text('event_type').notNull(),
+  // A channel id, or 'env:email' for the RESEND_API_KEY fallback.
+  channelId: text('channel_id').notNull(),
+  channelKind: text('channel_kind').$type<NotificationChannelKind>().notNull(),
+  // The recipient's user id for email; 'channel' for Slack.
+  target: text('target').notNull(),
+  // Rendered when queued: { subject, html, text } or { text, blocks }.
+  payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
+  status: text('status').$type<NotificationDeliveryStatus>().notNull().default('pending'),
+  attempts: integer('attempts').notNull().default(0),
+  lastError: text('last_error'),
+  nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+  sentAt: timestamp('sent_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('notification_deliveries_event_channel_target_idx').on(t.eventId, t.channelId, t.target),
+  index('notification_deliveries_due_idx').on(t.status, t.nextAttemptAt),
+  index('notification_deliveries_org_idx').on(t.organizationId, t.createdAt),
+])

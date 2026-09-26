@@ -6,8 +6,10 @@ afterEach(() => {
 })
 
 describe('enterprise hook registry', () => {
-  it('defaults every hook to a no-op', () => {
+  it('defaults every hook to a no-op', async () => {
     expect(getEnterpriseHooks().navItems()).toEqual([])
+    expect(await getEnterpriseHooks().reviewGate({} as never)).toEqual({ allowed: true, reasons: [] })
+    expect(getEnterpriseHooks().workflowLevels()).toEqual(['open', 'guided'])
   })
 
   it('lets registered overrides replace individual hooks', () => {

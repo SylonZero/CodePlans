@@ -88,9 +88,10 @@ describe('wiki reading and search', () => {
     ).toEqual(['b', 'a'])
     expect(searchWiki(docs, { q: 'apps/uploader' })).toHaveLength(3)
   })
-  it('filters review, archive, date, and area without dropping standalone documents', () => {
+  it('filters triage, open reviews, archive, date, and area without dropping standalone documents', () => {
     const docs = [
       doc({ needsReview: true, area: 'Files' }),
+      doc({ id: 'd', key: 'spec:d', reviewState: 'changes_requested' }),
       doc({ id: 'b', key: 'spec:b', status: 'archived', area: 'Files' }),
       doc({
         id: 'c',
@@ -99,8 +100,9 @@ describe('wiki reading and search', () => {
         updatedAt: '2026-08-01T00:00:00Z',
       }),
     ]
-    expect(searchWiki(docs, { review: true })).toHaveLength(1)
-    expect(searchWiki(docs, { archived: true })).toHaveLength(3)
+    expect(searchWiki(docs, { triage: true })).toHaveLength(1)
+    expect(searchWiki(docs, { awaitingReview: true }).map((r) => r.document.id)).toEqual(['d'])
+    expect(searchWiki(docs, { archived: true })).toHaveLength(4)
     expect(searchWiki(docs, { status: 'archived' })).toHaveLength(1)
     expect(
       searchWiki(docs, { since: '2026-09-01', area: 'Files' }),

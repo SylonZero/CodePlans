@@ -2,13 +2,16 @@
 
 import { getSpec, linkSpec } from '@/lib/db/specs'
 import { createdBy } from '@/lib/db/attribution'
-import { isOrgOwner, canDeleteCodePlan, canDeleteRelease, canDeleteWorkItem, canDeleteTask, canDeleteAsset, canDeleteProduct } from '@/lib/db/authz'
+import {
+  isOrgOwner, isOrgAdmin, canDeleteCodePlan, canDeleteRelease, canDeleteWorkItem, canDeleteTask, canDeleteAsset, canDeleteProduct,
+  assertCanWrite, canCreateProductIn, ForbiddenError, VIEW_ONLY_MESSAGE, type WriteTarget,
+} from '@/lib/db/authz'
 import { getWorkItem } from '@/lib/db/queries'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { authAdapter } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { users, organizationMembers, organizations, emailVerificationTokens } from '@/lib/db/schema'
+import { users, organizationMembers, organizations, emailVerificationTokens, integrations, products } from '@/lib/db/schema'
 import { eq, and, gt } from 'drizzle-orm'
 import {
   updateIntegration,
@@ -56,7 +59,6 @@ import {
   updateCapability,
   removeCapability,
 } from '@/lib/db/mutations'
-import { getAssetOptions } from '@/lib/db/queries'
 import type { UserRole, WorkItemType, WorkItemStatus, WorkItemSeverity } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
@@ -84,8 +86,34 @@ async function requireUser() {
   return authUser
 }
 
+/** requireUser + write authorization on every target (see lib/db/authz.ts). */
+async function requireWriter(...targets: WriteTarget[]) {
+  const authUser = await requireUser()
+  await assertCanWrite(authUser.id, ...targets)
+  return authUser
+}
+
 async function currentEditor() {
   return { id: (await requireUser()).id, kind: 'user' as const }
+}
+
+/**
+ * Load an integration the caller may act on. 'admin' (create/edit/delete) needs
+ * owner/admin in the integration's org; 'member' (sync, scope lookups) needs a
+ * non-viewer membership. Unknown or foreign connections read as not found.
+ */
+async function requireIntegration(id: string, userId: string, level: 'admin' | 'member') {
+  const integration = await db.query.integrations.findFirst({ where: eq(integrations.id, id) })
+  if (!integration) return { error: 'Connection not found.' as const }
+  const allowed = level === 'admin'
+    ? await isOrgAdmin(integration.organizationId, userId)
+    : await canCreateProductIn(userId, integration.organizationId)
+  if (!allowed) return { error: level === 'admin' ? 'Only an org owner or admin can manage integrations.' : 'Connection not found.' }
+  return integration
+}
+
+function emptySync(error: string): import('@/lib/integrations/types').SyncResult {
+  return { created: 0, updated: 0, unchanged: 0, tasksCreated: 0, tasksUpdated: 0, prsUpdated: 0, error }
 }
 
 async function getUserProfile(userId: string) {
@@ -99,6 +127,7 @@ async function getUserProfile(userId: string) {
 export async function createProductAction(formData: FormData) {
   const authUser = await requireUser()
   const profile = await getUserProfile(authUser.id)
+  if (!(await canCreateProductIn(authUser.id, profile?.organizationId))) throw new ForbiddenError(VIEW_ONLY_MESSAGE)
 
   const name = formData.get('name') as string
   const slugRaw = (formData.get('slug') as string) || slugify(name)
@@ -120,7 +149,7 @@ export async function createProductAction(formData: FormData) {
 }
 
 export async function updateProductAction(id: string, formData: FormData) {
-  const authUser = await requireUser()
+  const authUser = await requireWriter({ productId: id })
 
   const name = formData.get('name') as string
   const description = formData.get('description') as string
@@ -134,7 +163,7 @@ export async function updateProductAction(id: string, formData: FormData) {
 }
 
 export async function archiveProductAction(id: string, slug: string) {
-  const authUser = await requireUser()
+  const authUser = await requireWriter({ productId: id })
   if (!(await canDeleteProduct(authUser.id, id))) {
     return { error: 'Only the product\'s creator, or an org owner/admin, can archive it.' }
   }
@@ -145,7 +174,8 @@ export async function archiveProductAction(id: string, slug: string) {
 
 export async function restoreProductAction(id: string, slug: string) {
   const authUser = await requireUser()
-  if (!(await canDeleteProduct(authUser.id, id))) {
+  const archived = await db.query.products.findFirst({ where: eq(products.id, id) })
+  if (!(await canDeleteProduct(authUser.id, id)) || !(await canCreateProductIn(authUser.id, archived?.organizationId))) {
     return { error: 'Only the product\'s creator, or an org owner/admin, can restore it.' }
   }
   await restoreProduct(id, await currentEditor())
@@ -158,7 +188,7 @@ export async function restoreProductAction(id: string, slug: string) {
 // ---------------------------------------------------------------------------
 
 export async function createAssetAction(productId: string, productSlug: string, formData: FormData) {
-  await requireUser()
+  await requireWriter({ productId })
 
   const name = formData.get('name') as string
   const type = formData.get('type') as 'app' | 'service' | 'library' | 'datastore' | 'platform'
@@ -183,9 +213,7 @@ export async function createAssetAction(productId: string, productSlug: string, 
 }
 
 export async function updateAssetAction(id: string, productSlug: string, formData: FormData) {
-  const authUser = await requireUser()
-  const accessible = await getAssetOptions(authUser.id)
-  if (!accessible.some((a) => a.id === id)) throw new Error('Asset not found or not accessible')
+  const authUser = await requireWriter({ assetId: id })
 
   const name = formData.get('name') as string
   const type = formData.get('type') as 'app' | 'service' | 'library' | 'datastore' | 'platform'
@@ -216,7 +244,7 @@ export async function updateAssetAction(id: string, productSlug: string, formDat
 }
 
 export async function archiveAssetAction(id: string, productSlug: string, reason?: string) {
-  const authUser = await requireUser()
+  const authUser = await requireWriter({ assetId: id })
   if (!(await canDeleteAsset(authUser.id, id))) {
     return { error: 'Only the asset\'s creator/owner, or an org owner/admin, can archive it.' }
   }
@@ -227,7 +255,7 @@ export async function archiveAssetAction(id: string, productSlug: string, reason
 }
 
 export async function restoreAssetAction(id: string, productSlug: string) {
-  const authUser = await requireUser()
+  const authUser = await requireWriter({ assetId: id })
   if (!(await canDeleteAsset(authUser.id, id))) {
     return { error: 'Only the asset\'s creator/owner, or an org owner/admin, can restore it.' }
   }
@@ -238,9 +266,7 @@ export async function restoreAssetAction(id: string, productSlug: string) {
 }
 
 export async function setAssetOwnersAction(assetId: string, productSlug: string, userIds: string[]) {
-  const authUser = await requireUser()
-  const accessible = await getAssetOptions(authUser.id)
-  if (!accessible.some((a) => a.id === assetId)) throw new Error('Asset not found or not accessible')
+  const authUser = await requireWriter({ assetId })
   await setAssetOwners(assetId, userIds, await currentEditor())
   revalidatePath(`/products/${productSlug}`)
   revalidatePath(`/assets/${assetId}`)
@@ -253,9 +279,7 @@ export async function updateAssetContentAction(
   productSlug: string,
   content: { description?: string; notes?: string },
 ) {
-  const authUser = await requireUser()
-  const accessible = await getAssetOptions(authUser.id)
-  if (!accessible.some((a) => a.id === assetId)) throw new Error('Asset not found or not accessible')
+  const authUser = await requireWriter({ assetId })
   await updateAsset(assetId, content, await currentEditor())
   revalidatePath(`/assets/${assetId}`)
   revalidatePath(`/products/${productSlug}`)
@@ -271,6 +295,7 @@ export async function createCodePlanAction(formData: FormData) {
   const title = formData.get('title') as string
   const description = formData.get('description') as string
   const productId = formData.get('productId') as string
+  await assertCanWrite(authUser.id, { productId })
   const type = formData.get('type') as 'refactor' | 'feature' | 'improvement' | 'bugfix'
   const tags = parseTags(formData.get('tags') as string)
   const deadline = (formData.get('deadline') as string) || undefined
@@ -295,7 +320,7 @@ export async function createCodePlanAction(formData: FormData) {
 }
 
 export async function updateCodePlanAction(id: string, formData: FormData) {
-  await requireUser()
+  await requireWriter({ codePlanId: id })
 
   const title = formData.get('title') as string
   const description = formData.get('description') as string
@@ -311,13 +336,19 @@ export async function updateCodePlanAction(id: string, formData: FormData) {
 }
 
 export async function activatePlanAction(id: string) {
-  await requireUser()
-  await updateCodePlan(id, { status: 'active' }, await currentEditor())
+  await requireWriter({ codePlanId: id })
+  try {
+    await updateCodePlan(id, { status: 'active' }, await currentEditor())
+  } catch (err) {
+    // A review-workflow extension can block activation; its reasons go back to the UI.
+    return { error: err instanceof Error ? err.message : 'Could not activate the plan.' }
+  }
   revalidatePath(`/plans/${id}`)
+  return {}
 }
 
 export async function completePlanAction(id: string) {
-  await requireUser()
+  await requireWriter({ codePlanId: id })
   const plan = await updateCodePlan(id, { status: 'completed' }, await currentEditor())
   if (plan) {
     // Write-back: comment on mirrored tracker issues linked to this plan.
@@ -328,7 +359,7 @@ export async function completePlanAction(id: string) {
 }
 
 export async function deleteCodePlanAction(id: string) {
-  const authUser = await requireUser()
+  const authUser = await requireWriter({ codePlanId: id })
   if (!(await canDeleteCodePlan(authUser.id, id))) {
     return { error: 'Only the plan\'s creator, or an org owner/admin, can delete it.' }
   }
@@ -342,19 +373,19 @@ export async function deleteCodePlanAction(id: string) {
 // ---------------------------------------------------------------------------
 
 export async function addPlanAssetAction(codePlanId: string, assetId: string) {
-  await requireUser()
+  await requireWriter({ codePlanId }, { assetId })
   await addPlanAsset(codePlanId, assetId, await currentEditor())
   revalidatePath(`/plans/${codePlanId}`)
 }
 
 export async function removePlanAssetAction(codePlanId: string, assetId: string) {
-  await requireUser()
+  await requireWriter({ codePlanId }, { assetId })
   await removePlanAsset(codePlanId, assetId, await currentEditor())
   revalidatePath(`/plans/${codePlanId}`)
 }
 
 export async function updatePlanAssetAction(codePlanId: string, assetId: string, formData: FormData) {
-  await requireUser()
+  await requireWriter({ codePlanId }, { assetId })
   await updatePlanAsset(codePlanId, assetId, {
     branch: (formData.get('branch') as string) || null,
     prUrl: (formData.get('prUrl') as string) || null,
@@ -369,7 +400,7 @@ export async function updatePlanAssetAction(codePlanId: string, assetId: string,
 // ---------------------------------------------------------------------------
 
 export async function createTaskAction(codePlanId: string, formData: FormData) {
-  await requireUser()
+  const authUser = await requireWriter({ codePlanId })
 
   const title = formData.get('title') as string
   const description = (formData.get('description') as string) || ''
@@ -378,6 +409,7 @@ export async function createTaskAction(codePlanId: string, formData: FormData) {
   const estimatedEffortRaw = formData.get('estimatedEffort') as string
   const assigneeId = (formData.get('assigneeId') as string) || undefined
   const assetId = (formData.get('assetId') as string) || undefined
+  if (assetId) await assertCanWrite(authUser.id, { assetId })
 
   await createTask({
     codePlanId,
@@ -397,7 +429,7 @@ export async function createTaskAction(codePlanId: string, formData: FormData) {
 }
 
 export async function updateTaskAction(id: string, formData: FormData) {
-  await requireUser()
+  await requireWriter({ taskId: id })
 
   const title = formData.get('title') as string
   const description = (formData.get('description') as string) || ''
@@ -428,7 +460,7 @@ export async function updateTaskAction(id: string, formData: FormData) {
 }
 
 export async function updateTaskStatusAction(id: string, status: 'not_started' | 'in_progress' | 'done') {
-  await requireUser()
+  await requireWriter({ taskId: id })
   await updateTaskStatus(id, status, await currentEditor())
   revalidatePath('/tasks')
   revalidatePath('/plans/[id]', 'page')
@@ -436,7 +468,7 @@ export async function updateTaskStatusAction(id: string, status: 'not_started' |
 }
 
 export async function deleteTaskAction(id: string, planId: string) {
-  const authUser = await requireUser()
+  const authUser = await requireWriter({ taskId: id })
   if (!(await canDeleteTask(authUser.id, id))) {
     return { error: 'Only the task\'s assignee/creator, or an org owner/admin, can delete it.' }
   }
@@ -453,6 +485,7 @@ export async function inviteMemberAction(formData: FormData) {
   const authUser = await requireUser()
   const profile = await getUserProfile(authUser.id)
   if (!profile?.organizationId) return { error: 'You are not part of an organization.' }
+  if (!(await isOrgAdmin(profile.organizationId, authUser.id))) return { error: 'Only an org owner or admin can invite members.' }
 
   const email = formData.get('email') as string
   const role = (formData.get('role') as UserRole) || 'editor'
@@ -634,7 +667,8 @@ export async function changePasswordAction(formData: FormData) {
 // ---------------------------------------------------------------------------
 
 export async function createWorkItemAction(formData: FormData) {
-  const authUser = await requireUser()
+  const assetId = (formData.get('assetId') as string) || undefined
+  const authUser = await requireWriter({ productId: formData.get('productId') as string }, ...(assetId ? [{ assetId }] : []))
 
   const specId = (formData.get('specId') as string) || undefined
   if (specId && (await getSpec(specId, authUser.id)).productId !== formData.get('productId')) throw new Error('Spec must belong to this product')
@@ -660,7 +694,7 @@ export async function createWorkItemAction(formData: FormData) {
 }
 
 export async function updateWorkItemAction(id: string, formData: FormData) {
-  await requireUser()
+  await requireWriter({ workItemId: id })
 
   const item = await updateWorkItem(id, {
     title: formData.get('title') as string,
@@ -681,13 +715,13 @@ export async function updateWorkItemAction(id: string, formData: FormData) {
 }
 
 export async function updateWorkItemStatusAction(id: string, status: WorkItemStatus) {
-  await requireUser()
+  await requireWriter({ workItemId: id })
   await updateWorkItemStatus(id, status, await currentEditor())
   revalidatePath('/work-items')
 }
 
 export async function deleteWorkItemAction(id: string) {
-  const authUser = await requireUser()
+  const authUser = await requireWriter({ workItemId: id })
   if (!(await canDeleteWorkItem(authUser.id, id))) {
     return { error: 'Only the reporter/owner, or an org owner/admin, can delete this work item.' }
   }
@@ -696,14 +730,14 @@ export async function deleteWorkItemAction(id: string) {
 }
 
 export async function linkWorkItemToPlanAction(workItemId: string, codePlanId: string) {
-  await requireUser()
+  await requireWriter({ workItemId }, { codePlanId })
   await linkWorkItemToPlan(workItemId, codePlanId, await currentEditor())
   revalidatePath('/work-items')
   revalidatePath(`/plans/${codePlanId}`)
 }
 
 export async function unlinkWorkItemFromPlanAction(workItemId: string, codePlanId: string) {
-  await requireUser()
+  await requireWriter({ workItemId }, { codePlanId })
   await unlinkWorkItemFromPlan(workItemId, codePlanId, await currentEditor())
   revalidatePath('/work-items')
   revalidatePath(`/plans/${codePlanId}`)
@@ -714,7 +748,7 @@ export async function unlinkWorkItemFromPlanAction(workItemId: string, codePlanI
 // ---------------------------------------------------------------------------
 
 export async function addAssetDependencyAction(productSlug: string, formData: FormData) {
-  await requireUser()
+  await requireWriter({ assetId: formData.get('sourceAssetId') as string }, { assetId: formData.get('targetAssetId') as string })
   await createAssetDependency({
     sourceAssetId: formData.get('sourceAssetId') as string,
     targetAssetId: formData.get('targetAssetId') as string,
@@ -727,7 +761,7 @@ export async function addAssetDependencyAction(productSlug: string, formData: Fo
 }
 
 export async function removeAssetDependencyAction(id: string, productSlug: string) {
-  await requireUser()
+  await requireWriter({ assetDependencyId: id })
   await deleteAssetDependency(id, await currentEditor())
   revalidatePath(`/products/${productSlug}`)
 }
@@ -740,6 +774,7 @@ export async function createIntegrationAction(formData: FormData) {
   const authUser = await requireUser()
   const profile = await getUserProfile(authUser.id)
   if (!profile?.organizationId) return { error: 'You are not part of an organization.' }
+  if (!(await isOrgAdmin(profile.organizationId, authUser.id))) return { error: 'Only an org owner or admin can manage integrations.' }
 
   const provider = formData.get('provider') as string
   const name = formData.get('name') as string
@@ -750,6 +785,7 @@ export async function createIntegrationAction(formData: FormData) {
   const productId = (formData.get('productId') as string) || undefined
 
   if (!productId) return { error: 'Select a target product for mirrored items.' }
+  await assertCanWrite(authUser.id, { productId })
   if (!token && !authRef) return { error: 'Provide a token, or an env-var name that holds one.' }
 
   await createIntegration({
@@ -769,6 +805,8 @@ export async function updateIntegrationAction(id: string, formData: FormData) {
   const authUser = await requireUser()
   const profile = await getUserProfile(authUser.id)
   if (!profile?.organizationId) return { error: 'No workspace found.' }
+  const existing = await requireIntegration(id, authUser.id, 'admin')
+  if ('error' in existing) return { error: existing.error }
 
   const name = formData.get('name') as string
   const repo = (formData.get('repo') as string) || undefined
@@ -777,6 +815,7 @@ export async function updateIntegrationAction(id: string, formData: FormData) {
   const token = (formData.get('token') as string)?.trim() || undefined
   const productId = (formData.get('productId') as string) || undefined
   if (!productId) return { error: 'Select a target product for mirrored items.' }
+  await assertCanWrite(authUser.id, { productId })
 
   await updateIntegration(id, {
     name,
@@ -790,13 +829,17 @@ export async function updateIntegrationAction(id: string, formData: FormData) {
 }
 
 export async function deleteIntegrationAction(id: string) {
-  await requireUser()
+  const authUser = await requireUser()
+  const existing = await requireIntegration(id, authUser.id, 'admin')
+  if ('error' in existing) throw new ForbiddenError(existing.error)
   await deleteIntegration(id, await currentEditor())
   revalidatePath('/integrations')
 }
 
 export async function syncIntegrationAction(id: string) {
-  await requireUser()
+  const authUser = await requireUser()
+  const existing = await requireIntegration(id, authUser.id, 'member')
+  if ('error' in existing) return emptySync(existing.error)
   const { syncConnection } = await import('@/lib/integrations/sync')
   const result = await syncConnection(id)
   revalidatePath('/integrations')
@@ -809,27 +852,24 @@ export async function syncIntegrationAction(id: string) {
 // ---------------------------------------------------------------------------
 
 export async function listPlanScopesAction(connectionId: string) {
-  await requireUser()
-  const { integrations } = await import('@/lib/db/schema')
-  const integration = await db.query.integrations.findFirst({
-    where: eq(integrations.id, connectionId),
-  })
-  if (!integration) return { error: 'Connection not found.' }
+  const authUser = await requireUser()
+  const integration = await requireIntegration(connectionId, authUser.id, 'member')
+  if ('error' in integration) return { error: integration.error, scopes: undefined }
 
   const { getConnector } = await import('@/lib/integrations/registry')
   const connector = getConnector(integration.provider)
-  if (!connector?.listScopes) return { error: 'This provider does not support scopes.' }
+  if (!connector?.listScopes) return { error: 'This provider does not support scopes.', scopes: undefined }
 
   const { resolveConnectionToken } = await import('@/lib/integrations/secrets')
   const token = resolveConnectionToken(integration)
-  if (!token) return { error: 'Auth token not found — paste a token on the connection or set its env var.' }
+  if (!token) return { error: 'Auth token not found — paste a token on the connection or set its env var.', scopes: undefined }
 
   try {
     const config = (integration.config ?? {}) as import('@/lib/integrations/types').IntegrationConfig
     const scopes = await connector.listScopes({ token }, config)
-    return { scopes }
+    return { scopes, error: undefined }
   } catch (err) {
-    return { error: err instanceof Error ? err.message : String(err) }
+    return { error: err instanceof Error ? err.message : String(err), scopes: undefined }
   }
 }
 
@@ -840,12 +880,9 @@ export async function linkPlanScopeAction(
   scopeTitle: string,
   scopeUrl?: string,
 ) {
-  await requireUser()
-  const { integrations } = await import('@/lib/db/schema')
-  const integration = await db.query.integrations.findFirst({
-    where: eq(integrations.id, connectionId),
-  })
-  if (!integration) return { error: 'Connection not found.' }
+  const authUser = await requireWriter({ codePlanId: planId })
+  const integration = await requireIntegration(connectionId, authUser.id, 'member')
+  if ('error' in integration) return emptySync(integration.error)
 
   await linkPlanToExternalScope(planId, {
     provider: integration.provider,
@@ -865,7 +902,7 @@ export async function linkPlanScopeAction(
 }
 
 export async function unlinkPlanScopeAction(planId: string) {
-  await requireUser()
+  await requireWriter({ codePlanId: planId })
   await unlinkPlanFromExternalScope(planId, await currentEditor())
   revalidatePath(`/plans/${planId}`)
   revalidatePath('/tasks')
@@ -894,7 +931,7 @@ export async function revokeApiKeyAction(id: string) {
 
 // Narrow row-level edits (inline list editing)
 export async function updateTaskPriorityAction(id: string, priority: 'low' | 'medium' | 'high' | 'critical') {
-  await requireUser()
+  await requireWriter({ taskId: id })
   await updateTask(id, { priority }, await currentEditor())
   revalidatePath('/tasks')
   revalidatePath('/plans/[id]', 'page')
@@ -902,7 +939,7 @@ export async function updateTaskPriorityAction(id: string, priority: 'low' | 'me
 }
 
 export async function moveTaskToPlanAction(id: string, codePlanId: string) {
-  await requireUser()
+  await requireWriter({ taskId: id }, { codePlanId })
   const { moveTaskToPlan } = await import('@/lib/db/mutations')
   await moveTaskToPlan(id, codePlanId, await currentEditor())
   revalidatePath('/tasks')
@@ -911,7 +948,7 @@ export async function moveTaskToPlanAction(id: string, codePlanId: string) {
 }
 
 export async function updateTaskAssigneeAction(id: string, assigneeId: string | null) {
-  await requireUser()
+  await requireWriter({ taskId: id })
   await updateTask(id, { assigneeId }, await currentEditor())
   revalidatePath('/tasks')
   revalidatePath('/plans/[id]', 'page')
@@ -922,7 +959,7 @@ export async function updateTaskAssigneeAction(id: string, assigneeId: string | 
 // ---------------------------------------------------------------------------
 
 export async function createReleaseAction(formData: FormData) {
-  const authUser = await requireUser()
+  const authUser = await requireWriter({ productId: formData.get('productId') as string })
   const release = await createRelease(
     {
       productId: formData.get('productId') as string,
@@ -937,7 +974,7 @@ export async function createReleaseAction(formData: FormData) {
 }
 
 export async function updateReleaseAction(id: string, formData: FormData) {
-  await requireUser()
+  await requireWriter({ releaseId: id })
   await updateRelease(id, {
     name: formData.get('name') as string,
     description: (formData.get('description') as string) || '',
@@ -948,14 +985,14 @@ export async function updateReleaseAction(id: string, formData: FormData) {
 }
 
 export async function setReleaseStatusAction(id: string, status: 'planned' | 'in_progress' | 'shipped' | 'abandoned') {
-  await requireUser()
+  await requireWriter({ releaseId: id })
   await updateRelease(id, { status }, await currentEditor())
   revalidatePath(`/releases/${id}`)
   revalidatePath('/releases')
 }
 
 export async function deleteReleaseAction(id: string) {
-  const authUser = await requireUser()
+  const authUser = await requireWriter({ releaseId: id })
   if (!(await canDeleteRelease(authUser.id, id))) {
     return { error: 'Only the release\'s creator, or an org owner/admin, can delete it.' }
   }
@@ -965,21 +1002,21 @@ export async function deleteReleaseAction(id: string) {
 }
 
 export async function attachPlanToReleaseAction(codePlanId: string, releaseId: string) {
-  await requireUser()
+  await requireWriter({ codePlanId }, { releaseId })
   await attachPlanToRelease(codePlanId, releaseId, await currentEditor())
   revalidatePath(`/releases/${releaseId}`)
   revalidatePath(`/plans/${codePlanId}`)
 }
 
 export async function detachPlanFromReleaseAction(codePlanId: string, releaseId: string) {
-  await requireUser()
+  await requireWriter({ codePlanId }, { releaseId })
   await detachPlanFromRelease(codePlanId, await currentEditor())
   revalidatePath(`/releases/${releaseId}`)
   revalidatePath(`/plans/${codePlanId}`)
 }
 
 export async function setReleaseAssetAction(releaseId: string, assetId: string, formData: FormData) {
-  await requireUser()
+  await requireWriter({ releaseId }, { assetId })
   const version = ((formData.get('version') as string) || '').trim()
   const notes = ((formData.get('notes') as string) || '').trim()
   await setReleaseAsset(releaseId, assetId, { version: version || null, notes: notes || null }, await currentEditor())
@@ -987,7 +1024,7 @@ export async function setReleaseAssetAction(releaseId: string, assetId: string, 
 }
 
 export async function removeReleaseAssetAction(releaseId: string, assetId: string) {
-  await requireUser()
+  await requireWriter({ releaseId }, { assetId })
   await removeReleaseAsset(releaseId, assetId, await currentEditor())
   revalidatePath(`/releases/${releaseId}`)
 }
@@ -997,7 +1034,7 @@ export async function removeReleaseAssetAction(releaseId: string, assetId: strin
 // ---------------------------------------------------------------------------
 
 export async function addDesignNoteAction(assetId: string, formData: FormData) {
-  const authUser = await requireUser()
+  const authUser = await requireWriter({ assetId })
   const releaseId = (formData.get('releaseId') as string) || undefined
   const codePlanId = (formData.get('codePlanId') as string) || undefined
   await createDesignNote({
@@ -1013,7 +1050,7 @@ export async function addDesignNoteAction(assetId: string, formData: FormData) {
 }
 
 export async function deleteDesignNoteAction(noteId: string, assetId: string) {
-  await requireUser()
+  await requireWriter({ designNoteId: noteId })
   await deleteDesignNote(noteId, await currentEditor())
   revalidatePath(`/assets/${assetId}`)
 }
@@ -1023,7 +1060,7 @@ export async function deleteDesignNoteAction(noteId: string, assetId: string) {
 // ---------------------------------------------------------------------------
 
 export async function setPlanReleaseAction(codePlanId: string, releaseId: string | null) {
-  await requireUser()
+  await requireWriter({ codePlanId }, ...(releaseId ? [{ releaseId }] : []))
   if (releaseId) {
     await attachPlanToRelease(codePlanId, releaseId, await currentEditor())
     revalidatePath(`/releases/${releaseId}`)
@@ -1072,7 +1109,7 @@ export async function draftDesignNoteAction(
 
 /** Save AI-drafted (then human-edited) release notes into the description. */
 export async function saveReleaseDescriptionAction(releaseId: string, description: string) {
-  await requireUser()
+  await requireWriter({ releaseId })
   await updateRelease(releaseId, { description }, await currentEditor())
   revalidatePath(`/releases/${releaseId}`)
 }
@@ -1082,7 +1119,7 @@ export async function saveReleaseDescriptionAction(releaseId: string, descriptio
 // ---------------------------------------------------------------------------
 
 export async function graduateWorkItemAction(workItemId: string, assetId: string, sourceSpecId?: string) {
-  const authUser = await requireUser()
+  const authUser = await requireWriter({ workItemId }, { assetId })
   const item = await getWorkItem(workItemId, authUser.id)
   if (!item || item.assetId !== assetId) throw new Error('Work item not found or not accessible on this asset')
   const result = await graduateWorkItem(workItemId, sourceSpecId, await currentEditor())
@@ -1092,7 +1129,7 @@ export async function graduateWorkItemAction(workItemId: string, assetId: string
 }
 
 export async function updateCapabilityAction(id: string, assetId: string, formData: FormData) {
-  await requireUser()
+  await requireWriter({ capabilityId: id })
   await updateCapability(id, {
     title: formData.get('title') as string,
     description: (formData.get('description') as string) || '',
@@ -1102,7 +1139,39 @@ export async function updateCapabilityAction(id: string, assetId: string, formDa
 }
 
 export async function removeCapabilityAction(id: string, assetId: string, reason: string) {
-  await requireUser()
+  await requireWriter({ capabilityId: id })
   await removeCapability(id, reason.trim() || undefined, await currentEditor())
   revalidatePath(`/assets/${assetId}`)
+}
+
+// ---------------------------------------------------------------------------
+// Product responsibilities (engineering manager / architect / contributor)
+// ---------------------------------------------------------------------------
+
+export async function addProductMemberAction(productId: string, productSlug: string, formData: FormData) {
+  const authUser = await requireUser()
+  const { addProductMember, isResponsibility } = await import('@/lib/db/responsibilities')
+  const responsibility = String(formData.get('responsibility') ?? '')
+  const userId = String(formData.get('userId') ?? '')
+  if (!userId) return { error: 'Choose a person.' }
+  if (!isResponsibility(responsibility)) return { error: 'Choose a responsibility.' }
+  try {
+    await addProductMember({ productId, userId, responsibility, area: (formData.get('area') as string) || null }, { id: authUser.id })
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Could not add responsibility.' }
+  }
+  revalidatePath(`/products/${productSlug}`)
+  return {}
+}
+
+export async function removeProductMemberAction(id: string, productSlug: string) {
+  const authUser = await requireUser()
+  const { removeProductMember } = await import('@/lib/db/responsibilities')
+  try {
+    await removeProductMember(id, { id: authUser.id })
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Could not remove responsibility.' }
+  }
+  revalidatePath(`/products/${productSlug}`)
+  return {}
 }

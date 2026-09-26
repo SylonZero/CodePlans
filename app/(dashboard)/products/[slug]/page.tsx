@@ -16,6 +16,10 @@ import { AssetsSection, AssetCreatePanel } from './assets-section'
 import { ProductEditPanel } from './product-edit-panel'
 import { ArchivedProductBanner } from './archived-product-banner'
 import { PlanCreatePanel } from '../../plans/plan-create-panel'
+import { PeopleSection } from './people-section'
+import { WorkflowCard } from './workflow-card'
+import { getWorkflowLevel, getOrgWorkflowDefault, availableWorkflowLevels } from '@/lib/db/workflow'
+import { getProductPeople, canManageResponsibilities } from '@/lib/db/responsibilities'
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
@@ -32,9 +36,19 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const productPlans = await getCodePlans(user.id, { productId: product.id, includeArchived: true })
   const dependencyEdges = await getProductDependencyEdges(product.id)
 
-  const profile = await db.query.users.findFirst({ where: eq(users.id, user.id) })
-  const teamMembers = profile?.organizationId ? await getTeamMembers(profile.organizationId) : []
-  const memberList = teamMembers.map((m) => ({ id: m.userId, name: m.user.name }))
+  // People who can be assigned come from the product's org, not the viewer's current one.
+  const productOrgId = product.organizationId ?? null
+  const teamMembers = productOrgId ? await getTeamMembers(productOrgId) : []
+  const creator = productOrgId ? null : await db.query.users.findFirst({ where: eq(users.id, product.creatorId) })
+  const memberList = productOrgId
+    ? teamMembers.map((m) => ({ id: m.userId, name: m.user.name }))
+    : creator ? [{ id: creator.id, name: creator.name }] : []
+  const [people, canManagePeople, workflow, orgDefault] = await Promise.all([
+    getProductPeople(product.id, user.id),
+    canManageResponsibilities(user.id, product.id),
+    getWorkflowLevel(product.id),
+    getOrgWorkflowDefault(productOrgId),
+  ])
 
   return (
     <div className="space-y-6">
@@ -80,6 +94,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           <TabsTrigger value="assets">Assets ({product.assets.length})</TabsTrigger>
           <TabsTrigger value="plans">Code Plans ({productPlans.length})</TabsTrigger>
           <TabsTrigger value="dependencies">Dependencies ({dependencyEdges.length})</TabsTrigger>
+          <TabsTrigger value="people">People &amp; reviews</TabsTrigger>
         </TabsList>
 
         <TabsContent value="assets" className="space-y-6">
@@ -91,6 +106,19 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             productSlug={slug}
             edges={dependencyEdges}
             assets={product.assets.map((a) => ({ id: a.id, name: a.name }))}
+          />
+        </TabsContent>
+
+        <TabsContent value="people" className="space-y-6">
+          <WorkflowCard productId={product.id} productSlug={slug} level={workflow.level} inherited={workflow.inherited} orgDefault={orgDefault}
+            available={availableWorkflowLevels()} canManage={canManagePeople && !product.archivedAt} />
+          <PeopleSection
+            productId={product.id}
+            productSlug={slug}
+            members={people.members}
+            codeOwners={people.codeOwners}
+            candidates={memberList}
+            canManage={canManagePeople && !product.archivedAt}
           />
         </TabsContent>
 

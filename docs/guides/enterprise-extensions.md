@@ -54,6 +54,20 @@ import { getEnterpriseHooks } from '@/lib/ee/registry'
 const extraNavItems = getEnterpriseHooks().navItems() // [] unless enabled
 ```
 
+### Current hooks
+
+| Hook | Called from | Community default |
+|---|---|---|
+| `navItems()` | Dashboard sidebar | `[]` |
+| `reviewGate(ctx)` | `lib/db/workflow.ts` `checkActivation`, on every activation path: a spec becoming active, a plan being activated, a task being started (UI, API and MCP alike) | `{ allowed: true, reasons: [] }` |
+| `workflowLevels()` | Workflow settings (which levels a product or org may be set to) | `['open', 'guided']` |
+
+`reviewGate` receives plain data — product, subject, transition, actor and
+actor kind, the product's workflow level, whether an approval covers the
+subject's current content, the code owners it touches and its author — and
+returns `{ allowed, reasons }`. When `allowed` is false the caller throws with
+the reasons, which reach the user or agent verbatim.
+
 ## Adding a new extension point
 
 1. Add a narrowly-scoped field to `EnterpriseHooks` in `lib/ee/types.ts`,

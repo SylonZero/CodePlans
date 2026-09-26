@@ -72,6 +72,7 @@ export default async function WikiProduct({ params, searchParams }: Props) {
   const listing =
     view === 'documents' ||
     view === 'review' ||
+    view === 'triage' ||
     !!q ||
     !!kind ||
     !!status ||
@@ -85,7 +86,8 @@ export default async function WikiProduct({ params, searchParams }: Props) {
     since,
     area,
     archived: read('archived') === '1',
-    review: view === 'review',
+    triage: view === 'triage',
+    awaitingReview: view === 'review',
   }
   const results = listing ? searchWiki(data.documents, filters) : []
   const page = Math.max(
@@ -110,9 +112,10 @@ export default async function WikiProduct({ params, searchParams }: Props) {
       (order.includes(a) ? order.indexOf(a) : 99) -
         (order.includes(b) ? order.indexOf(b) : 99) || a.localeCompare(b),
   )
-  const review = data.documents.filter(
+  const triage = data.documents.filter(
       (d) => d.needsReview && !inactiveStatuses.has(d.status),
     ),
+    awaiting = data.documents.filter((d) => d.reviewState),
     unassigned = data.documents.filter(
       (d) => !d.associations.length && !inactiveStatuses.has(d.status),
     ),
@@ -207,7 +210,13 @@ export default async function WikiProduct({ params, searchParams }: Props) {
                 className={view === 'review' ? 'selected' : ''}
                 href={wikiHref(slug, { view: 'review' })}
               >
-                Needs review <small>{review.length}</small>
+                Awaiting review <small>{awaiting.length}</small>
+              </Link>
+              <Link
+                className={view === 'triage' ? 'selected' : ''}
+                href={wikiHref(slug, { view: 'triage' })}
+              >
+                Import triage <small>{triage.length}</small>
               </Link>
               {layers.map((layer) => (
                 <details key={layer} open className="wiki-layer">
@@ -245,7 +254,9 @@ export default async function WikiProduct({ params, searchParams }: Props) {
               {doc?.title ??
                 asset?.name ??
                 (view === 'review'
-                  ? 'Needs review'
+                  ? 'Awaiting review'
+                  : view === 'triage'
+                    ? 'Import triage'
                   : view === 'changes'
                     ? 'Recent changes'
                     : listing
@@ -258,19 +269,23 @@ export default async function WikiProduct({ params, searchParams }: Props) {
           ) : listing ? (
             <>
               <p className="wiki-eyebrow">
-                {view === 'review' ? 'Document readiness' : 'Product library'}
+                {view === 'review' || view === 'triage' ? 'Document readiness' : 'Product library'}
                 {asset ? ` / ${asset.name}` : ''}
               </p>
               <h1>
                 {view === 'review'
-                  ? 'Specs needing review'
+                  ? 'Specs and plans awaiting review'
+                  : view === 'triage'
+                    ? 'Imported specs to triage'
                   : q
                     ? `Search results`
                     : 'Explore the documents'}
               </h1>
               <p className="wiki-lead">
                 {view === 'review'
-                  ? 'Review content, titles, classification, and source references in CodePlans. Imported drafts are not automatically delivered capabilities.'
+                  ? 'These have an open review. Reviewers approve a specific version in CodePlans; an approval stops covering a spec or plan once its content changes.'
+                  : view === 'triage'
+                    ? 'Check content, titles, classification, and source references of imported specs in CodePlans. Imported drafts are not automatically delivered capabilities.'
                   : 'Search content, headings, areas, repository paths, and technical identifiers.'}
               </p>
               <details className="wiki-filter-disclosure">
@@ -291,7 +306,7 @@ export default async function WikiProduct({ params, searchParams }: Props) {
                   <input
                     type="hidden"
                     name="view"
-                    value={view === 'review' ? 'review' : 'documents'}
+                    value={view === 'review' || view === 'triage' ? view : 'documents'}
                   />
                   <label className="wiki-query-label">
                     Search
@@ -383,9 +398,13 @@ export default async function WikiProduct({ params, searchParams }: Props) {
                           {d.version ? ` · Spec v${d.version}` : ''}
                         </span>
                         <span className="wiki-state">
-                          {d.needsReview
-                            ? 'Needs review'
-                            : d.status.replaceAll('_', ' ')}
+                          {d.reviewState === 'changes_requested'
+                            ? 'Changes requested'
+                            : d.reviewState
+                              ? 'In review'
+                              : d.needsReview
+                                ? 'Import triage'
+                                : d.status.replaceAll('_', ' ')}
                         </span>
                       </div>
                       <Link
@@ -501,15 +520,23 @@ export default async function WikiProduct({ params, searchParams }: Props) {
                   <span>Connections</span>
                 </div>
               </div>
-              {review.length > 0 && (
+              {awaiting.length > 0 && (
                 <Link
                   className="wiki-callout"
                   href={wikiHref(slug, { view: 'review' })}
                 >
-                  {review.length} spec
-                  {review.length === 1 ? ' needs' : 's need'} review
-                  {review.some((d) => d.placeholder)
-                    ? ` · ${review.filter((d) => d.placeholder).length} source references awaiting content`
+                  {awaiting.length} {awaiting.length === 1 ? 'document is' : 'documents are'} awaiting review →
+                </Link>
+              )}
+              {triage.length > 0 && (
+                <Link
+                  className="wiki-callout"
+                  href={wikiHref(slug, { view: 'triage' })}
+                >
+                  {triage.length} imported spec
+                  {triage.length === 1 ? ' needs' : 's need'} triage
+                  {triage.some((d) => d.placeholder)
+                    ? ` · ${triage.filter((d) => d.placeholder).length} source references awaiting content`
                     : ''}{' '}
                   →
                 </Link>

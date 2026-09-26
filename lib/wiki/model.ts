@@ -45,7 +45,10 @@ export type WikiDocument = {
   specType?: string
   sourceUrl?: string | null
   sourceType?: string
+  /** Git-import quality flag: classification and content still need a human pass. */
   needsReview?: boolean
+  /** An open review (spec or plan) and its state; absent when none is open. */
+  reviewState?: 'open' | 'changes_requested' | null
   placeholder?: boolean
   associations: WikiAssociation[]
   related: string[]
@@ -133,7 +136,10 @@ export function searchWiki(
     status?: string
     since?: string
     archived?: boolean
-    review?: boolean
+    /** Imported specs flagged for triage (needsReview). */
+    triage?: boolean
+    /** Specs and plans with an open review. */
+    awaitingReview?: boolean
     area?: string
   },
 ) {
@@ -157,7 +163,8 @@ export function searchWiki(
           : !filters.archived && inactiveStatuses.has(doc.status)
       )
         return []
-      if (filters.review && !doc.needsReview) return []
+      if (filters.triage && !doc.needsReview) return []
+      if (filters.awaitingReview && !doc.reviewState) return []
       if (filters.area && doc.area !== filters.area) return []
       if (
         filters.since &&

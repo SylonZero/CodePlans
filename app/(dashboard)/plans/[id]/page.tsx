@@ -23,6 +23,12 @@ import { Calendar, Users, AlertCircle } from 'lucide-react'
 import type { CodePlanStatus, CodePlanType } from '@/lib/types'
 import { cn, formatDate } from '@/lib/utils'
 import { PlanStatusButtons, PlanEditSheet, AddTaskDialog, DeletePlanButton } from './plan-actions'
+import { ReviewPanel, ReviewStatusBadge } from '@/components/review-panel'
+import { CommentsPanel } from '@/components/comments-panel'
+import { getReviewSummary } from '@/lib/db/reviews'
+import { listComments, getProductAudience } from '@/lib/db/comments'
+import { checkActivation } from '@/lib/db/workflow'
+import { canWriteProduct } from '@/lib/db/authz'
 
 const statusStyles: Record<CodePlanStatus, string> = {
   draft: 'bg-muted text-muted-foreground',
@@ -63,6 +69,13 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
     getCodePlans(user.id),
     getReleases(user.id, { productId: plan.productId }),
   ])
+  const [review, threads, audience, canEdit] = await Promise.all([
+    getReviewSummary('code_plan', id, user.id), listComments('code_plan', id, user.id), getProductAudience(plan.productId), canWriteProduct(user.id, plan.productId),
+  ])
+  const activation = canEdit && plan.status === 'draft'
+    ? await checkActivation({ subjectType: 'code_plan', subjectId: id, transition: 'activate', actor: { id: user.id } })
+    : null
+  const openThreads = threads.filter((t) => !t.resolvedAt).length
   const otherPlans = allPlans
     .filter((p) => p.id !== id && p.status !== 'completed' && p.status !== 'cancelled')
     .map((p) => ({ id: p.id, title: p.title }))
@@ -84,6 +97,8 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
             <h1 className="text-2xl font-bold tracking-tight">{plan.title}</h1>
             <Badge variant="secondary" className={cn(typeStyles[plan.type])}>{typeLabels[plan.type]}</Badge>
             <Badge variant="secondary" className={cn(statusStyles[plan.status])}>{plan.status}</Badge>
+            <a href="#review" className="contents"><ReviewStatusBadge summary={review} /></a>
+            <span className="font-mono text-xs text-muted-foreground" title="Plan revision: moves when scope, linked specs or the description change">rev {plan.revision}</span>
           </div>
           <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
             <Link
@@ -128,7 +143,7 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
             connections={orgIntegrations.map((c) => ({ id: c.id, name: c.name, provider: c.provider }))}
           />
           <PlanEditSheet plan={plan} members={teamMembers.map((m) => ({ id: m.userId, name: m.user.name }))} />
-          <PlanStatusButtons plan={plan} />
+          <PlanStatusButtons plan={plan} activationWarning={activation?.warning ?? null} activationBlocked={activation && !activation.allowed ? activation.reasons.join(' ') || 'Blocked by the review workflow.' : null} />
           <DeletePlanButton
             planId={plan.id}
             planTitle={plan.title}
@@ -216,11 +231,14 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
             <TabsTrigger value="assets">Assets &amp; PRs ({plan.planAssets.length})</TabsTrigger>
             <TabsTrigger value="impact">Impact ({impactedAssets.length})</TabsTrigger>
             <TabsTrigger value="work-items">Work Items ({linkedItems.length})</TabsTrigger>
+            <TabsTrigger value="discussion">Discussion{openThreads ? ` (${openThreads})` : ''}</TabsTrigger>
           </TabsList>
           <AddTaskDialog plan={plan} teamMembers={teamMembers} />
         </div>
 
         <TabsContent value="overview" className="mt-4 space-y-6">
+          <ReviewPanel summary={review} currentUserId={user.id} path={`/plans/${id}`} noun="plan" />
+
           {/* Long-form description, clamped with an expander */}
           {plan.description && <PlanDescriptionCard description={plan.description} />}
 
@@ -301,6 +319,11 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        <TabsContent value="discussion" className="mt-4">
+          <CommentsPanel subjectType="code_plan" subjectId={id} threads={threads} currentUserId={user.id} canModerate={canEdit}
+            currentVersion={plan.revision} path={`/plans/${id}`} audience={audience.map((u) => ({ id: u.id, name: u.name }))} />
         </TabsContent>
 
         <TabsContent value="work-items" className="mt-4">

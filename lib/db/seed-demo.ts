@@ -882,7 +882,7 @@ async function seed() {
     await db.update(codePlans).set({ releaseId }).where(eq(codePlans.id, planId))
   }
 
-  const releaseStamps: [string, string, string, string | null][] = [
+  const releaseStamps: [string, string, string | null, string | null][] = [
     [platform24Id, authSvcId, 'v1.8.0', 'SAML + OAuth providers'],
     [platform24Id, webAppId,  'v2.4.0', null],
     [platform24Id, searchId,  'v1.2.0', 'relevance ranking'],
@@ -890,6 +890,8 @@ async function seed() {
     [mobile30Id,   androidId, 'v3.0.0', 'new architecture'],
     [platform25Id, webAppId,  'v2.5.0', null],
     [platform25Id, planEngineId, 'v1.5.0', 'AI generation'],
+    // Included but not yet stamped: shows up as an evidence gap in My Work.
+    [platform25Id, searchId,  null, 'presence indexing'],
   ]
   for (const [releaseId, assetId, version, notes] of releaseStamps) {
     const existing = await db.query.releaseAssets.findFirst({
@@ -979,6 +981,116 @@ async function seed() {
     if (!existing) await db.insert(assetDesignLog).values(note)
   }
   console.log(`  ensured ${designNotes.length} design notes`)
+
+  // ── Specs with revision history ───────────────────────────────────────────
+  // Created through the spec service so revisions, spec events and audit rows
+  // are written exactly as the app writes them.
+  console.log('\nCreating specs...')
+
+  type SeedSpec = {
+    productId: string; title: string; specType: string; area?: string; authorId: string
+    versions: { body: string; summary?: string; status?: 'draft' | 'active'; by?: string }[]
+    links: { targetType: 'asset' | 'code_plan'; targetId: string; relationshipType?: 'creates' | 'revises' | 'references' }[]
+  }
+  const seedSpecs: SeedSpec[] = [
+    {
+      productId: platformId, title: 'Real-time collaboration protocol', specType: 'architecture', area: 'sync', authorId: alexId,
+      versions: [
+        { body: '## Goal\n\nLet several people edit a plan at once without losing changes.\n\n## Approach\n\n- Clients send full plan snapshots on every edit.\n- Last write wins.' },
+        { body: '## Goal\n\nLet several people edit a plan at once without losing changes.\n\n## Approach\n\n- Clients send operations, not snapshots.\n- The server orders operations per plan.\n- Presence is broadcast every 5 seconds.', summary: 'Switch from snapshots to operations', by: sarahId },
+        { body: '## Goal\n\nLet several people edit a plan at once without losing changes.\n\n## Approach\n\n- Clients send operations, not snapshots.\n- The server orders operations per plan and rejects stale bases.\n- Presence is broadcast every 5 seconds.\n\n## Limits\n\n- At most 20 concurrent editors per plan.', summary: 'Reject stale bases; cap editors at 20', status: 'active' },
+      ],
+      links: [{ targetType: 'code_plan', targetId: collabPlanId, relationshipType: 'creates' }, { targetType: 'asset', targetId: webAppId }],
+    },
+    {
+      productId: platformId, title: 'Auth session model', specType: 'schema', area: 'schema', authorId: alexId,
+      versions: [
+        { body: '## Sessions\n\n| column | type |\n|---|---|\n| id | uuid |\n| user_id | uuid |\n| expires_at | timestamptz |' },
+        { body: '## Sessions\n\n| column | type |\n|---|---|\n| id | uuid |\n| user_id | uuid |\n| expires_at | timestamptz |\n| rotated_from | uuid |\n\nRotate the session id on every OAuth callback.', summary: 'Rotate session ids on OAuth callback', status: 'active' },
+      ],
+      links: [{ targetType: 'asset', targetId: authSvcId }],
+    },
+    {
+      productId: apiId, title: 'API Gateway v2 contract', specType: 'api', area: 'api', authorId: sarahId,
+      versions: [
+        { body: '## Versioning\n\nAll routes move under `/v2`. `/v1` stays for 6 months.\n\n## Rate limits\n\n100 requests per minute per key.' },
+        { body: '## Versioning\n\nAll routes move under `/v2`. `/v1` stays for 12 months.\n\n## Rate limits\n\n100 requests per minute per key, 1000 for enterprise keys.', summary: 'Longer v1 window; enterprise limits', by: alexId },
+      ],
+      links: [{ targetType: 'code_plan', targetId: apiV2PlanId, relationshipType: 'creates' }, { targetType: 'asset', targetId: apiGatewayId }],
+    },
+    {
+      productId: mobileId, title: 'Push notification preferences', specType: 'ux', authorId: lisaId,
+      versions: [{ body: '## Preferences\n\nUsers choose per event whether to get a push, an email, or nothing.' }],
+      links: [{ targetType: 'code_plan', targetId: pushPlanId, relationshipType: 'creates' }],
+    },
+  ]
+  const { createSpec, updateSpec, linkSpec } = await import('./specs')
+  const { specs: specsTable } = await import('./schema')
+  for (const def of seedSpecs) {
+    const existing = await db.query.specs.findFirst({ where: (t, { and, eq }) => and(eq(t.productId, def.productId), eq(t.title, def.title)) })
+    if (existing) continue
+    const [first, ...rest] = def.versions
+    const spec = await createSpec({ productId: def.productId, title: def.title, body: first.body, specType: def.specType, area: def.area }, def.authorId)
+    for (const v of rest) await updateSpec(spec.id, { body: v.body, changeSummary: v.summary, status: v.status }, v.by ?? def.authorId)
+    for (const l of def.links) await linkSpec(spec.id, l.targetType, l.targetId, l.relationshipType, def.authorId)
+  }
+  console.log(`  ensured ${seedSpecs.length} specs (${(await db.select().from(specsTable)).length} total)`)
+
+  // ── Product responsibilities ──────────────────────────────────────────────
+  console.log('\nAssigning product responsibilities...')
+  const { productMembers } = await import('./schema')
+  const responsibilityData: [string, string, 'eng_manager' | 'architect' | 'contributor', string][] = [
+    [platformId, alexId, 'eng_manager', ''], [platformId, sarahId, 'architect', 'schema'], [platformId, lisaId, 'architect', ''],
+    [platformId, mikeId, 'contributor', ''],
+    [apiId, sarahId, 'eng_manager', ''], [apiId, alexId, 'architect', 'api'],
+    [mobileId, lisaId, 'eng_manager', ''], [mobileId, mikeId, 'contributor', ''],
+  ]
+  for (const [productId, userId, responsibility, area] of responsibilityData) {
+    await db.insert(productMembers).values({ productId, userId, responsibility, area }).onConflictDoNothing()
+  }
+  console.log(`  ensured ${responsibilityData.length} responsibilities`)
+
+  // A feature resolved weeks ago but never graduated into Android's record (an evidence gap).
+  const offline = await db.query.workItems.findFirst({ where: (w, { eq }) => eq(w.title, 'Offline plan viewing') })
+  if (!offline) {
+    await db.insert(workItems).values({
+      productId: mobileId, assetId: androidId, type: 'feature', status: 'resolved', severity: 'medium', title: 'Offline plan viewing',
+      description: 'Cache the last opened plans for reading without a connection.', reporterId: lisaId, ownerId: lisaId,
+      createdAt: new Date('2026-05-02'), updatedAt: new Date('2026-05-20'),
+    })
+  }
+
+  // ── Reviews and discussion ─────────────────────────────────────────────────
+  // Also through the services, so participants, states and audit rows match the app.
+  console.log('\nCreating reviews and comments...')
+  const { requestReview, decideReview, getOpenReview } = await import('./reviews')
+  const { addComment } = await import('./comments')
+  const { reviews: reviewsTable, comments: commentsTable, productSettings } = await import('./schema')
+  const specByTitle = async (title: string) => (await db.query.specs.findFirst({ where: (t, { eq }) => eq(t.title, title) }))!
+  const existingReviews = await db.select().from(reviewsTable)
+  if (existingReviews.length === 0) {
+    // The API product runs a guided workflow; the others stay open.
+    await db.insert(productSettings).values({ productId: apiId, workflowLevel: 'guided' }).onConflictDoNothing()
+
+    const collab = await specByTitle('Real-time collaboration protocol')
+    const approved = await requestReview({ subjectType: 'spec', subjectId: collab.id, note: 'Ready for sign-off before the plan starts.' }, { id: alexId })
+    await decideReview(approved.id, 'approved', 'Operation ordering reads right.', { id: lisaId })
+    await decideReview(approved.id, 'approved', undefined, { id: mikeId })
+
+    const gateway = await specByTitle('API Gateway v2 contract')
+    await requestReview({ subjectType: 'spec', subjectId: gateway.id, note: 'Mainly want eyes on the v1 sunset window.', dueAt: '2026-10-03' }, { id: sarahId })
+    const q = await addComment({ subjectType: 'spec', subjectId: gateway.id, kind: 'question', body: 'Does 12 months match what we promised enterprise customers in their contracts?',
+      anchor: { quote: 'stays for 12 months' } }, { id: mikeId })
+    await addComment({ subjectType: 'spec', subjectId: gateway.id, parentId: q.id, body: '@Alex Chen can you confirm with sales?', mentions: [alexId] }, { id: sarahId })
+    await addComment({ subjectType: 'spec', subjectId: gateway.id, kind: 'suggestion', body: 'Spell out what happens to keys that exceed the enterprise limit.' }, { id: lisaId })
+
+    const plan = await db.query.codePlans.findFirst({ where: (t, { eq }) => eq(t.id, collabPlanId) })
+    if (plan && !(await getOpenReview('code_plan', collabPlanId))) {
+      await requestReview({ subjectType: 'code_plan', subjectId: collabPlanId, note: 'Touches the web app and plan engine; code owners please confirm scope.' }, { id: alexId })
+    }
+    await addComment({ subjectType: 'code_plan', subjectId: collabPlanId, body: 'Should presence ship behind a flag for the first release?' }, { id: lisaId })
+  }
+  console.log(`  ensured reviews (${(await db.select().from(reviewsTable)).length}) and comments (${(await db.select().from(commentsTable)).length})`)
 
   // ── Activity events (sync_log) ────────────────────────────────────────────
   // History timelines prefer sync_log 'completed' events for plan dates, and

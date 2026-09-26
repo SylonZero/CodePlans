@@ -145,3 +145,61 @@ describe('attribution stamping (via mutations)', () => {
     expect(task.createdById).toBeNull()
   })
 })
+
+describe('audit scope (product + org of the entity, not the actor)', () => {
+  it('stamps productId and actorKind on product-scoped events', async () => {
+    const item = await createWorkItem({ productId: F.productShared, type: 'bug', title: 'Scoped', description: '', severity: 'low', tags: [] }, F.bob, 'agent')
+    const [row] = await auditRowsFor(item.id)
+    expect(row).toMatchObject({ productId: F.productShared, organizationId: F.org, actorKind: 'agent' })
+  })
+
+  it('files events under the product\'s org even when the actor\'s current org differs', async () => {
+    const { organizations, users } = await import('@/lib/db/schema.sqlite')
+    await (db as any).insert(organizations).values({ id: 'org-other', name: 'Other', slug: 'other', ownerId: F.bob, billingTier: 'free', productLimit: 5 })
+    await (db as any).update(users).set({ organizationId: 'org-other' }).where(eq(users.id, F.bob))
+    const task = await createTask({ codePlanId: F.planActive, title: 'Cross-org task', description: '', priority: 'low', tags: [] }, { id: F.bob })
+    const [row] = await auditRowsFor(task.id)
+    expect(row).toMatchObject({ organizationId: F.org, productId: F.productShared })
+  })
+
+  it('keeps the product on delete events after the entity is gone', async () => {
+    const item = await createWorkItem({ productId: F.productShared, type: 'bug', title: 'Doomed', description: '', severity: 'low', tags: [] }, F.alice)
+    await deleteWorkItem(item.id, { id: F.alice })
+    const rows = await auditRowsFor(item.id)
+    expect(rows.find((r) => r.event === 'deleted')).toMatchObject({ productId: F.productShared })
+    await deleteTask(F.task1, { id: F.alice })
+    expect((await auditRowsFor(F.task1))[0]).toMatchObject({ productId: F.productShared, event: 'deleted' })
+  })
+
+  it('falls back to the actor\'s org for solo products', async () => {
+    await (db as any).update((await import('@/lib/db/schema.sqlite')).users).set({ organizationId: F.org }).where(eq((await import('@/lib/db/schema.sqlite')).users.id, F.carol))
+    const release = await createRelease({ productId: F.productCarol, name: 'Solo 1.0', description: '', tags: [] }, F.carol)
+    expect((await auditRowsFor(release.id))[0]).toMatchObject({ productId: F.productCarol, organizationId: F.org })
+  })
+})
+
+describe('spec events in the activity stream', () => {
+  it('records created, revised, activated, linked and superseded with the spec\'s product', async () => {
+    const { createSpec, updateSpec, linkSpec, supersedeSpec } = await import('@/lib/db/specs')
+    const spec = await createSpec({ productId: F.productShared, title: 'Checkout', body: 'v1', specType: 'feature' }, F.alice)
+    await updateSpec(spec.id, { body: 'v2' }, F.alice)
+    await updateSpec(spec.id, { status: 'active' }, F.alice)
+    await linkSpec(spec.id, 'asset', F.assetApi, undefined, F.alice)
+    const next = await supersedeSpec(spec.id, 'new approach', undefined, F.alice)
+    const events = (await auditRowsFor(spec.id)).map((r) => [r.event, (r.payload as any).version])
+    expect(events).toEqual([['created', 1], ['revised', 2], ['activated', 3], ['linked', 3], ['superseded', 3]])
+    const rows = await auditRowsFor(spec.id)
+    expect(rows.every((r) => r.entityType === 'spec' && r.productId === F.productShared && r.organizationId === F.org)).toBe(true)
+    expect((await auditRowsFor(next.id)).map((r) => r.event)).toEqual(['created'])
+  })
+
+  it('shows spec events in the feed and filters the feed by product', async () => {
+    const { createSpec } = await import('@/lib/db/specs')
+    const { getActivityFeed } = await import('@/lib/db/queries')
+    await createSpec({ productId: F.productShared, title: 'Feed spec', body: '', specType: 'api' }, F.alice)
+    const feed = await getActivityFeed(F.alice)
+    expect(feed.find((a) => a.description === 'Feed spec')).toMatchObject({ type: 'spec_updated', title: 'created a spec' })
+    expect(await getActivityFeed(F.alice, 15, { productId: 'product-nope' })).toEqual([])
+    expect((await getActivityFeed(F.alice, 15, { productId: F.productShared })).length).toBeGreaterThan(0)
+  })
+})

@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { productIdFor } from '@/lib/db/authz'
 import { editedBy } from '@/lib/db/attribution'
 import { integrations, workItems, codePlans, codePlanAssets, tasks, syncLog } from '@/lib/db/schema'
 import { eq, and, isNotNull } from 'drizzle-orm'
@@ -74,6 +75,7 @@ export async function runSync(integration: IntegrationRow, connector: Connector)
   const externalItems = await connector.listItems({ token }, config, since)
 
   let created = 0
+  const imported: { id: string; title: string }[] = []
   let updated = 0
   let unchanged = 0
 
@@ -126,12 +128,18 @@ export async function runSync(integration: IntegrationRow, connector: Connector)
         })
         .returning()
       created += 1
+      imported.push({ id: row.id, title: row.title })
       await logSyncEvent(integration, row.id, 'created', item)
     }
   }
 
   const taskStats = await syncPlanTasks(integration, connector, { token }, config)
   const prsUpdated = await syncPrStatuses(integration, connector, { token }, config)
+
+  if (imported.length) {
+    const { notifySyncImports } = await import('@/lib/db/notification-rules')
+    await notifySyncImports(integration, config.productId, imported)
+  }
 
   return { created, updated, unchanged, ...taskStats, prsUpdated }
 }
@@ -219,6 +227,7 @@ async function syncPrStatuses(
     .select({
       id: codePlanAssets.id,
       codePlanId: codePlanAssets.codePlanId,
+      assetId: codePlanAssets.assetId,
       prUrl: codePlanAssets.prUrl,
       prStatus: codePlanAssets.prStatus,
     })
@@ -250,10 +259,16 @@ async function syncPrStatuses(
         entityId: row.codePlanId,
         event: 'pr_status_changed',
         actorId: null,
+        actorKind: 'connector',
+        productId: await productIdFor({ codePlanId: row.codePlanId }),
         payload: { prUrl: row.prUrl, prStatus: status },
       })
     } catch (err) {
       console.error('[sync] log failed:', err)
+    }
+    if (status === 'merged') {
+      const { notifyPrMerged } = await import('@/lib/db/notification-rules')
+      await notifyPrMerged(row.codePlanId, row.assetId, row.prUrl!)
     }
   }
   return updated
@@ -268,6 +283,8 @@ async function logSyncEvent(integration: IntegrationRow, workItemId: string, eve
       entityId: workItemId,
       event,
       actorId: null, // the connection is the actor
+      actorKind: 'connector',
+      productId: await productIdFor({ workItemId }),
       payload: { title: item.title, externalKey: item.externalKey },
     })
   } catch (err) {
@@ -298,6 +315,7 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
         updatedAt: new Date(),
       })
       .where(eq(integrations.id, connectionId))
+    if (result.error) await noticeFailure(integration, result.error)
     return result
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
@@ -305,6 +323,14 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
       .update(integrations)
       .set({ lastError: message, status: 'error', updatedAt: new Date() })
       .where(eq(integrations.id, connectionId))
+    await noticeFailure(integration, message)
     return emptyResult(message)
   }
+}
+
+/** Tell admins when a healthy connection starts failing; repeat failures stay quiet. */
+async function noticeFailure(integration: typeof integrations.$inferSelect, message: string) {
+  if (integration.status === 'error') return
+  const { notifyIntegrationError } = await import('@/lib/db/notification-rules')
+  await notifyIntegrationError(integration, message)
 }

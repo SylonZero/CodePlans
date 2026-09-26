@@ -24,8 +24,16 @@ reviewed and the review flag cleared. Supported statuses are draft, active,
 and archived. Use `supersede_spec` when the approach changes: it creates a new
 draft at v1, retains provenance and associations, links both documents, and
 marks the old one superseded/read-only. Existing delivery receipts stay on the
-old spec. V1 stores the current body and version number; historical body
-snapshots and character-level diffs are outside its scope.
+old spec.
+
+Every version's title, body, type, area and status is kept in
+`spec_revisions`, written in the same transaction that creates the version,
+with an optional `changeSummary`. The spec page lists the history, shows any
+past version read-only (`/specs/<id>?v=2`) and a line diff against the
+previous one (`?v=2&diff=1`). Agents read a pinned version with
+`get_spec_revision` and the list with `list_spec_revisions`. Specs that
+existed before history was retained start at their version at that time;
+earlier bodies were never stored and cannot be recovered.
 
 ## Delivery and history
 

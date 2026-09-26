@@ -378,6 +378,7 @@ export async function getCodePlans(userId: string, filters: PlanFilters = {}): P
       productId: codePlans.productId,
       type: codePlans.type,
       status: codePlans.status,
+      revision: codePlans.revision,
       tags: codePlans.tags,
       startDate: codePlans.startDate,
       endDate: codePlans.endDate,
@@ -513,6 +514,7 @@ export async function getCodePlan(id: string, userId: string): Promise<CodePlanD
     productSlug: product.slug,
     type: plan.type,
     status: plan.status,
+    revision: plan.revision,
     ownerId: plan.ownerId ?? undefined,
     ownerName: plan.ownerId
       ? ((await db.query.users.findFirst({ where: eq(users.id, plan.ownerId) }))?.name ?? null)
@@ -921,7 +923,8 @@ export type OwnedAsset = {
 }
 
 /** Assets the user owns, with health and debt rollups — for My Work. */
-export async function getOwnedAssets(userId: string): Promise<OwnedAsset[]> {
+/** Assets the user is declared code owner of, limited to products they can see (and the scoped product, if given). */
+export async function getOwnedAssets(userId: string, opts: { productId?: string } = {}): Promise<OwnedAsset[]> {
   const rows = await db
     .select({
       id: assets.id,
@@ -935,7 +938,12 @@ export async function getOwnedAssets(userId: string): Promise<OwnedAsset[]> {
     .from(assetOwners)
     .innerJoin(assets, eq(assetOwners.assetId, assets.id))
     .innerJoin(products, eq(assets.productId, products.id))
-    .where(and(eq(assetOwners.userId, userId), isNull(assets.archivedAt)))
+    .where(and(
+      eq(assetOwners.userId, userId),
+      isNull(assets.archivedAt),
+      await productAccessWhere(userId),
+      opts.productId ? eq(assets.productId, opts.productId) : undefined,
+    ))
     .orderBy(assets.name)
   if (rows.length === 0) return []
 
@@ -1724,10 +1732,20 @@ function activityPresentation(entityType: string, event: string, payload: Record
     if (event === 'deleted') return { type: 'item_updated', title: 'deleted a work item' }
     return { type: 'item_updated', title: 'updated a work item' }
   }
+  if (entityType === 'spec') {
+    const v = typeof payload.version === 'number' ? ` (v${payload.version})` : ''
+    if (event === 'created') return { type: 'spec_updated', title: 'created a spec' }
+    if (event === 'revised') return { type: 'spec_updated', title: `revised a spec${v}` }
+    if (event === 'activated') return { type: 'spec_updated', title: `activated a spec${v}` }
+    if (event === 'superseded') return { type: 'spec_updated', title: 'superseded a spec' }
+    if (event === 'linked') return { type: 'item_linked', title: 'linked a spec' }
+    if (event === 'archived' || event === 'status_changed') return { type: 'spec_updated', title: 'changed a spec\'s status' }
+    return null
+  }
   return null
 }
 
-export async function getActivityFeed(userId: string, limit = 15): Promise<ActivityItem[]> {
+export async function getActivityFeed(userId: string, limit = 15, opts: { productId?: string } = {}): Promise<ActivityItem[]> {
   const memberships = await db
     .select({ organizationId: organizationMembers.organizationId })
     .from(organizationMembers)
@@ -1747,7 +1765,7 @@ export async function getActivityFeed(userId: string, limit = 15): Promise<Activ
     })
     .from(syncLog)
     .leftJoin(users, eq(syncLog.actorId, users.id))
-    .where(inArray(syncLog.organizationId, orgIds))
+    .where(and(inArray(syncLog.organizationId, orgIds), opts.productId ? eq(syncLog.productId, opts.productId) : undefined))
     .orderBy(desc(syncLog.createdAt))
     .limit(limit * 2) // headroom: some rows don't map to a feed entry
 

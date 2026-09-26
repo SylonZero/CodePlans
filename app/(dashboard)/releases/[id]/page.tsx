@@ -1,3 +1,4 @@
+import { SubjectDiscussion } from '@/components/subject-discussion'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { MarkdownContent } from '@/components/markdown-content'
@@ -199,6 +200,8 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
           )}
         </TabsContent>
       </Tabs>
+
+      <SubjectDiscussion subjectType="release" subjectId={release.id} productId={release.productId} userId={user.id} path={`/releases/${id}`} />
     </div>
   )
 }

@@ -30,7 +30,18 @@ export type PrStatus = 'none' | 'draft' | 'open' | 'merged' | 'closed'
 // Provider list is intentionally text (not enum) — new connectors must not need a migration.
 export type ItemSource = 'native' | 'github' | 'gitlab' | 'jira' | 'asana' | 'linear'
 export type IntegrationStatus = 'active' | 'paused' | 'error'
-export type SyncEntityType = 'work_item' | 'task' | 'code_plan' | 'asset' | 'product' | 'release' | 'asset_dependency' | 'integration'
+export type SyncEntityType = 'work_item' | 'task' | 'code_plan' | 'asset' | 'product' | 'release' | 'asset_dependency' | 'integration' | 'spec'
+export type ActorKind = 'user' | 'agent' | 'connector'
+export type ProductResponsibility = 'eng_manager' | 'architect' | 'contributor'
+export type CommentSubjectType = 'spec' | 'code_plan' | 'work_item' | 'release' | 'asset'
+export type CommentKind = 'comment' | 'suggestion' | 'question'
+export type CommentAnchor = { quote: string; prefix?: string; suffix?: string }
+export type ReviewSubjectType = 'spec' | 'code_plan'
+export type ReviewState = 'open' | 'changes_requested' | 'approved' | 'withdrawn' | 'stale'
+export type ReviewReason = 'architect' | 'code_owner' | 'eng_manager' | 'requested'
+export type ReviewDecision = 'pending' | 'approved' | 'changes_requested' | 'commented'
+// Community levels are open and guided; 'gated' is recognized so an extension can enforce it.
+export type WorkflowLevel = 'open' | 'guided' | 'gated'
 export type ReleaseStatus = 'planned' | 'in_progress' | 'shipped' | 'abandoned'
 
 // ---------------------------------------------------------------------------
@@ -172,6 +183,24 @@ export const assetOwners = sqliteTable('asset_owners', {
   index('asset_owners_user_idx').on(t.userId),
 ])
 
+// Scoped engineering responsibilities on a product. These route reviews,
+// notifications and My Work; they never grant permissions (org role does).
+// Code owners live in asset_owners; developers follow from task assignment.
+// area '' means the whole product (kept non-null so the unique index holds).
+export const productMembers = sqliteTable('product_members', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  productId: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  responsibility: text('responsibility').$type<ProductResponsibility>().notNull(),
+  area: text('area').notNull().default(''),
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('product_members_unique_idx').on(t.productId, t.userId, t.responsibility, t.area),
+  index('product_members_user_idx').on(t.userId),
+])
+
 export const assetDependencies = sqliteTable('asset_dependencies', {
   // Who recorded this edge. No updatedBy — the row is deleted, not edited.
   createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
@@ -208,6 +237,9 @@ export const codePlans = sqliteTable('code_plans', {
   specUrl: text('spec_url'),
   // A plan ships in at most one release; detaching a release never touches its plans.
   releaseId: text('release_id').references((): AnySQLiteColumn => releases.id, { onDelete: 'set null' }),
+  // Bumped when scope (targets, addressed work items), linked specs or the description change.
+  // Plan reviews pin to it the way spec reviews pin to specs.version.
+  revision: integer('revision').notNull().default(1),
   source: text('source').$type<ItemSource>().notNull().default('native'),
   connectionId: text('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
   externalId: text('external_id'),
@@ -435,10 +467,15 @@ export const syncLog = sqliteTable('sync_log', {
   event: text('event').notNull(),
   // Null when a connection (not a user) is the actor.
   actorId: text('actor_id').references(() => users.id, { onDelete: 'set null' }),
+  actorKind: text('actor_kind').$type<ActorKind>(),
+  // The product the entity belonged to when the event happened (null for org-level
+  // entities like integrations). No FK: history outlives a purged product.
+  productId: text('product_id'),
   payload: text('payload', { mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 }, (t) => [
   index('sync_log_org_created_idx').on(t.organizationId, t.createdAt),
+  index('sync_log_product_created_idx').on(t.productId, t.createdAt),
 ])
 
 export const apiKeys = sqliteTable('api_keys', {
@@ -491,6 +528,24 @@ export const specs = sqliteTable('specs', {
     .where(sql`${t.sourceType} = 'git_import' AND ${t.supersedes} IS NULL`),
 ])
 
+// Append-only snapshot of every spec version's content, written in the same
+// transaction that creates the version. A pinned version number is only
+// evidence if the document it names can still be read.
+export const specRevisions = sqliteTable('spec_revisions', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  specId: text('spec_id').notNull().references(() => specs.id, { onDelete: 'cascade' }),
+  version: integer('version').notNull(),
+  title: text('title').notNull(),
+  body: text('body').notNull(),
+  specType: text('spec_type').notNull(),
+  area: text('area'),
+  status: text('status').notNull(),
+  changeSummary: text('change_summary'),
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByKind: text('created_by_kind'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [uniqueIndex('spec_revisions_version_idx').on(t.specId, t.version)])
+
 // Target ownership and existence are checked by the spec service.
 export const specLinks = sqliteTable('spec_links', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -519,3 +574,209 @@ export const specEvents = sqliteTable('spec_events', {
   noteId: text('note_id').references(() => assetDesignLog.id, { onDelete: 'set null' }),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
 }, (t) => [index('spec_events_asset_idx').on(t.assetId)])
+
+
+// ---------------------------------------------------------------------------
+// Collaboration: comments and reviews
+// ---------------------------------------------------------------------------
+
+// Feedback threads on specs, plans, work items, releases and assets. A comment
+// is pinned to the subject version it was written against so anchored remarks
+// can be shown as outdated once the text moves on.
+export const comments = sqliteTable('comments', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  productId: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  subjectType: text('subject_type').$type<CommentSubjectType>().notNull(),
+  subjectId: text('subject_id').notNull(),
+  subjectVersion: integer('subject_version'),
+  // One level of threading: replies point at a top-level comment.
+  parentId: text('parent_id').references((): AnySQLiteColumn => comments.id, { onDelete: 'cascade' }),
+  // Set when the comment is the note attached to a review decision.
+  reviewId: text('review_id').references((): AnySQLiteColumn => reviews.id, { onDelete: 'set null' }),
+  // { quote, prefix, suffix } for inline spec comments; re-matched after revisions.
+  anchor: text('anchor', { mode: 'json' }).$type<CommentAnchor | null>(),
+  body: text('body').notNull(),
+  kind: text('kind').$type<CommentKind>().notNull().default('comment'),
+  authorId: text('author_id').references(() => users.id, { onDelete: 'set null' }),
+  authorType: text('author_type').$type<'user' | 'agent'>().notNull().default('user'),
+  resolvedAt: integer('resolved_at', { mode: 'timestamp_ms' }),
+  resolvedById: text('resolved_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+  editedAt: integer('edited_at', { mode: 'timestamp_ms' }),
+  deletedAt: integer('deleted_at', { mode: 'timestamp_ms' }),
+}, (t) => [
+  index('comments_subject_idx').on(t.subjectType, t.subjectId, t.createdAt),
+  index('comments_parent_idx').on(t.parentId),
+])
+
+export const commentMentions = sqliteTable('comment_mentions', {
+  commentId: text('comment_id').notNull().references(() => comments.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('comment_mentions_pk').on(t.commentId, t.userId),
+  index('comment_mentions_user_idx').on(t.userId),
+])
+
+// A review is an attestation on a pinned subject version: approving v3 says
+// nothing about v4. While open, decisions count only at the subject's current
+// version; once approved, a later revision marks the review stale.
+export const reviews = sqliteTable('reviews', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  productId: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  subjectType: text('subject_type').$type<ReviewSubjectType>().notNull(),
+  subjectId: text('subject_id').notNull(),
+  // Version when requested; approvedVersion is the version that was approved.
+  subjectVersion: integer('subject_version').notNull(),
+  approvedVersion: integer('approved_version'),
+  requestedById: text('requested_by_id').references(() => users.id, { onDelete: 'set null' }),
+  requestedByKind: text('requested_by_kind').$type<'user' | 'agent'>().notNull().default('user'),
+  note: text('note'),
+  dueAt: text('due_at'),
+  state: text('state').$type<ReviewState>().notNull().default('open'),
+  requestedAt: integer('requested_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+  closedAt: integer('closed_at', { mode: 'timestamp_ms' }),
+}, (t) => [
+  index('reviews_subject_idx').on(t.subjectType, t.subjectId, t.requestedAt),
+  index('reviews_product_state_idx').on(t.productId, t.state),
+])
+
+export const reviewParticipants = sqliteTable('review_participants', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  reviewId: text('review_id').notNull().references(() => reviews.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // The responsibility held when added; kept even if it changes later.
+  reason: text('reason').$type<ReviewReason>().notNull(),
+  required: integer('required', { mode: 'boolean' }).notNull().default(false),
+  decision: text('decision').$type<ReviewDecision>().notNull().default('pending'),
+  decidedAt: integer('decided_at', { mode: 'timestamp_ms' }),
+  decidedAtVersion: integer('decided_at_version'),
+}, (t) => [
+  uniqueIndex('review_participants_user_idx').on(t.reviewId, t.userId),
+  index('review_participants_pending_idx').on(t.userId, t.decision),
+])
+
+// First org-level configuration storage. One row per org, created on demand.
+export const orgSettings = sqliteTable('org_settings', {
+  organizationId: text('organization_id').primaryKey().references(() => organizations.id, { onDelete: 'cascade' }),
+  workflowDefault: text('workflow_default').$type<WorkflowLevel>().notNull().default('open'),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+  updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+})
+
+// Per-product overrides. A null workflow level inherits the org default.
+export const productSettings = sqliteTable('product_settings', {
+  productId: text('product_id').primaryKey().references(() => products.id, { onDelete: 'cascade' }),
+  workflowLevel: text('workflow_level').$type<WorkflowLevel>(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+  updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+})
+
+// In-app notifications: one row per recipient per event. State items in My Work
+// (tasks, triage, evidence gaps) are derived by query; only events live here.
+export const notifications = sqliteTable('notifications', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // The sync_log row that caused it, when there is one.
+  eventId: text('event_id'),
+  eventType: text('event_type').notNull(),
+  productId: text('product_id').references(() => products.id, { onDelete: 'cascade' }),
+  subjectType: text('subject_type').notNull(),
+  subjectId: text('subject_id').notNull(),
+  // Why this person was told: 'mentioned', 'reviewer', 'code_owner:<assetName>', ...
+  reason: text('reason').notNull(),
+  // Rendered when created so the bell reads the same after the subject changes.
+  title: text('title').notNull(),
+  summary: text('summary').notNull().default(''),
+  url: text('url').notNull(),
+  actorId: text('actor_id').references(() => users.id, { onDelete: 'set null' }),
+  actorKind: text('actor_kind'),
+  readAt: integer('read_at', { mode: 'timestamp_ms' }),
+  doneAt: integer('done_at', { mode: 'timestamp_ms' }),
+  snoozedUntil: integer('snoozed_until', { mode: 'timestamp_ms' }),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('notifications_user_idx').on(t.userId, t.doneAt, t.createdAt),
+  // Delivery is idempotent per event and person.
+  uniqueIndex('notifications_event_user_idx').on(t.eventId, t.userId),
+])
+
+export type NotificationChannelKind = 'email_resend' | 'slack_webhook'
+export type NotificationChannelStatus = 'active' | 'paused' | 'error'
+export type NotificationDeliveryStatus = 'pending' | 'sending' | 'sent' | 'failed' | 'skipped'
+
+// Where email and Slack notifications go. One channel per kind per org; the
+// secret (API key / webhook URL) is encrypted like integration tokens, with an
+// env-var reference as the fallback for self-hosted setups.
+export const notificationChannels = sqliteTable('notification_channels', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  kind: text('kind').$type<NotificationChannelKind>().notNull(),
+  name: text('name').notNull(),
+  // { fromAddress, replyTo } for email; { channelLabel } for Slack.
+  config: text('config', { mode: 'json' }).$type<Record<string, string>>().notNull().default({}),
+  secretEncrypted: text('secret_encrypted'),
+  authRef: text('auth_ref'),
+  status: text('status').$type<NotificationChannelStatus>().notNull().default('active'),
+  lastError: text('last_error'),
+  lastUsedAt: integer('last_used_at', { mode: 'timestamp_ms' }),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+}, (t) => [
+  uniqueIndex('notification_channels_org_kind_idx').on(t.organizationId, t.kind),
+])
+
+// Admin overrides of the event catalog's defaults. No row means catalog defaults.
+export const notificationRules = sqliteTable('notification_rules', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  eventType: text('event_type').notNull(),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  inApp: integer('in_app', { mode: 'boolean' }).notNull().default(true),
+  email: integer('email', { mode: 'boolean' }).notNull().default(false),
+  slack: integer('slack', { mode: 'boolean' }).notNull().default(false),
+  // Whether events done by AI agents (via MCP) notify at all.
+  includeAgents: integer('include_agents', { mode: 'boolean' }).notNull().default(true),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+  updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+}, (t) => [
+  uniqueIndex('notification_rules_org_event_idx').on(t.organizationId, t.eventType),
+])
+
+// A person's email opt-outs. eventType '*' covers every event. Preferences
+// only narrow what admins turned on; they never add a channel.
+export const notificationPreferences = sqliteTable('notification_preferences', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  eventType: text('event_type').notNull(),
+  email: integer('email', { mode: 'boolean' }),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('notification_preferences_user_event_idx').on(t.userId, t.eventType),
+])
+
+// Outbox for email and Slack. One row per event, channel and target; sent
+// after the response and retried with backoff by /api/cron/notifications.
+export const notificationDeliveries = sqliteTable('notification_deliveries', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  // The sync_log event, or the notification row for events without one.
+  eventId: text('event_id').notNull(),
+  eventType: text('event_type').notNull(),
+  // A channel id, or 'env:email' for the RESEND_API_KEY fallback.
+  channelId: text('channel_id').notNull(),
+  channelKind: text('channel_kind').$type<NotificationChannelKind>().notNull(),
+  // The recipient's user id for email; 'channel' for Slack.
+  target: text('target').notNull(),
+  // Rendered when queued: { subject, html, text } or { text, blocks }.
+  payload: text('payload', { mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
+  status: text('status').$type<NotificationDeliveryStatus>().notNull().default('pending'),
+  attempts: integer('attempts').notNull().default(0),
+  lastError: text('last_error'),
+  nextAttemptAt: integer('next_attempt_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+  sentAt: integer('sent_at', { mode: 'timestamp_ms' }),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('notification_deliveries_event_channel_target_idx').on(t.eventId, t.channelId, t.target),
+  index('notification_deliveries_due_idx').on(t.status, t.nextAttemptAt),
+  index('notification_deliveries_org_idx').on(t.organizationId, t.createdAt),
+])

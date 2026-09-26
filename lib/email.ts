@@ -1,6 +1,6 @@
 import { Resend } from 'resend'
 
-function getBaseUrl(): string {
+export function getBaseUrl(): string {
   if (process.env.AUTH_URL) return process.env.AUTH_URL.replace(/\/$/, '')
   const port = process.env.PORT ?? '3000'
   return `http://localhost:${port}`

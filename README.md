@@ -75,7 +75,7 @@ attribution migration. See the [wiki guide](docs/guides/product-wiki.md).
 | Analytics wired to real data (velocity, effort accuracy, debt by product) | ✅ Available |
 | Activity feed | ✅ Available |
 | GitHub, GitLab, Jira, Asana & Linear integrations (pull-only mirror into work items) | ✅ Available |
-| MCP server — 49 tools incl. native specs, product/asset/dependency management, model refactoring (move_asset), releases, design notes & the asset record | ✅ Available |
+| MCP server — 71 tools incl. native specs with version history, reviews & comments, responsibilities, product/asset/dependency management, model refactoring (move_asset), releases, design notes & the asset record | ✅ Available |
 | Milestone-linked plans with mirrored tasks (mixed mode) | ✅ Available |
 | PR auto-linking (plan-asset PR status refreshed on sync) | ✅ Available |
 | Releases — delivery grouping with per-asset version stamps & derived release notes | ✅ Available |

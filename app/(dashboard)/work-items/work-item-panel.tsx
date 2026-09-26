@@ -1,6 +1,7 @@
 'use client'
 
 import { NativeSpecsPanel, SpecPicker } from '@/components/native-specs'
+import { LazyDiscussion } from '@/components/lazy-discussion'
 import { useEffect, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -307,6 +308,7 @@ function WorkItemEditor({
 
       <div className="space-y-5 px-4">
         <NativeSpecsPanel key={item.id} productId={item.productId} targetType="work_item" targetId={item.id} />
+        <LazyDiscussion key={`discussion-${item.id}`} subjectType="work_item" subjectId={item.id} />
         {item.specUrl && <SpecSection specUrl={item.specUrl} />}
 
         {/* Linked code plans */}

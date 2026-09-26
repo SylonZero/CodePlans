@@ -117,7 +117,7 @@ events. Shipped releases become read-only, because the record of what shipped
 must stay trustworthy. Corrections reopen deliberately.
 
 **4. Agents are first-class users.** Everything the UI can do to the model,
-the MCP server exposes — currently 49 tools, with the same access rules and
+the MCP server exposes — currently 71 tools, with the same access rules and
 guardrails enforced at the tool layer (shipped releases reject mutation,
 mirrored items reject writes to tracker-owned fields). Modeling guidance
 ships *inside* the tools (`get_modeling_guide`, and heuristics in tool

@@ -1,5 +1,6 @@
 'use client'
 
+import { NotificationBell } from '@/components/notification-bell'
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
@@ -31,6 +32,7 @@ import {
   Menu,
   X,
   Bell,
+  FileText,
   Search,
   Building2,
   Boxes,
@@ -48,7 +50,8 @@ import type { NavExtension } from '@/lib/ee/types'
 
 type AppShellProps = {
   children: React.ReactNode
-  user: { name: string; email: string; billingTier: BillingTier | string }
+  user: { name: string; email: string; billingTier: BillingTier | string; viewOnly?: boolean }
+  unreadNotifications?: number
   orgName: string | null
   products: { id: string; name: string; slug: string }[]
   selectedProductId: string | null
@@ -75,6 +78,7 @@ const navigation = [
   { name: 'Products', href: '/products', icon: Package },
   { name: 'Assets', href: '/assets', icon: Boxes },
   { name: 'Work Items', href: '/work-items', icon: ClipboardList },
+  { name: 'Specs', href: '/specs', icon: FileText },
   { name: 'Code Plans', href: '/plans', icon: FileCode2 },
   { name: 'Releases', href: '/releases', icon: Rocket },
   { name: 'Tasks', href: '/tasks', icon: CheckSquare },
@@ -89,7 +93,7 @@ const secondaryNavigationBase = [
   { name: 'Settings', href: '/settings', icon: Settings },
 ]
 
-export function AppShell({ children, user, orgName, products, selectedProductId, billingEnabled = true, extraNavItems = [] }: AppShellProps) {
+export function AppShell({ children, user, orgName, products, selectedProductId, billingEnabled = true, extraNavItems = [], unreadNotifications = 0 }: AppShellProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -310,11 +314,17 @@ export function AppShell({ children, user, orgName, products, selectedProductId,
           </div>
 
           <div className="ml-auto flex items-center gap-2">
+            {user.viewOnly && (
+              <span
+                className="hidden rounded-md border border-border bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground sm:inline-block"
+                title="Your role in this workspace is viewer. Ask an owner or admin for editor access to make changes."
+              >
+                View only
+              </span>
+            )}
             <ThemeToggle />
 
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
-            </Button>
+            <NotificationBell initialUnread={unreadNotifications} />
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

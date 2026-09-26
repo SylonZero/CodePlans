@@ -1,3 +1,4 @@
+import { SubjectDiscussion } from '@/components/subject-discussion'
 import { NativeSpecsPanel } from '@/components/native-specs'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -420,6 +421,8 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
           )}
         </TabsContent>
       </Tabs>
+
+      <SubjectDiscussion subjectType="asset" subjectId={asset.id} productId={asset.productId} userId={user.id} path={`/assets/${id}`} />
     </div>
   )
 }

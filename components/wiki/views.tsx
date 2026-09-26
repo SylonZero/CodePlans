@@ -33,13 +33,17 @@ export function DocumentList({
               {d.specType ? ` / ${d.specType}` : ''}
             </span>
             <span
-              className={`wiki-state ${d.needsReview ? 'wiki-review' : ''}`}
+              className={`wiki-state ${d.needsReview || d.reviewState ? 'wiki-review' : ''}`}
             >
               {d.placeholder
                 ? 'Source reference'
-                : d.needsReview
-                  ? 'Needs review'
-                  : d.status.replaceAll('_', ' ')}
+                : d.reviewState === 'changes_requested'
+                  ? 'Changes requested'
+                  : d.reviewState
+                    ? 'In review'
+                    : d.needsReview
+                      ? 'Import triage'
+                      : d.status.replaceAll('_', ' ')}
             </span>
           </div>
           <Link href={wikiHref(data.product.slug, { doc: d.key })}>
@@ -396,9 +400,14 @@ export function DocumentReader({
         <div className="wiki-badges">
           <span className="wiki-state">{doc.status.replaceAll('_', ' ')}</span>
           {doc.version && <span>Spec revision {doc.version}</span>}
+          {doc.reviewState && (
+            <Link className="wiki-review" href={`${doc.editUrl}#review`}>
+              {doc.reviewState === 'changes_requested' ? 'Changes requested' : 'In review'}
+            </Link>
+          )}
           {doc.needsReview && (
             <Link className="wiki-review" href={doc.editUrl}>
-              Needs review
+              Import triage
             </Link>
           )}
         </div>

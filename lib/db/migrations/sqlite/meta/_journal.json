@@ -162,6 +162,48 @@
       "when": 1789430000000,
       "tag": "0022_phase4_product_archive",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1790376915043,
+      "tag": "0023_audit_product_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1790377210127,
+      "tag": "0024_spec_revisions",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1790377443668,
+      "tag": "0025_product_members",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1790384926807,
+      "tag": "0026_collaboration",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1790388475144,
+      "tag": "0027_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1790390878365,
+      "tag": "0028_notification_delivery",
+      "breakpoints": true
     }
   ]
 }

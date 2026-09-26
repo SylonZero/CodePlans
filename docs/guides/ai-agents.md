@@ -24,7 +24,7 @@ claude mcp add --transport http codeplans http://localhost:3000/api/mcp/mcp \
 Works identically against a local SQLite instance or a hosted deployment —
 the server lives inside the Next.js app.
 
-## The tool catalog (49 tools)
+## The tool catalog (71 tools)
 
 **Read** (any key):
 
@@ -35,7 +35,9 @@ the server lives inside the Next.js app.
 | Plans & tasks | `list_code_plans` · `get_code_plan` |
 | Releases & history | `list_releases` · `get_release` · `get_asset_history` |
 | Asset record | `get_asset_record` |
-| Specs | `get_spec` · `list_specs` |
+| Specs | `get_spec` · `list_specs` · `list_spec_revisions` · `get_spec_revision` |
+| People & reviews | `list_product_people` · `get_review` · `list_reviews` · `list_comments` |
+| My work | `get_my_work` · `list_notifications` |
 
 **Write** (write-scope key):
 
@@ -48,6 +50,11 @@ the server lives inside the Next.js app.
 | Releases | `create_release` · `update_release` · `attach_plan_to_release` · `detach_plan_from_release` · `set_release_asset` · `ship_release` |
 | History | `record_design_note` |
 | Asset record | `graduate_work_item` |
+| Specs | `create_spec` · `update_spec` · `supersede_spec` · `link_spec` · `unlink_spec` |
+| Collaboration | `add_comment` · `resolve_comment` · `request_review` (agents can't approve) |
+| Responsibilities | `assign_responsibility` · `remove_responsibility` |
+| Notifications | `mark_notifications_done` |
+| Archive & delete | `archive_product` · `restore_product` · `archive_asset` · `restore_asset` · `delete_code_plan` · `delete_work_item` · `delete_task` · `delete_release` |
 | Specs | `create_spec` · `update_spec` · `supersede_spec` · `link_spec` · `unlink_spec` |
 
 Guardrails are enforced at the tool layer, not just the UI: mirrored items

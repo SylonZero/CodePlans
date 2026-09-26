@@ -33,11 +33,67 @@ describe('native spec MCP tools', () => {
   })
   it('guards graduation access and records separate note revisions', async () => {
     await (db as any).insert(workItems).values({ id: 'mcp-item', productId: F.productShared, assetId: F.assetApi, title: 'Feature', type: 'feature', status: 'resolved' })
-    expect(unpack(await call('graduate_work_item', { workItemId: 'mcp-item' }, F.carol))).toHaveProperty('error')
+    await expect(call('graduate_work_item', { workItemId: 'mcp-item' }, F.carol)).rejects.toThrow('accessible')
     const spec = await createSpec({ productId: F.productShared, title: 'MCP spec', body: 'first', specType: 'feature' }, F.alice)
     await call('link_spec', { specId: spec.id, targetType: 'work_item', targetId: 'mcp-item' })
     const note = unpack(await call('record_design_note', { assetId: F.assetApi, title: 'Change', revisesSpecId: spec.id, revisedSpecBody: 'second', expectedSpecVersion: 1 }))
     expect(note.specEventId).toBeTruthy()
     expect(unpack(await call('graduate_work_item', { workItemId: 'mcp-item' })).capability).toMatchObject({ sourceSpecId: spec.id, sourceSpecVersion: 2 })
+  })
+})
+
+describe('MCP write authorization', () => {
+  const DAVE = 'user-dave-mcp'
+  beforeEach(async () => {
+    const { users, organizationMembers } = await import('@/lib/db/schema.sqlite')
+    await (db as any).insert(users).values({ id: DAVE, email: 'dave-mcp@test.local', name: 'Dave', billingTier: 'free', role: 'viewer', organizationId: F.org, featureFlags: {} })
+    await (db as any).insert(organizationMembers).values({ id: 'member-dave-mcp', organizationId: F.org, userId: DAVE, role: 'viewer', joinedAt: new Date() })
+  })
+
+  it('blocks a viewer holding a write-scoped key from changing product data', async () => {
+    await expect(call('create_asset', { productId: F.productShared, name: 'X', type: 'service', description: '', tags: [] }, DAVE)).rejects.toThrow('view-only')
+    await expect(call('update_task_status', { id: F.task1, status: 'done' }, DAVE)).rejects.toThrow('view-only')
+    await expect(call('create_product', { name: 'Viewer product', description: '', tags: [] }, DAVE)).resolves.toMatchObject({ content: [{ text: expect.stringContaining('view-only') }] })
+  })
+
+  it('lets an editor write and hides other products entirely', async () => {
+    const task = unpack(await call('update_task_status', { id: F.task1, status: 'done' }, F.bob))
+    expect(task).toMatchObject({ status: 'done' })
+    await expect(call('update_task_status', { id: F.task1, status: 'done' }, F.carol)).rejects.toThrow('not accessible')
+  })
+})
+
+describe('MCP comments and reviews', () => {
+  it('lets an agent comment, request a review and read it, but offers no way to approve', async () => {
+    const spec = unpack(await call('create_spec', { productId: F.productShared, title: 'Agent spec', body: 'Body text here', specType: 'api' }))
+    const comment = unpack(await call('add_comment', { subjectType: 'spec', subjectId: spec.id, body: 'Please check @Bob', kind: 'question', anchor: { quote: 'Body text' }, mentionEmails: ['bob@test.local'] }))
+    expect(comment).toMatchObject({ authorType: 'agent', kind: 'question', mentions: ['user-bob'] })
+    const threads = unpack(await call('list_comments', { subjectType: 'spec', subjectId: spec.id }, F.bob))
+    expect(threads[0]).toMatchObject({ anchorStatus: 'anchored', authorName: 'Alice' })
+    expect(unpack(await call('resolve_comment', { id: comment.id, resolved: true }))).toMatchObject({ resolvedById: F.alice })
+
+    const review = unpack(await call('request_review', { subjectType: 'spec', subjectId: spec.id, reviewerEmails: ['bob@test.local'] }))
+    expect(review).toMatchObject({ state: 'open', requestedByKind: 'agent' })
+    const summary = unpack(await call('get_review', { subjectType: 'spec', subjectId: spec.id }))
+    expect(summary.current.participants).toEqual([expect.objectContaining({ name: 'Bob', decision: 'pending' })])
+    expect(summary).not.toHaveProperty('audience')
+    expect(unpack(await call('list_reviews', { awaitingMe: true }, F.bob)).map((r: any) => r.subjectTitle)).toEqual(['Agent spec'])
+    expect([...registered.keys()].some((name) => /approve|decide/.test(name))).toBe(false)
+    await expect(call('add_comment', { subjectType: 'spec', subjectId: spec.id, body: 'x' }, F.alice, false)).rejects.toThrow('read-only')
+  })
+})
+
+describe('MCP my work', () => {
+  it('returns the key owner\'s inbox and lets them clear notifications', async () => {
+    const { requestReview } = await import('@/lib/db/reviews')
+    const spec = unpack(await call('create_spec', { productId: F.productShared, title: 'Queue spec', body: 'b', specType: 'api' }))
+    await requestReview({ subjectType: 'spec', subjectId: spec.id, reviewers: [{ userId: F.bob }] }, { id: F.alice })
+    await call('add_comment', { subjectType: 'spec', subjectId: spec.id, body: 'ping @Bob', mentionEmails: ['bob@test.local'] })
+    const work = unpack(await call('get_my_work', {}, F.bob))
+    expect(work.needsYou.map((i: any) => i.verb)).toEqual(expect.arrayContaining(['Review', 'Reply']))
+    const notes = unpack(await call('list_notifications', {}, F.bob))
+    expect(notes.map((n: any) => n.eventType)).toEqual(expect.arrayContaining(['review.requested', 'comment.mention']))
+    await call('mark_notifications_done', { ids: notes.map((n: any) => n.id) }, F.bob)
+    expect(unpack(await call('list_notifications', {}, F.bob))).toEqual([])
   })
 })

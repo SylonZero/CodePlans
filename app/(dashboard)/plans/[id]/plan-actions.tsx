@@ -67,19 +67,44 @@ interface Props {
   teamMembers: TeamMember[]
 }
 
-export function PlanStatusButtons({ plan }: { plan: CodePlanDetail }) {
+export function PlanStatusButtons({ plan, activationWarning = null, activationBlocked = null }: {
+  plan: CodePlanDetail
+  /** Guided workflow: nothing approved the current revision. Confirm before activating. */
+  activationWarning?: string | null
+  /** An extension blocked activation; shown instead of the button action. */
+  activationBlocked?: string | null
+}) {
   const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+  const activate = () => startTransition(async () => {
+    setError(null)
+    const res = await activatePlanAction(plan.id)
+    if (res?.error) { setError(res.error); toast.error(res.error) }
+  })
 
   return (
     <>
-      {plan.status === 'draft' && (
-        <Button
-          disabled={isPending}
-          onClick={() => startTransition(() => activatePlanAction(plan.id))}
-        >
+      {plan.status === 'draft' && (activationWarning || activationBlocked ? (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button disabled={isPending}>{isPending ? 'Activating…' : 'Activate Plan'}</Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{activationBlocked ? 'Activation is blocked' : 'Activate without an approval?'}</AlertDialogTitle>
+              <AlertDialogDescription>{activationBlocked ?? `${activationWarning} Request a review from the Overview tab, or activate anyway.`}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{activationBlocked ? 'Close' : 'Cancel'}</AlertDialogCancel>
+              {!activationBlocked && <AlertDialogAction onClick={activate}>Activate anyway</AlertDialogAction>}
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      ) : (
+        <Button disabled={isPending} onClick={activate}>
           {isPending ? 'Activating…' : 'Activate Plan'}
         </Button>
-      )}
+      ))}
       {plan.status === 'active' && (
         <Button
           variant="secondary"
@@ -89,6 +114,7 @@ export function PlanStatusButtons({ plan }: { plan: CodePlanDetail }) {
           {isPending ? 'Completing…' : 'Mark Complete'}
         </Button>
       )}
+      {error && <span role="alert" className="text-sm text-destructive">{error}</span>}
     </>
   )
 }
