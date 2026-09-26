@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CodePlans — Plan &amp; deliver</title>
+  <meta name="description" content="Code plans, tasks, work items and releases in CodePlans." />
+  <link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+<!-- Generated page: the nav and footer are repeated on every page of the site. -->
+<nav>
+  <div class="container inner">
+    <a class="nav-logo" href="index.html" style="text-decoration:none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> CodePlans</a>
+    <div class="nav-links">
+      <a href="index.html">Overview</a><a href="plan.html" class="active" aria-current="page">Plan &amp; deliver</a><a href="assets.html">Assets</a><a href="specs.html">Specs &amp; Wiki</a><a href="reviews.html">Reviews</a><a href="my-work.html">My Work</a><a href="agents.html">AI agents</a><a href="self-host.html">Self-host</a><a href="docs.html">Docs</a>
+      <a class="btn-gh" href="https://github.com/SylonZero/CodePlans" target="_blank" rel="noopener"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.38.6.11.82-.26.82-.58v-2.03c-3.34.72-4.04-1.61-4.04-1.61-.54-1.38-1.33-1.75-1.33-1.75-1.09-.74.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4 11.5 11.5 0 0 1 3 .4c2.28-1.55 3.3-1.23 3.3-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/></svg> GitHub</a>
+    </div>
+  </div>
+</nav>
+<section class="page-hero"><div class="container"><div class="crumb"><a href="index.html">CodePlans</a> / Plan & deliver</div><h1>Plan the change. Ship it together.</h1><p class="hero-sub">Code plans coordinate work across the assets it touches, work items capture the demand behind it, and releases record what shipped and at which version.</p><div class="links"><a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/concepts.md">Concepts guide</a><a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/releases-and-versions.md">Releases guide</a><a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/logging-work.md">Logging work with Claude</a></div></div></section>
+<main>
+<div class="container"><div class="feature-row"><div class="row-text"><div class="section-label">Code plans</div><h2>Coordinate a change across assets</h2><p>A code plan groups related changes under one lifecycle: <strong>Draft → Active → Completed</strong>. It targets the assets it will touch, links the specs it builds on, and tracks a branch and PR per asset.</p><ul><li><strong>Impact</strong> follows dependency edges to show what else a change can reach.</li><li><strong>Tasks</strong> carry priority, effort, assignee and asset scope, in a list or a board.</li><li><strong>Review</strong> and <strong>Discussion</strong> tabs let code owners weigh in before effort starts.</li></ul><p><a class="more" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/concepts.md">How CodePlans thinks →</a></p></div><div class="row-media"><figure class="shot "><a href="screenshots/plan-detail.png" aria-label="Open full size: A code plan: progress, target assets, assignees, and its review waiting on a code owner"><img src="screenshots/plan-detail.png" alt="A code plan: progress, target assets, assignees, and its review waiting on a code owner" width="2880" height="1800" loading="lazy"></a></figure></div></div><div class="feature-row flip"><div class="row-text"><div class="section-label">Portfolio</div><h2>See every plan at once</h2><p>Filter plans by status, product and owner, switch between cards and a table, and spot what is drifting before a deadline does.</p></div><div class="row-media"><figure class="shot "><a href="screenshots/plans.png" aria-label="Open full size: The Code Plans list with active, draft and completed counts"><img src="screenshots/plans.png" alt="The Code Plans list with active, draft and completed counts" width="2880" height="1800" loading="lazy"></a></figure></div></div><div class="feature-row"><div class="row-text"><div class="section-label">Work items</div><h2>Track the demand behind the change</h2><p>Features, bugs, UX issues and tech debt, with severity, asset and area. Create them natively or mirror them, pull-only, from <strong>GitHub, GitLab, Jira, Asana and Linear</strong>, with provenance badges and per-connection status mapping.</p><p>Unowned, unplanned items show up for triage in the owning code owner’s and engineering manager’s My Work.</p></div><div class="row-media"><figure class="shot "><a href="screenshots/work-items.png" aria-label="Open full size: Work items with type, severity, asset and the plans that address them"><img src="screenshots/work-items.png" alt="Work items with type, severity, asset and the plans that address them" width="2880" height="1800" loading="lazy"></a></figure></div></div><div class="feature-row flip"><div class="row-text"><div class="section-label">Releases</div><h2>Ship plans together, with versions</h2><p>A release groups the plans that ship together: one asset’s version or a coordinated multi-asset revision. Stamp per-asset versions, roll up merged PRs, and derive release notes from the delivered work.</p><p><a class="more" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/releases-and-versions.md">Read the guide →</a></p></div><div class="row-media"><figure class="shot "><a href="screenshots/release-detail.png" aria-label="Open full size: A shipped release with its description, assets and plans"><img src="screenshots/release-detail.png" alt="A shipped release with its description, assets and plans" width="2880" height="1800" loading="lazy"></a></figure></div></div><div class="feature-row"><div class="row-text"><h2>Group what ships, and when</h2><p>Releases move from planned to in progress to shipped. Shipped releases are read-only, so the record stays trustworthy.</p></div><div class="row-media"><figure class="shot "><a href="screenshots/releases.png" aria-label="Open full size: The releases list with per-asset version stamps"><img src="screenshots/releases.png" alt="The releases list with per-asset version stamps" width="2880" height="1800" loading="lazy"></a></figure></div></div></div>
+</main>
+<div class="container"><div class="page-nav"><a href="index.html"><span>← Previous</span>Overview</a><a class="next" href="assets.html"><span>Next →</span>Assets</a></div></div>
+<footer>
+  <div class="container footer-inner">
+    <div class="footer-left">
+      <span class="footer-logo">CodePlans</span>
+      <span class="footer-copy">© 2026 Sai Prakash · MIT License · Community edition</span>
+    </div>
+    <div class="footer-links">
+      <a href="https://codeplans.ai" target="_blank" rel="noopener">Beta Signup</a>
+      <a href="https://github.com/SylonZero/CodePlans" target="_blank" rel="noopener">GitHub</a>
+      <a href="docs.html">Docs</a>
+      <a href="https://github.com/SylonZero/CodePlans/blob/master/LICENSE" target="_blank" rel="noopener">License</a>
+    </div>
+  </div>
+</footer>
+<script src="assets/site.js"></script>
+</body>
+</html>

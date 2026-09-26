@@ -29,7 +29,7 @@ export type AuditEvent = {
   payload: Record<string, unknown>
 }
 
-type Recipient = { userId: string; reason: string }
+type Recipient = { userId: string; reason: string; assetId?: string }
 type Draft = {
   eventType: string
   title: string
@@ -61,9 +61,9 @@ export function subjectUrl(subjectType: string, subjectId: string, extra?: { pla
 
 async function codeOwnersOf(assetIds: string[]): Promise<Recipient[]> {
   if (!assetIds.length) return []
-  const rows = await db.select({ userId: assetOwners.userId, name: assets.name }).from(assetOwners)
+  const rows = await db.select({ userId: assetOwners.userId, name: assets.name, assetId: assets.id }).from(assetOwners)
     .innerJoin(assets, eq(assetOwners.assetId, assets.id)).where(inArray(assetOwners.assetId, assetIds))
-  return rows.map((r) => ({ userId: r.userId, reason: `code_owner:${r.name}` }))
+  return rows.map((r) => ({ userId: r.userId, reason: `code_owner:${r.name}`, assetId: r.assetId }))
 }
 
 async function membersOf(productId: string | null, responsibility?: 'eng_manager' | 'architect' | 'contributor'): Promise<(Recipient & { area: string })[]> {
@@ -256,10 +256,18 @@ export async function notifyForEvent(e: AuditEvent) {
     // Strongest reason wins: the first time a person appears is the reason they're told.
     const firstReason = new Map<string, string>()
     for (const r of draft.recipients) if (!firstReason.has(r.userId)) firstReason.set(r.userId, r.reason)
+    // People told only because they own certain assets carry those assets, so
+    // muting every one of them silences the notice.
+    const viaAssets = new Map<string, string[] | null>()
+    for (const r of draft.recipients) {
+      const prev = viaAssets.get(r.userId)
+      if (prev === null) continue
+      viaAssets.set(r.userId, r.assetId ? [...(prev ?? []), r.assetId] : null)
+    }
     const rows: NotificationInput[] = [...firstReason].map(([userId, reason]) => ({
       userId, eventId: e.id, eventType: perRecipient?.get(userId) ?? draft.eventType, productId: e.productId,
       subjectType, subjectId, reason, title: perRecipient?.get(userId) === 'comment.mention' ? draft.title.replace(/ (commented|replied) on /, ' mentioned you on ') : draft.title,
-      summary: draft.summary, url, actorId: e.actorId, actorKind: e.actorKind,
+      summary: draft.summary, url, actorId: e.actorId, actorKind: e.actorKind, assetIds: viaAssets.get(userId) ?? undefined,
     }))
     const { inApp } = await publish(rows, {
       productId: e.productId, eventId: e.id, actorKind: e.actorKind,

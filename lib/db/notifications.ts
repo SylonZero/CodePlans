@@ -21,6 +21,8 @@ export type NotificationInput = {
   url: string
   actorId?: string | null
   actorKind?: string | null
+  /** Assets this notification is about, for asset mutes. Not stored. */
+  assetIds?: string[]
 }
 
 export type NotificationRow = typeof notifications.$inferSelect
@@ -43,7 +45,7 @@ export async function createNotificationRows(rows: NotificationInput[]): Promise
     if (seen.has(key)) return false
     seen.add(key)
     return true
-  }).map((r) => ({ ...r, summary: r.summary ?? '' }))
+  }).map(({ assetIds: _assets, ...r }) => ({ ...r, summary: r.summary ?? '' }))
   if (!values.length) return []
   try {
     return await db.insert(notifications).values(values).onConflictDoNothing()

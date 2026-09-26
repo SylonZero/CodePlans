@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CodePlans — Reviews</title>
+  <meta name="description" content="Plan and spec reviews, anchored discussion and responsibilities in CodePlans." />
+  <link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+<!-- Generated page: the nav and footer are repeated on every page of the site. -->
+<nav>
+  <div class="container inner">
+    <a class="nav-logo" href="index.html" style="text-decoration:none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> CodePlans</a>
+    <div class="nav-links">
+      <a href="index.html">Overview</a><a href="plan.html">Plan &amp; deliver</a><a href="assets.html">Assets</a><a href="specs.html">Specs &amp; Wiki</a><a href="reviews.html" class="active" aria-current="page">Reviews</a><a href="my-work.html">My Work</a><a href="agents.html">AI agents</a><a href="self-host.html">Self-host</a><a href="docs.html">Docs</a>
+      <a class="btn-gh" href="https://github.com/SylonZero/CodePlans" target="_blank" rel="noopener"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.38.6.11.82-.26.82-.58v-2.03c-3.34.72-4.04-1.61-4.04-1.61-.54-1.38-1.33-1.75-1.33-1.75-1.09-.74.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4 11.5 11.5 0 0 1 3 .4c2.28-1.55 3.3-1.23 3.3-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/></svg> GitHub</a>
+    </div>
+  </div>
+</nav>
+<section class="page-hero"><div class="container"><div class="crumb"><a href="index.html">CodePlans</a> / Reviews</div><h1>Review the direction before the work starts</h1><p class="hero-sub">Code owners, architects and engineering managers review plans and specs at a pinned version, discuss them in context, and see only what is theirs to decide. Small teams can leave it all optional.</p><div class="links"><a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/reviews-and-comments.md">Reviews & comments guide</a><a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/enterprise-extensions.md">Enterprise extensions</a></div></div></section>
+<main>
+<div class="container"><div class="feature-row"><div class="row-text"><div class="section-label">Responsibilities</div><h2>Who reviews what comes from who owns what</h2><p>Org roles decide what someone may do. <strong>Responsibilities</strong> decide who is asked: engineering managers and architects (optionally for an area) per product, and code owners per asset. They route reviews, triage and notifications; they never grant permissions.</p><p>Each product picks a workflow: <strong>Open</strong> (the default; reviews are optional) or <strong>Guided</strong> (reviewers are suggested from responsibilities, and activating unapproved work asks for confirmation).</p></div><div class="row-media"><figure class="shot "><a href="screenshots/product-people.png" aria-label="Open full size: A product’s People &amp; reviews tab: workflow level, engineering managers, architects and code owners"><img src="screenshots/product-people.png" alt="A product’s People &amp; reviews tab: workflow level, engineering managers, architects and code owners" width="2880" height="1800" loading="lazy"></a></figure></div></div><div class="feature-row flip"><div class="row-text"><div class="section-label">Plan review</div><h2>Review the plan before effort is spent</h2><p>A PR review comes after the work is done. A <strong>plan review</strong> lets code owners stop a misdirected change before any tokens or people are spent on it. Suggested reviewers come from the plan’s target assets and the product’s responsibilities.</p><ul><li>Approvals are pinned to a <strong>revision</strong>. Changing the plan’s scope, specs or description asks reviewers to look again.</li><li>Agents can request reviews and comment, but only people approve.</li></ul><p><a class="more" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/reviews-and-comments.md">Read the guide →</a></p></div><div class="row-media"><figure class="shot "><a href="screenshots/plan-review.png" aria-label="Open full size: A plan review waiting on a code owner and an engineering manager"><img src="screenshots/plan-review.png" alt="A plan review waiting on a code owner and an engineering manager" width="2880" height="1800" loading="lazy"></a></figure></div></div><div class="feature-row"><div class="row-text"><div class="section-label">Spec review</div><h2>Approve a version, not a moving target</h2><p>Reviewers approve, request changes or comment on a specific spec version. A later revision marks earlier approvals <strong>outdated</strong>, and approvers and plan owners are told. Required reviewers must approve before the review completes.</p></div><div class="row-media"><figure class="shot "><a href="screenshots/spec-review.png" aria-label="Open full size: A spec in review with an architect as a required reviewer"><img src="screenshots/spec-review.png" alt="A spec in review with an architect as a required reviewer" width="2880" height="1800" loading="lazy"></a></figure></div></div><div class="feature-row flip"><div class="row-text"><div class="section-label">Discussion</div><h2>Feedback anchored to the text</h2><p>Select text in a spec to comment on it, ask a question or suggest a change. Threads can be resolved, @mentions notify people, and anchors survive later revisions (or say when the quoted text changed). Viewers can comment too.</p></div><div class="row-media"><figure class="shot plain"><a href="screenshots/spec-discussion.png" aria-label="Open full size: An anchored question with a reply mentioning a teammate, and a suggestion"><img src="screenshots/spec-discussion.png" alt="An anchored question with a reply mentioning a teammate, and a suggestion" width="1856" height="1110" loading="lazy"></a></figure></div></div></div>
+</main>
+<div class="container"><div class="page-nav"><a href="specs.html"><span>← Previous</span>Specs &amp; Wiki</a><a class="next" href="my-work.html"><span>Next →</span>My Work</a></div></div>
+<footer>
+  <div class="container footer-inner">
+    <div class="footer-left">
+      <span class="footer-logo">CodePlans</span>
+      <span class="footer-copy">© 2026 Sai Prakash · MIT License · Community edition</span>
+    </div>
+    <div class="footer-links">
+      <a href="https://codeplans.ai" target="_blank" rel="noopener">Beta Signup</a>
+      <a href="https://github.com/SylonZero/CodePlans" target="_blank" rel="noopener">GitHub</a>
+      <a href="docs.html">Docs</a>
+      <a href="https://github.com/SylonZero/CodePlans/blob/master/LICENSE" target="_blank" rel="noopener">License</a>
+    </div>
+  </div>
+</footer>
+<script src="assets/site.js"></script>
+</body>
+</html>

@@ -5,17 +5,27 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-SQLite_%7C_Postgres-C5F74F?logo=drizzle&logoColor=black)](https://orm.drizzle.team)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![Tests](https://img.shields.io/badge/Tests-233_passing-brightgreen?logo=vitest&logoColor=white)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-412_passing-brightgreen?logo=vitest&logoColor=white)](tests/)
+[![CI](https://github.com/SylonZero/CodePlans/actions/workflows/test.yml/badge.svg)](https://github.com/SylonZero/CodePlans/actions/workflows/test.yml)
+[![MCP tools](https://img.shields.io/badge/MCP-71_tools-8B5CF6)](docs/guides/ai-agents.md)
+[![Docs](https://img.shields.io/badge/Docs-GitHub_Pages-4ade80)](https://sylonzero.github.io/CodePlans)
 
 **Coordinate and track changes across your software architecture.**
 
-CodePlans is an open-source engineering planning tool that helps teams manage coordinated code changes across complex systems. It maps demand (work items: features, bugs, tech debt) onto delivery (code plans and tasks) across your architecture (products and assets), giving teams a shared view of what's changing, where, and why. The Product Wiki brings those specs, decisions, and delivery records together into a searchable view of your system.
+CodePlans is an open-source engineering planning tool that helps teams manage coordinated code changes across complex systems. It maps demand (work items: features, bugs, tech debt) onto delivery (code plans and tasks) across your architecture (products and assets), giving teams a shared view of what's changing, where, and why. Code owners and architects review plans and specs before the work starts, My Work tells each person what needs them, and the Product Wiki brings specs, decisions, and delivery records together into a searchable view of your system.
 
 → **Beta signup:** [codeplans.ai](https://codeplans.ai) · **Docs:** [sylonzero.github.io/CodePlans](https://sylonzero.github.io/CodePlans)
 
-[![Product Wiki overview showing the Atlas demo architecture, review queue, and asset library](docs/screenshots/wiki-overview.png)](https://sylonzero.github.io/CodePlans/#wiki)
+| | |
+|---|---|
+| [![A code plan with its target assets and a review waiting on a code owner](docs/screenshots/plan-detail.png)](https://sylonzero.github.io/CodePlans/plan.html) | [![The Asset Atlas: a live system map with dependency edges](docs/screenshots/asset-map.png)](https://sylonzero.github.io/CodePlans/assets.html) |
+| **[Plan & deliver →](https://sylonzero.github.io/CodePlans/plan.html)** Code plans, work items and releases | **[Assets →](https://sylonzero.github.io/CodePlans/assets.html)** The Atlas, asset record and history |
+| [![A spec diff between two versions, with the version history](docs/screenshots/spec-history.png)](https://sylonzero.github.io/CodePlans/specs.html) | [![A plan review waiting on a code owner and an engineering manager](docs/screenshots/plan-review.png)](https://sylonzero.github.io/CodePlans/reviews.html) |
+| **[Specs & Wiki →](https://sylonzero.github.io/CodePlans/specs.html)** Versioned specs, diffs and the Product Wiki | **[Reviews →](https://sylonzero.github.io/CodePlans/reviews.html)** Plan and spec reviews, anchored discussion |
+| [![My Work for a code owner: reviews, triage and mentions](docs/screenshots/my-work.png)](https://sylonzero.github.io/CodePlans/my-work.html) | [![Workspace notification settings with Resend and Slack connected](docs/screenshots/notification-settings.png)](https://sylonzero.github.io/CodePlans/my-work.html) |
+| **[My Work →](https://sylonzero.github.io/CodePlans/my-work.html)** An inbox built from your responsibilities | **[Notifications →](https://sylonzero.github.io/CodePlans/my-work.html)** Bell, email (Resend) and Slack |
 
-*Explore your product as a connected library. [Take the visual wiki tour →](https://sylonzero.github.io/CodePlans/#wiki)*
+*Screenshots come from the demo workspace (`pnpm db:seed-demo`). [Take the full tour →](https://sylonzero.github.io/CodePlans)*
 
 ---
 
@@ -30,6 +40,7 @@ CodePlans sits between your issue tracker and your architecture diagram:
 - **Work Items** are the demand side — features, bugs, UX issues, and tech debt items — linked many-to-many to the plans that address them (natively, or mirrored from GitHub/GitLab)
 - **Code Plans** coordinate related changes across assets with owners, assignees, deadlines, per-asset branch/PR tracking, and progress
 - **Tasks** are the individual units of work tied to a plan and optionally scoped to a specific asset
+- **Responsibilities** (engineering managers, architects, code owners) decide who reviews what and what shows up in each person's My Work; org roles still decide what they're allowed to do
 
 ---
 
@@ -45,10 +56,27 @@ plans, known issues, and delivery history.
 
 [![A versioned spec in the Wiki reader, with author details, a GFM lifecycle table, section navigation, and related assets](docs/screenshots/wiki-reader.png)](docs/guides/product-wiki.md)
 
-*Screenshots use a synthetic Atlas demo workspace. [See asset pages and search in the visual tour →](https://sylonzero.github.io/CodePlans/#wiki)*
+*Wiki screenshots use a synthetic Atlas demo workspace. [See asset pages and search in the visual tour →](https://sylonzero.github.io/CodePlans/specs.html)*
 
 Run `pnpm db:migrate` before deploying to apply the additive SQLite/PostgreSQL
 attribution migration. See the [wiki guide](docs/guides/product-wiki.md).
+
+---
+
+## Reviews, My Work & notifications
+
+**Stop a misdirected change before anyone spends effort on it.** Code owners
+review a plan before work starts, not the PR after it's done.
+
+- **Responsibilities, not permissions:** name engineering managers and architects per product, and code owners per asset. Reviewers are suggested from them.
+- **Reviews pinned to a version:** approving v3 says nothing about v4. Revising a spec or plan marks earlier approvals outdated and tells the people involved. Products choose **Open** (optional reviews) or **Guided** (suggested reviewers, confirmation before activating unapproved work).
+- **Anchored discussion:** comment on selected spec text, ask questions, suggest changes, @mention teammates and resolve threads.
+- **My Work:** an inbox of what needs you (reviews, triage, mentions, evidence gaps), what you're carrying, and what changed, with Developer, Code owner, Architect and Eng manager lenses.
+- **Notifications:** a bell in the app, plus email through Resend and a Slack incoming webhook. Admins choose events per channel; people turn off their own email and mute products or assets.
+
+[![My Work for a code owner, with plan reviews, triage and mentions](docs/screenshots/my-work.png)](https://sylonzero.github.io/CodePlans/my-work.html)
+
+See the [reviews guide](docs/guides/reviews-and-comments.md), [My Work guide](docs/guides/my-work.md) and [notifications guide](docs/guides/notifications.md).
 
 ---
 
@@ -81,6 +109,12 @@ attribution migration. See the [wiki guide](docs/guides/product-wiki.md).
 | Releases — delivery grouping with per-asset version stamps & derived release notes | ✅ Available |
 | Asset history timeline, version ladder & design log (user + agent authored) | ✅ Available |
 | Native specs — versioned editing, supersession, asset/plan/work-item links & pinned delivery receipts | ✅ Available |
+| Spec revision history — read-only earlier versions and line diffs | ✅ Available |
+| Responsibilities — engineering managers & architects per product, code owners per asset | ✅ Available |
+| Plan & spec reviews pinned to a version, with Open / Guided workflows | ✅ Available |
+| Threaded, anchored comments with @mentions on specs, plans, work items, releases & assets | ✅ Available |
+| My Work — needs you / in flight / watching, role lenses & evidence gaps | ✅ Available |
+| Notifications — in-app bell, email (Resend) & Slack webhook, per-event admin rules, email opt-outs & mutes | ✅ Available |
 | Product Wiki — full-window asset reading, searchable documents, contextual links & provenance | ✅ Available |
 | Shared GFM Markdown — paragraphs, line breaks, tables & task lists across pages and side panels | ✅ Available |
 | AI drafting — release notes & design notes (feature-flagged, `ANTHROPIC_API_KEY`) | ✅ Available |
@@ -100,7 +134,7 @@ attribution migration. See the [wiki guide](docs/guides/product-wiki.md).
 | Database | SQLite (local / libsql) or PostgreSQL (cloud) |
 | Auth | Local (bcrypt + session cookie) or Supabase |
 | Charts | Recharts |
-| Testing | Vitest (233 tests) |
+| Testing | Vitest (412 tests) |
 
 ---
 
@@ -224,8 +258,12 @@ Then run `pnpm db:migrate` and `pnpm dev`.
 | `AUTH_URL` | — | **Required in production.** Full URL of the server (e.g. `https://codeplans.yourteam.com`). Auth.js uses this to construct callback URLs and validate login redirects. Not needed for `localhost` dev. |
 | `BILLING_ENABLED` | `true` | Set `false` to hide billing UI (always off in `team` mode) |
 | `ALLOWED_DEV_ORIGINS` | — | Comma-separated hosts allowed to access Next.js dev resources (needed when running on a remote server) |
-| `RESEND_API_KEY` | — | Resend API key for transactional email (email change verification, future invites). Without this, verification URLs are logged to the server console (dev only). |
+| `RESEND_API_KEY` | — | Resend API key for transactional email and the fallback notification email channel. Without this, verification URLs are logged to the server console (dev only). Admins can also connect Resend in **Settings → Manage workspace notifications**. |
 | `RESEND_FROM_EMAIL` | `CodePlans <noreply@codeplans.ai>` | From address used in outgoing emails |
+| `RESEND_API_URL` | `https://api.resend.com` | Send notification email through a Resend-compatible relay |
+| `NOTIFY_WEBHOOK_ALLOWED_HOSTS` | — | Extra hosts allowed for the notification webhook (only `hooks.slack.com` by default) |
+| `CRON_SECRET` | — | Enables `/api/cron/notifications` for email/Slack retries from an external cron |
+| `NOTIFY_INTERVAL_SECONDS` | `60` | Team mode retries notifications in-process at this interval; `0` turns it off |
 | `NEXT_PUBLIC_SUPABASE_URL` | — | Required for Supabase auth mode |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | — | Required for Supabase auth mode |
 | `SUPABASE_SECRET_KEY` | — | Required for Supabase auth mode (server-side) |
@@ -290,7 +328,7 @@ Both SQLite and Postgres schemas are maintained in parallel under `lib/db/`. Mig
 ## Running Tests
 
 ```bash
-pnpm test              # run all tests (88 tests across 3 files)
+pnpm test              # run all tests (412 tests across 41 files)
 pnpm test:watch        # watch mode
 pnpm test:coverage     # with coverage report
 ```
@@ -325,15 +363,15 @@ SEED_ORG_NAME="My Workspace"         # default
 
 After running `pnpm db:seed-demo`, five accounts are available:
 
-| Name | Email | Role | Password |
+| Name | Email | Role | Responsibilities |
 |---|---|---|---|
-| Alex Chen | `alex.chen@codeplans.local` | Owner | `Password1!` |
-| Sarah Kim | `sarah.kim@codeplans.local` | Admin | `Password1!` |
-| Mike Jones | `mike.jones@codeplans.local` | Editor | `Password1!` |
-| Lisa Wang | `lisa.wang@codeplans.local` | Editor | `Password1!` |
-| James Lee | `james.lee@codeplans.local` | Viewer | `Password1!` |
+| Alex Chen | `alex.chen@codeplans.local` | Owner | Eng manager of Platform; architect (area `api`) on API; code owner of Plan Engine, Auth Service, PostgreSQL |
+| Sarah Kim | `sarah.kim@codeplans.local` | Admin | Eng manager of API; architect (area `schema`) on Platform |
+| Mike Jones | `mike.jones@codeplans.local` | Editor | Contributor; code owner of Web Application and UI Component Library |
+| Lisa Wang | `lisa.wang@codeplans.local` | Editor | Architect of Platform; eng manager of Mobile; code owner of Search, Analytics DB, Android App |
+| James Lee | `james.lee@codeplans.local` | Viewer | — |
 
-The demo workspace includes 3 products, 15 assets, 9 code plans, and ~65 tasks across various stages.
+Every password is `Password1!`. The demo workspace includes 3 products, 15 assets, 11 code plans and ~65 tasks, plus versioned specs, open reviews, anchored discussion and two evidence gaps, so each role's My Work has something in it. Sign in as Mike for a code owner's view and Alex for an engineering manager's.
 
 ---
 
@@ -453,6 +491,7 @@ Your agent can then read specs, plans, work items, and tech debt and (with a wri
 - [x] **[v0.5.1 — Deletion, cascade safety & audit trail](https://github.com/SylonZero/CodePlans/releases/tag/v0.5.1):** MCP delete tools for tasks, work items, plans & releases with blast-radius disclosure; confirmation dialogs on every destructive UI action; a centralized audit log covering every mutation across the UI and MCP; standardized creator/updater attribution with a data backfill for pre-existing rows; role-based delete authorization (org owner/admin vs. creator-or-assignee-only for everyone else); and a fixed privilege-escalation gap in team role management
 - [x] **[v0.5.2 — Asset archive & attribution visibility](https://github.com/SylonZero/CodePlans/releases/tag/v0.5.2):** Asset delete replaced with a reversible archive/soft-delete tombstone — hidden from lists/pickers/Atlas but nothing referencing it is touched — plus `archive_asset`/`restore_asset` MCP tools disclosing reference counts; `createdById`/`updatedById` now exposed through the query layer (plans, tasks, work items, releases), closing a gap from v0.5.1 where attribution was backfilled but never surfaced to readers
 - [x] **[v0.5.3 — Product archive & hardened authorization](https://github.com/SylonZero/CodePlans/releases/tag/v0.5.3):** Product hard-delete replaced with the same archive/soft-delete tombstone, the highest blast radius in the schema — nothing beneath a product (assets, plans, releases, work items, specs) is touched, it just stops resolving until restored; `archive_product`/`restore_product` MCP tools; typed-name confirmation with a full blast-radius breakdown in the UI; and a closed access-control gap where `updateAssetAction` had no check that the asset was actually accessible to the caller. Completes the deletion & audit initiative started in v0.5.1
+- [x] **Collaboration loop (next release)** (see [`docs/specs/collaboration-review-notifications-spec.md`](docs/specs/collaboration-review-notifications-spec.md)): responsibilities, plan and spec reviews pinned to a version with Open/Guided workflows, anchored comments with @mentions, spec revision history and diffs, the My Work inbox with role lenses and evidence gaps, and notifications in-app, by email (Resend) and to Slack with admin rules, opt-outs and mutes
 - [ ] **Planned — Reconciliation & round-trip engineering** (see [`docs/specs/asset-record-spec.md`](docs/specs/asset-record-spec.md)): agent reconciliation proposals, release publishing
 - [ ] AI-assisted effort estimation
 - [ ] Billing / subscription management (hosted tier, optional & feature-flagged)

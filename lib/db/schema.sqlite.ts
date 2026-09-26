@@ -780,3 +780,18 @@ export const notificationDeliveries = sqliteTable('notification_deliveries', {
   index('notification_deliveries_due_idx').on(t.status, t.nextAttemptAt),
   index('notification_deliveries_org_idx').on(t.organizationId, t.createdAt),
 ])
+
+export type NotificationMuteSubject = 'product' | 'asset'
+
+// A person silencing a product or asset: nothing about it reaches them except
+// required events (review requests, changes requested, mentions). Polymorphic,
+// so no FK; rows for deleted products or assets are harmless and cleaned up.
+export const notificationMutes = sqliteTable('notification_mutes', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  subjectType: text('subject_type').$type<NotificationMuteSubject>().notNull(),
+  subjectId: text('subject_id').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('notification_mutes_user_subject_idx').on(t.userId, t.subjectType, t.subjectId),
+])

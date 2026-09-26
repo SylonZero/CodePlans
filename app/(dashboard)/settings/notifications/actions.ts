@@ -6,7 +6,7 @@ import { authAdapter } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { users } from '@/lib/db/schema'
 import {
-  saveEmailChannel, saveSlackChannel, setChannelPaused, removeChannel, setNotificationRule, resetNotificationRules, setEmailPreference,
+  saveEmailChannel, saveSlackChannel, setChannelPaused, removeChannel, setNotificationRule, resetNotificationRules, setEmailPreference, setMuted,
   type RulePatch,
 } from '@/lib/db/notification-settings'
 import { sendTestEmail, sendTestSlack } from '@/lib/db/notification-delivery'
@@ -74,4 +74,17 @@ export async function setEmailPreferenceAction(eventType: string, email: boolean
     await setEmailPreference(user.id, eventType, email)
     return {}
   }, '/settings')
+}
+
+/** Personal: mute or unmute notifications about a product or asset. */
+export async function setMutedAction(subjectType: 'product' | 'asset', subjectId: string, muted: boolean) {
+  try {
+    const user = await authAdapter.getUser()
+    if (!user) throw new Error('Unauthorized')
+    await setMuted(user.id, subjectType, subjectId, muted)
+    revalidatePath('/settings')
+    return { ok: true as const, muted }
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : 'Something went wrong' }
+  }
 }

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CodePlans — AI agents</title>
+  <meta name="description" content="The CodePlans MCP server: 71 tools for coding agents." />
+  <link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+<!-- Generated page: the nav and footer are repeated on every page of the site. -->
+<nav>
+  <div class="container inner">
+    <a class="nav-logo" href="index.html" style="text-decoration:none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> CodePlans</a>
+    <div class="nav-links">
+      <a href="index.html">Overview</a><a href="plan.html">Plan &amp; deliver</a><a href="assets.html">Assets</a><a href="specs.html">Specs &amp; Wiki</a><a href="reviews.html">Reviews</a><a href="my-work.html">My Work</a><a href="agents.html" class="active" aria-current="page">AI agents</a><a href="self-host.html">Self-host</a><a href="docs.html">Docs</a>
+      <a class="btn-gh" href="https://github.com/SylonZero/CodePlans" target="_blank" rel="noopener"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.38.6.11.82-.26.82-.58v-2.03c-3.34.72-4.04-1.61-4.04-1.61-.54-1.38-1.33-1.75-1.33-1.75-1.09-.74.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4 11.5 11.5 0 0 1 3 .4c2.28-1.55 3.3-1.23 3.3-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/></svg> GitHub</a>
+    </div>
+  </div>
+</nav>
+<section class="page-hero"><div class="container"><div class="crumb"><a href="index.html">CodePlans</a> / AI agents</div><h1>The system of record your coding agents read — and write</h1><p class="hero-sub">CodePlans records what shipped, where and why. Connect a coding agent over MCP (71 tools) and the record builds itself as the work happens.</p><div class="links"><a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/ai-agents.md">AI agents guide</a><a href="https://github.com/SylonZero/CodePlans/blob/master/docs/specs/mcp-server-spec.md">MCP server spec</a></div></div></section>
+<main>
+<section class="section"><div class="container"><div class="feature-grid">
+  <div class="feature-card"><div class="feature-icon" style="background:rgba(96,165,250,.12)">📖</div><h3>Agents read the map</h3><p>Before touching an asset, an agent pulls its history, open debt, dependencies, active specs and delivery coverage. <code>get_asset_record</code> separates current intent from delivered capabilities.</p></div>
+  <div class="feature-card"><div class="feature-icon" style="background:rgba(251,146,60,.12)">✍️</div><h3>Agents write the record</h3><p>As plans complete, agents mark tasks done, update branch and PR status, file the debt they discover, and record a design note on each asset they changed, with an agent badge.</p></div>
+  <div class="feature-card"><div class="feature-icon" style="background:rgba(74,222,128,.12)">💬</div><h3>Agents join the loop</h3><p>Agents request reviews, read and add comments, and start a session with <code>get_my_work</code>: "what's waiting on me?". There is deliberately no tool to approve a review.</p></div>
+  <div class="feature-card"><div class="feature-icon" style="background:rgba(167,139,250,.12)">📝</div><h3>AI drafts, humans decide</h3><p>With an Anthropic API key configured, CodePlans drafts release notes and design notes from delivered work. Drafts always land in an editor; nothing is auto-published.</p></div>
+</div></div></section><section class="section"><div class="container"><div class="section-label">Connect</div><h2>Add CodePlans to your agent</h2>
+<p class="section-sub">Generate an API key in <strong>Settings → API Keys</strong>. Snippets are included for Claude Code, Claude Desktop, Cursor, Codex CLI, GitHub Copilot and Antigravity. Keys act as your user, so access rules apply unchanged.</p>
+<div class="code-block">
+  <div><span class="comment"># Connect Claude Code to your CodePlans instance</span></div>
+  <div><span class="cmd">claude mcp add</span> <span class="arg">--transport http codeplans http://localhost:3000/api/mcp/mcp \</span></div>
+  <div><span class="arg">&nbsp;&nbsp;--header "Authorization: Bearer cpk_your_key"</span></div>
+</div>
+<p style="margin-top:16px">See the <a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/ai-agents.md">AI agents guide</a> for the 71-tool catalog, and the <a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/logging-work.md">/codeplans-log</a> and <a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/capturing-docs.md">/codeplans-capture</a> skills.</p></div></section>
+</main>
+<div class="container"><div class="page-nav"><a href="my-work.html"><span>← Previous</span>My Work</a><a class="next" href="self-host.html"><span>Next →</span>Self-host</a></div></div>
+<footer>
+  <div class="container footer-inner">
+    <div class="footer-left">
+      <span class="footer-logo">CodePlans</span>
+      <span class="footer-copy">© 2026 Sai Prakash · MIT License · Community edition</span>
+    </div>
+    <div class="footer-links">
+      <a href="https://codeplans.ai" target="_blank" rel="noopener">Beta Signup</a>
+      <a href="https://github.com/SylonZero/CodePlans" target="_blank" rel="noopener">GitHub</a>
+      <a href="docs.html">Docs</a>
+      <a href="https://github.com/SylonZero/CodePlans/blob/master/LICENSE" target="_blank" rel="noopener">License</a>
+    </div>
+  </div>
+</footer>
+<script src="assets/site.js"></script>
+</body>
+</html>

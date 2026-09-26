@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CodePlans — Docs</title>
+  <meta name="description" content="CodePlans guides, design specs and current feature status." />
+  <link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+<!-- Generated page: the nav and footer are repeated on every page of the site. -->
+<nav>
+  <div class="container inner">
+    <a class="nav-logo" href="index.html" style="text-decoration:none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> CodePlans</a>
+    <div class="nav-links">
+      <a href="index.html">Overview</a><a href="plan.html">Plan &amp; deliver</a><a href="assets.html">Assets</a><a href="specs.html">Specs &amp; Wiki</a><a href="reviews.html">Reviews</a><a href="my-work.html">My Work</a><a href="agents.html">AI agents</a><a href="self-host.html">Self-host</a><a href="docs.html" class="active" aria-current="page">Docs</a>
+      <a class="btn-gh" href="https://github.com/SylonZero/CodePlans" target="_blank" rel="noopener"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.38.6.11.82-.26.82-.58v-2.03c-3.34.72-4.04-1.61-4.04-1.61-.54-1.38-1.33-1.75-1.33-1.75-1.09-.74.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4 11.5 11.5 0 0 1 3 .4c2.28-1.55 3.3-1.23 3.3-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/></svg> GitHub</a>
+    </div>
+  </div>
+</nav>
+<section class="page-hero"><div class="container"><div class="crumb"><a href="index.html">CodePlans</a> / Docs</div><h1>Guides, specs and status</h1><p class="hero-sub">How-to guides for each part of CodePlans, the design specs behind them, and what is available today.</p></div></section>
+<main>
+<!-- ── Docs ── -->
+<section class="section" id="docs">
+  <div class="container">
+    <div class="section-label">Documentation</div>
+    <h2>Guides &amp; design specs</h2>
+    <p class="section-sub">Everything you need to understand the data model, architecture decisions, and current feature state.</p>
+
+    <div class="docs-grid">
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/reviews-and-comments.md">
+        <div class="doc-tag">Guide</div>
+        <h3>Reviews & Comments</h3>
+        <p>Responsibilities, plan and spec reviews pinned to a version, Open/Guided workflows, and anchored discussion.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/my-work.md">
+        <div class="doc-tag">Guide</div>
+        <h3>My Work</h3>
+        <p>The inbox built from your responsibilities: bands, lenses, evidence gaps and the bell.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/notifications.md">
+        <div class="doc-tag">Guide</div>
+        <h3>Email & Slack Notifications</h3>
+        <p>Connect Resend and a Slack webhook, choose events per channel, personal opt-outs, mutes and retries.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/enterprise-extensions.md">
+        <div class="doc-tag">Guide</div>
+        <h3>Enterprise Extensions</h3>
+        <p>The narrow hooks the community edition exposes, and what they are for.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/specs/collaboration-review-notifications-spec.md">
+        <div class="doc-tag">Design</div>
+        <h3>Collaboration, Review & Notifications Spec</h3>
+        <p>The design behind responsibilities, reviews, comments, My Work and notifications.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/app-spec.md">
+        <div class="doc-tag">Reference</div>
+        <h3>App Spec</h3>
+        <p>Complete spec of the current app: schemas, views, query/mutation API, access rules, and wiring gaps.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/concepts.md">
+        <div class="doc-tag">Guide</div>
+        <h3>How CodePlans Thinks</h3>
+        <p>The conceptual map: what products, assets, plans, and releases are each <em>for</em>, the boundary rule between them, and the five design principles behind the tool.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/capturing-docs.md">
+        <div class="doc-tag">Guide</div>
+        <h3>Capturing a Docs Corpus</h3>
+        <p>The /codeplans-capture skill: turn an existing /docs folder into plans, tasks, and tech-debt items, each linked to a native versioned spec, with its original Markdown URL retained as provenance.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/logging-work.md">
+        <div class="doc-tag">Guide</div>
+        <h3>Logging Work via Claude</h3>
+        <p>The /codeplans-log skill: turn "document what we just did" into plans, tasks, PR records, and work items at the end of any session.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/modeling-monorepos.md">
+        <div class="doc-tag">Guide</div>
+        <h3>Modeling Monorepos</h3>
+        <p>Break a large codebase into assets without over-modeling: the asset test, tiered libraries, curated dependency edges — and a Claude skill that does it for you.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/product-wiki.md">
+        <div class="doc-tag">Guide</div>
+        <h3>Product Wiki</h3>
+        <p>Read your product as a connected library: asset pages, full document readers, searchable content, delivery context, and creator/editor provenance.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/using-specs.md">
+        <div class="doc-tag">Guide</div>
+        <h3>Native, Versioned Specs</h3>
+        <p>Author and link specs, track delivered versions, revise with design notes, and migrate legacy git URLs safely on SQLite or PostgreSQL.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/releases-and-versions.md">
+        <div class="doc-tag">Guide</div>
+        <h3>Releases & Versions</h3>
+        <p>Group plans that ship together, stamp per-asset versions, derive release notes from delivered work, and ship with a trustworthy record.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/asset-history.md">
+        <div class="doc-tag">Guide</div>
+        <h3>Asset History & Design Log</h3>
+        <p>The version-structured timeline every asset builds for itself, and how humans and agents record design notes worth keeping.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/asset-atlas.md">
+        <div class="doc-tag">Guide</div>
+        <h3>The Asset Atlas</h3>
+        <p>The live system map: lenses for health, debt, and activity, blast-radius hover, and the grid and table views beside it.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/ai-agents.md">
+        <div class="doc-tag">Guide</div>
+        <h3>Working with AI Agents</h3>
+        <p>Connect Claude Code, Cursor, and friends over MCP: the full 71-tool catalog, recommended agent workflows, and the AI drafting flags.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/specs/native-spec-entity-v1.md">
+        <div class="doc-tag">Design</div>
+        <h3>Native Spec Entity v1</h3>
+        <p>The data model and decisions behind versioned specs, asset associations, immutable delivery receipts, and legacy URL imports.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/specs/releases-and-asset-history-spec.md">
+        <div class="doc-tag">Design</div>
+        <h3>Releases & Asset History Spec</h3>
+        <p>The design behind v0.4.x: releases as delivery groupings, derived history, the design log, and feature-flagged AI drafting. All four phases shipped.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/specs/asset-record-spec.md">
+        <div class="doc-tag">Design</div>
+        <h3>Asset Record Spec</h3>
+        <p>The capabilities register per asset shipped in v0.4.4. Planned: agent-driven reconciliation against code and round-trip release publishing.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/specs/asset-atlas-spec.md">
+        <div class="doc-tag">Design</div>
+        <h3>Asset Atlas Spec</h3>
+        <p>The map shipped in v0.4.5, and its path from picture to planning surface: lens thresholds, transitive blast radius, and plans started from the map.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/specs/layers-and-boundaries-spec.md">
+        <div class="doc-tag">Design</div>
+        <h3>Layers &amp; Boundaries Spec</h3>
+        <p>Shipped in v0.4.6: the product-vs-asset rule made operational — asset layers, layer columns on the Atlas, and move_asset for refining a model.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/specs/mcp-server-spec.md">
+        <div class="doc-tag">Design</div>
+        <h3>MCP Server Spec</h3>
+        <p>How the MCP endpoint works: Streamable HTTP inside the app, API-key auth with read/write scopes, and the design of the tools.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/specs/design-spec-v3.md">
+        <div class="doc-tag">Design</div>
+        <h3>Design Spec v3</h3>
+        <p>The canonical target design: work items, provenance-based integrations, per-asset PR tracking, and the phased roadmap (all phases shipped).</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/specs/functional-spec-v2.md">
+        <div class="doc-tag">Archive</div>
+        <h3>Historical Specs</h3>
+        <p>Superseded v2-era functional spec and data-model plan, kept for the reasoning trail behind the current design.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+      <a class="doc-card" href="https://github.com/SylonZero/CodePlans/blob/master/docs/db-diagrams/database-schemas-current.md">
+        <div class="doc-tag">Reference</div>
+        <h3>Database Schemas</h3>
+        <p>Current database schema diagrams covering both SQLite and Postgres configurations.</p>
+        <div class="doc-arrow">Read → </div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ── Feature Status ── -->
+<section class="section" id="status">
+  <div class="container">
+    <div class="section-label">Roadmap</div>
+    <h2>Current feature status</h2>
+    <p class="section-sub">Transparent about what's wired, what's in progress, and what's coming.</p>
+
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;">
+      <table class="status-table">
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Products &amp; asset inventory</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Tech debt scoring per asset</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Code Plans with status lifecycle</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Task management (list &amp; kanban)</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Dashboard with velocity metrics</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Organisation &amp; team management</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Pluggable auth &amp; database backends</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Product / asset create &amp; edit (panels &amp; modals)</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Code Plan create/edit flows</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Task create/edit panel &amp; inline status updates</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Workspace product switcher (filter by product)</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Team invite flow (invite, change role, remove)</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Work items — features, bugs &amp; tech debt register</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Per-asset branch &amp; PR tracking on code plans</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Asset dependency mapping &amp; impact analysis</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Analytics wired to real data</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Activity feed</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>GitHub, GitLab, Jira, Asana &amp; Linear integrations (pull-only)</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Milestone-linked plans &amp; PR auto-linking</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Write-back: plan-completion comments on tracker issues</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>MCP server (Claude Code, Cursor, Codex, Copilot, Antigravity — API-key auth, 71 tools)</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Releases — delivery grouping with per-asset version stamps &amp; derived release notes</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Asset history timeline, version ladder &amp; design log (user + agent authored)</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>AI drafting — release notes &amp; design notes (feature-flagged)</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Asset Record — per-asset capabilities register with delivery lineage (v0.4.4)</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Asset Atlas — live system map with health/debt/activity lenses (v0.4.5)</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Layers &amp; model boundaries — asset layers, Atlas layer columns, move_asset (v0.4.6)</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Asset Record — agent reconciliation &amp; round-trip publishing</td><td><span class="status-pill plan">Planned</span></td></tr>
+          <tr><td>Product Wiki — asset pages, full document readers, search, review &amp; attribution (v0.5.0)</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Native specs — versioned editing, supersession, asset/plan/work-item links (v0.4.7)</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Spec History events &amp; pinned delivery versions in Asset Record</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Legacy URL import — dry-run preview, deduplication, SQLite &amp; PostgreSQL migrations</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Shared GFM rendering — paragraphs, line breaks, tables &amp; task lists</td><td><span class="status-pill done">Available</span></td></tr>
+          <tr><td>Write permissions enforced for viewers; admin-only invites and integrations</td><td><span class="status-pill done">Available</span></td></tr><tr><td>Spec revision history with read-only versions and diffs</td><td><span class="status-pill done">Available</span></td></tr><tr><td>Responsibilities: engineering managers, architects (by area) and code owners</td><td><span class="status-pill done">Available</span></td></tr><tr><td>Plan and spec reviews pinned to a version, Open/Guided workflows</td><td><span class="status-pill done">Available</span></td></tr><tr><td>Threaded, anchored comments with @mentions</td><td><span class="status-pill done">Available</span></td></tr><tr><td>My Work inbox with lenses and evidence gaps; notification bell</td><td><span class="status-pill done">Available</span></td></tr><tr><td>Email (Resend) and Slack webhook notifications with per-event rules, opt-outs and mutes</td><td><span class="status-pill done">Available</span></td></tr><tr><td>AI-assisted effort estimation</td><td><span class="status-pill plan">Planned</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+
+</main>
+
+<footer>
+  <div class="container footer-inner">
+    <div class="footer-left">
+      <span class="footer-logo">CodePlans</span>
+      <span class="footer-copy">© 2026 Sai Prakash · MIT License · Community edition</span>
+    </div>
+    <div class="footer-links">
+      <a href="https://codeplans.ai" target="_blank" rel="noopener">Beta Signup</a>
+      <a href="https://github.com/SylonZero/CodePlans" target="_blank" rel="noopener">GitHub</a>
+      <a href="docs.html">Docs</a>
+      <a href="https://github.com/SylonZero/CodePlans/blob/master/LICENSE" target="_blank" rel="noopener">License</a>
+    </div>
+  </div>
+</footer>
+<script src="assets/site.js"></script>
+</body>
+</html>

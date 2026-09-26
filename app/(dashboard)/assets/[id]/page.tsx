@@ -15,6 +15,8 @@ import { AssetContentCard } from './asset-content-cards'
 import { AssetHistoryTimeline } from './asset-history'
 import { AssetRecordSection } from './asset-record'
 import { config } from '@/lib/config'
+import { MuteButton } from '@/components/mute-button'
+import { isMuted } from '@/lib/db/notification-settings'
 
 const assetTypeIcons: Record<AssetType, typeof Box> = {
   app: Box,
@@ -179,6 +181,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
           ) : (
             <span className="text-sm text-muted-foreground">No owners</span>
           )}
+          {user && <MuteButton subjectType="asset" subjectId={asset.id} muted={await isMuted(user.id, 'asset', asset.id)} />}
         </div>
       </div>
 
