@@ -14,7 +14,9 @@ import { Separator } from '@/components/ui/separator'
 import { User, Bell, Shield, Sparkles, Key, KeyRound, Upload } from 'lucide-react'
 import type { UserRole, BillingTier } from '@/lib/types'
 import { updateProfileAction, changePasswordAction, requestEmailChangeAction, cancelEmailChangeAction } from '../actions'
-import { setEmailPreferenceAction } from './notifications/actions'
+import { setEmailPreferenceAction, setMutedAction } from './notifications/actions'
+import Link from 'next/link'
+import { BellOff } from 'lucide-react'
 import { EVENT_GROUP_LABELS, type EventGroup } from '@/lib/notification-catalog'
 
 interface Props {
@@ -34,7 +36,48 @@ interface Props {
   emailJustVerified?: boolean
   apiKeys?: ApiKeyRow[]
   emailPrefs?: EmailPrefs
+  mutes?: MuteRow[]
   initialTab?: string
+}
+
+type MuteRow = { subjectType: 'product' | 'asset'; subjectId: string; name: string; context: string | null; href: string }
+
+/** Products and assets this person muted, with a way back. */
+function MutedList({ mutes }: { mutes: MuteRow[] }) {
+  const [rows, setRows] = useState(mutes)
+  const [error, setError] = useState('')
+  const [pending, start] = useTransition()
+  return (
+    <Card className="bg-card border-border">
+      <CardHeader>
+        <CardTitle>Muted products and assets</CardTitle>
+        <CardDescription>
+          You aren&apos;t notified about these, in-app or by email, except for review requests, changes requested on your work, and mentions.
+          Mute from a product or asset page.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {rows.length === 0 && <p className="text-sm text-muted-foreground">Nothing muted.</p>}
+        {rows.map((m) => (
+          <div key={`${m.subjectType}:${m.subjectId}`} className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2 min-w-0">
+              <BellOff className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <Link href={m.href} className="truncate font-medium hover:underline">{m.name}</Link>
+              <Badge variant="outline" className="text-xs capitalize">{m.subjectType}</Badge>
+              {m.context && <span className="truncate text-sm text-muted-foreground">in {m.context}</span>}
+            </div>
+            <Button variant="outline" size="sm" disabled={pending} onClick={() => start(async () => {
+              setError('')
+              const r = await setMutedAction(m.subjectType, m.subjectId, false)
+              if (r.ok) setRows((rs) => rs.filter((x) => x !== m))
+              else setError(r.error)
+            })}>Unmute</Button>
+          </div>
+        ))}
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+      </CardContent>
+    </Card>
+  )
 }
 
 type EmailPrefs = {
@@ -373,7 +416,7 @@ function SecurityTab() {
 
 const TABS = ['profile', 'notifications', 'features', 'security', 'api-keys']
 
-export function SettingsClient({ user, org, billingEnabled = true, pendingEmailChange, emailJustVerified, apiKeys = [], emailPrefs, initialTab }: Props) {
+export function SettingsClient({ user, org, billingEnabled = true, pendingEmailChange, emailJustVerified, apiKeys = [], emailPrefs, mutes = [], initialTab }: Props) {
   return (
     <div className="space-y-8">
       <div>
@@ -421,6 +464,7 @@ export function SettingsClient({ user, org, billingEnabled = true, pendingEmailC
 
         <TabsContent value="notifications" className="space-y-6">
           {emailPrefs && <EmailPreferences emailPrefs={emailPrefs} />}
+          <MutedList mutes={mutes} />
         </TabsContent>
 
         {/* Features — local UI state only */}

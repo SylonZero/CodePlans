@@ -14,7 +14,7 @@ import {
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
-import type { CommentSubjectType, CommentKind, CommentAnchor, ReviewSubjectType, ReviewState, ReviewReason, ReviewDecision, WorkflowLevel, NotificationChannelKind, NotificationChannelStatus, NotificationDeliveryStatus } from './schema.sqlite'
+import type { CommentSubjectType, CommentKind, CommentAnchor, ReviewSubjectType, ReviewState, ReviewReason, ReviewDecision, WorkflowLevel, NotificationChannelKind, NotificationChannelStatus, NotificationDeliveryStatus, NotificationMuteSubject } from './schema.sqlite'
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -772,4 +772,17 @@ export const notificationDeliveries = pgTable('notification_deliveries', {
   uniqueIndex('notification_deliveries_event_channel_target_idx').on(t.eventId, t.channelId, t.target),
   index('notification_deliveries_due_idx').on(t.status, t.nextAttemptAt),
   index('notification_deliveries_org_idx').on(t.organizationId, t.createdAt),
+])
+
+// A person silencing a product or asset: nothing about it reaches them except
+// required events (review requests, changes requested, mentions). Polymorphic,
+// so no FK; rows for deleted products or assets are harmless and cleaned up.
+export const notificationMutes = pgTable('notification_mutes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  subjectType: text('subject_type').$type<NotificationMuteSubject>().notNull(),
+  subjectId: uuid('subject_id').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('notification_mutes_user_subject_idx').on(t.userId, t.subjectType, t.subjectId),
 ])

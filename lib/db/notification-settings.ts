@@ -1,8 +1,8 @@
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { db } from './index'
-import { notificationChannels, notificationDeliveries, notificationPreferences, notificationRules } from './schema'
-import type { NotificationChannelKind, NotificationChannelStatus } from './schema.sqlite'
-import { ForbiddenError, isOrgAdmin } from './authz'
+import { assets, notificationChannels, notificationDeliveries, notificationMutes, notificationPreferences, notificationRules, products } from './schema'
+import type { NotificationChannelKind, NotificationChannelStatus, NotificationMuteSubject } from './schema.sqlite'
+import { ForbiddenError, NOT_ACCESSIBLE_MESSAGE, getProductRole, isOrgAdmin } from './authz'
 import type { ArtifactActor } from './attribution'
 import { encryptToken, decryptToken } from '@/lib/integrations/secrets'
 import { NOTIFICATION_CATALOG, catalogEntry, type ChannelFlags } from '@/lib/notification-catalog'
@@ -250,4 +250,55 @@ export async function emailOptedOut(userIds: string[], eventType: string): Promi
   const rows = await db.select().from(notificationPreferences)
     .where(and(inArray(notificationPreferences.userId, userIds), inArray(notificationPreferences.eventType, [eventType, ALL_EVENTS]), eq(notificationPreferences.email, false)))
   return new Set(rows.map((r) => r.userId))
+}
+
+// ── Mutes ────────────────────────────────────────────────────────────────────
+
+async function assertCanSee(userId: string, subjectType: NotificationMuteSubject, subjectId: string) {
+  let productId: string | null = subjectId
+  if (subjectType === 'asset') productId = (await db.query.assets.findFirst({ where: eq(assets.id, subjectId) }))?.productId ?? null
+  if (!productId || (await getProductRole(userId, productId, { includeArchived: true })) === 'none') throw new ForbiddenError(NOT_ACCESSIBLE_MESSAGE)
+}
+
+/**
+ * Stop notifications about a product or asset reaching this person, in-app
+ * and by email. Required events (review requests, changes requested,
+ * mentions) still come through: they ask for this person specifically.
+ */
+export async function setMuted(userId: string, subjectType: NotificationMuteSubject, subjectId: string, muted: boolean) {
+  if (subjectType !== 'product' && subjectType !== 'asset') throw new Error('Only products and assets can be muted')
+  if (!muted) {
+    await db.delete(notificationMutes).where(and(eq(notificationMutes.userId, userId), eq(notificationMutes.subjectType, subjectType), eq(notificationMutes.subjectId, subjectId)))
+    return false
+  }
+  await assertCanSee(userId, subjectType, subjectId)
+  await db.insert(notificationMutes).values({ userId, subjectType, subjectId }).onConflictDoNothing()
+  return true
+}
+
+export async function isMuted(userId: string, subjectType: NotificationMuteSubject, subjectId: string) {
+  return !!(await db.query.notificationMutes.findFirst({ where: and(eq(notificationMutes.userId, userId), eq(notificationMutes.subjectType, subjectType), eq(notificationMutes.subjectId, subjectId)) }))
+}
+
+/** A person's mutes with names, for settings. Mutes whose product or asset is gone are dropped. */
+export async function listMutes(userId: string) {
+  const rows = await db.select().from(notificationMutes).where(eq(notificationMutes.userId, userId))
+  const productIds = rows.filter((r) => r.subjectType === 'product').map((r) => r.subjectId)
+  const assetIds = rows.filter((r) => r.subjectType === 'asset').map((r) => r.subjectId)
+  const productRows = productIds.length ? await db.select({ id: products.id, name: products.name, slug: products.slug }).from(products).where(inArray(products.id, productIds)) : []
+  const assetRows = assetIds.length ? await db.select({ id: assets.id, name: assets.name, productName: products.name }).from(assets)
+    .innerJoin(products, eq(assets.productId, products.id)).where(inArray(assets.id, assetIds)) : []
+  const gone = rows.filter((r) => !(r.subjectType === 'product' ? productRows.some((p) => p.id === r.subjectId) : assetRows.some((a) => a.id === r.subjectId)))
+  if (gone.length) await db.delete(notificationMutes).where(inArray(notificationMutes.id, gone.map((g) => g.id)))
+  return [
+    ...productRows.map((p) => ({ subjectType: 'product' as const, subjectId: p.id, name: p.name, context: null as string | null, href: `/products/${p.slug}` })),
+    ...assetRows.map((a) => ({ subjectType: 'asset' as const, subjectId: a.id, name: a.name, context: a.productName, href: `/assets/${a.id}` })),
+  ].sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/** Every mute held by these people, as "userId:type:id" keys for quick checks. */
+export async function mutesFor(userIds: string[]): Promise<Set<string>> {
+  if (!userIds.length) return new Set()
+  const rows = await db.select().from(notificationMutes).where(inArray(notificationMutes.userId, userIds))
+  return new Set(rows.map((r) => `${r.userId}:${r.subjectType}:${r.subjectId}`))
 }

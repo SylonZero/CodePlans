@@ -14,6 +14,8 @@ import { Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AssetsSection, AssetCreatePanel } from './assets-section'
 import { ProductEditPanel } from './product-edit-panel'
+import { MuteButton } from '@/components/mute-button'
+import { isMuted } from '@/lib/db/notification-settings'
 import { ArchivedProductBanner } from './archived-product-banner'
 import { PlanCreatePanel } from '../../plans/plan-create-panel'
 import { PeopleSection } from './people-section'
@@ -66,8 +68,10 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             <h1 className="text-2xl font-bold tracking-tight">{product.name}</h1>
             <p className="text-muted-foreground">{product.description}</p>
           </div>
+          <div className="flex gap-2">
+            {user && <MuteButton subjectType="product" subjectId={product.id} muted={await isMuted(user.id, 'product', product.id)} />}
           {!product.archivedAt && (
-            <div className="flex gap-2">
+            <>
               <ProductEditPanel
                 product={{
                   id: product.id,
@@ -78,8 +82,9 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                 }}
               />
               <AssetCreatePanel productId={product.id} productSlug={slug} />
-            </div>
+            </>
           )}
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2 mt-4">

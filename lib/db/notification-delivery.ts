@@ -1,9 +1,9 @@
 import { and, eq, inArray, lt, lte } from 'drizzle-orm'
 import { db } from './index'
-import { notificationDeliveries, notifications, products, users } from './schema'
+import { notificationDeliveries, notifications, products, users, workItems } from './schema'
 import { createNotificationRows, type NotificationInput } from './notifications'
 import {
-  emailOptedOut, getEffectiveRules, markChannelResult, resolveChannel, resolveChannelById, type ResolvedChannel,
+  emailOptedOut, getEffectiveRules, mutesFor, markChannelResult, resolveChannel, resolveChannelById, type ResolvedChannel,
 } from './notification-settings'
 import { ForbiddenError, isOrgAdmin } from './authz'
 import type { ArtifactActor } from './attribution'
@@ -62,7 +62,8 @@ export async function publish(rows: NotificationInput[], ctx: PublishContext = {
     const byAgent = ctx.actorKind === 'agent'
     const on = (type: string) => { const r = rule(type); return r.enabled && (!byAgent || r.includeAgents) ? r : null }
 
-    const kept = rows.filter((r) => r.userId && r.userId !== r.actorId && on(r.eventType)).map((r) => ({ ...r, eventId: r.eventId ?? ctx.eventId ?? null }))
+    const wanted = rows.filter((r) => r.userId && r.userId !== r.actorId && on(r.eventType))
+    const kept = (await dropMuted(wanted, rule)).map((r) => ({ ...r, eventId: r.eventId ?? ctx.eventId ?? null }))
     const created = await createNotificationRows(kept.filter((r) => on(r.eventType)!.inApp))
     if (!organizationId) return { inApp: created.length, queued: 0 }
 
@@ -107,6 +108,39 @@ export async function publish(rows: NotificationInput[], ctx: PublishContext = {
     console.error('[notifications] publish failed:', err)
     return { inApp: 0, queued: 0 }
   }
+}
+
+/** The asset a subject belongs to, when it has exactly one (an asset, or a work item on one). */
+async function subjectAsset(subjectType: string, subjectId: string, cache: Map<string, string | null>) {
+  const key = `${subjectType}:${subjectId}`
+  if (!cache.has(key)) {
+    let id: string | null = null
+    if (subjectType === 'asset') id = subjectId
+    else if (subjectType === 'work_item') id = (await db.query.workItems.findFirst({ where: eq(workItems.id, subjectId) }))?.assetId ?? null
+    cache.set(key, id)
+  }
+  return cache.get(key)!
+}
+
+/**
+ * Leave out people who muted the product or asset a notification is about.
+ * An asset mute covers notices about that asset and notices someone gets only
+ * because they own it. Required events always get through.
+ */
+async function dropMuted(rows: NotificationInput[], rule: (type: string) => { mandatory: boolean }) {
+  const mutes = await mutesFor([...new Set(rows.map((r) => r.userId))])
+  if (!mutes.size) return rows
+  const cache = new Map<string, string | null>()
+  const out: NotificationInput[] = []
+  for (const r of rows) {
+    if (rule(r.eventType).mandatory) { out.push(r); continue }
+    const has = (type: string, id: string | null | undefined) => !!id && mutes.has(`${r.userId}:${type}:${id}`)
+    if (has('product', r.productId)) continue
+    if (has('asset', await subjectAsset(r.subjectType, r.subjectId, cache))) continue
+    if (r.assetIds?.length && r.assetIds.every((id) => has('asset', id))) continue
+    out.push(r)
+  }
+  return out
 }
 
 function backoffMs(attempt: number) {

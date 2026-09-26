@@ -10,7 +10,7 @@ import { config } from '@/lib/config'
 import { isOrgAdmin } from '@/lib/db/authz'
 import { getOrgWorkflowDefault, availableWorkflowLevels } from '@/lib/db/workflow'
 import { WorkflowPanel } from './workflow-panel'
-import { getEffectiveRules, getEmailPreferences, resolveChannel } from '@/lib/db/notification-settings'
+import { getEffectiveRules, getEmailPreferences, listMutes, resolveChannel } from '@/lib/db/notification-settings'
 import { NOTIFICATION_CATALOG } from '@/lib/notification-catalog'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -74,6 +74,7 @@ export default async function SettingsPage({ searchParams }: Props) {
       pendingEmailChange={pendingEmailChange}
       emailJustVerified={emailVerified === '1'}
       emailPrefs={emailPrefs}
+      mutes={await listMutes(authUser.id)}
       initialTab={tab}
     />
     {orgAdmin && (

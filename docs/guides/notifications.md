@@ -63,6 +63,20 @@ for single events. This only narrows what the workspace sends. It never adds
 email that admins turned off, and it never affects in-app notifications or My
 Work.
 
+## Muting a product or asset
+
+**Mute** on a product or asset page stops notifications about it reaching you,
+both in-app and by email. It covers:
+
+- anything filed on or about that asset, or anywhere in that product;
+- anything you'd be told about only because you own that asset. A plan
+  targeting two of your assets still reaches you until you mute both.
+
+Review requests, changes requested on your work, and mentions still come
+through, because they ask for you specifically. Muted items are listed under
+**Settings → Notifications**, where you can unmute them. Muting never affects
+the Slack channel or other people.
+
 ## Delivery and retries
 
 Email and Slack messages go through an outbox (`notification_deliveries`). They
