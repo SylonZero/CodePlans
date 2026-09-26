@@ -513,6 +513,7 @@ export async function getCodePlan(id: string, userId: string): Promise<CodePlanD
     productSlug: product.slug,
     type: plan.type,
     status: plan.status,
+    revision: plan.revision,
     ownerId: plan.ownerId ?? undefined,
     ownerName: plan.ownerId
       ? ((await db.query.users.findFirst({ where: eq(users.id, plan.ownerId) }))?.name ?? null)

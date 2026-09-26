@@ -180,6 +180,8 @@ export interface CodePlan extends Attribution {
   productId: string
   type: CodePlanType
   status: CodePlanStatus
+  /** Moves when scope, linked specs or the description change; plan reviews pin to it. */
+  revision: number
   ownerId?: string
   specUrl?: string
   releaseId?: string

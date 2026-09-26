@@ -9,6 +9,8 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FileText, Search } from 'lucide-react'
 import { cn, formatDateShort } from '@/lib/utils'
+import { REVIEW_STATE_LABELS, REVIEW_STATE_STYLES } from '@/components/review-panel'
+import type { ReviewState } from '@/lib/db/schema.sqlite'
 
 export type SpecListRow = {
   id: string
@@ -22,20 +24,24 @@ export type SpecListRow = {
   authorType: string
   updatedAt: string
   linkCount: number
+  reviewState: ReviewState | null
+  openThreads: number
 }
 
 export const specStatusStyles: Record<string, string> = {
   draft: 'bg-muted text-muted-foreground',
   active: 'bg-chart-1/20 text-chart-1',
+  in_review: 'bg-chart-2/20 text-chart-2',
   archived: 'bg-muted text-muted-foreground',
   superseded: 'bg-muted text-muted-foreground line-through',
 }
 
-type TabKey = 'current' | 'triage' | 'retired' | 'all'
+type TabKey = 'current' | 'review' | 'triage' | 'retired' | 'all'
 
 const inTab: Record<TabKey, (s: SpecListRow) => boolean> = {
-  current: (s) => s.status === 'draft' || s.status === 'active',
-  triage: (s) => s.needsReview && (s.status === 'draft' || s.status === 'active'),
+  current: (s) => s.status === 'draft' || s.status === 'in_review' || s.status === 'active',
+  review: (s) => s.reviewState !== null,
+  triage: (s) => s.needsReview && (s.status === 'draft' || s.status === 'in_review' || s.status === 'active'),
   retired: (s) => s.status === 'archived' || s.status === 'superseded',
   all: () => true,
 }
@@ -68,7 +74,8 @@ export function SpecsClient({ specs, showProduct }: { specs: SpecListRow[]; show
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
           <TabsList className="bg-muted">
-            <TabsTrigger value="current">Draft &amp; active ({specs.filter(inTab.current).length})</TabsTrigger>
+            <TabsTrigger value="current">Current ({specs.filter(inTab.current).length})</TabsTrigger>
+            <TabsTrigger value="review">In review ({specs.filter(inTab.review).length})</TabsTrigger>
             <TabsTrigger value="triage">Import triage ({specs.filter(inTab.triage).length})</TabsTrigger>
             <TabsTrigger value="retired">Archived ({specs.filter(inTab.retired).length})</TabsTrigger>
             <TabsTrigger value="all">All ({specs.length})</TabsTrigger>
@@ -106,9 +113,11 @@ export function SpecsClient({ specs, showProduct }: { specs: SpecListRow[]; show
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
+                    {s.openThreads > 0 && <span className="text-xs text-muted-foreground" title="Open comment threads">{s.openThreads} open {s.openThreads === 1 ? 'thread' : 'threads'}</span>}
+                    {s.reviewState && <Badge variant="secondary" className={REVIEW_STATE_STYLES[s.reviewState]}>{REVIEW_STATE_LABELS[s.reviewState]}</Badge>}
                     {s.needsReview && <Badge variant="outline" className="border-warning/50 text-warning">Import triage</Badge>}
                     <span className="font-mono text-xs text-muted-foreground">v{s.version}</span>
-                    <Badge variant="secondary" className={cn(specStatusStyles[s.status])}>{s.status}</Badge>
+                    {!(s.status === 'in_review' && s.reviewState) && <Badge variant="secondary" className={cn(specStatusStyles[s.status])}>{s.status.replace('_', ' ')}</Badge>}
                   </div>
                 </li>
               ))}

@@ -1009,7 +1009,7 @@ async function seed() {
       links: [{ targetType: 'asset', targetId: authSvcId }],
     },
     {
-      productId: apiId, title: 'API Gateway v2 contract', specType: 'api', authorId: sarahId,
+      productId: apiId, title: 'API Gateway v2 contract', specType: 'api', area: 'api', authorId: sarahId,
       versions: [
         { body: '## Versioning\n\nAll routes move under `/v2`. `/v1` stays for 6 months.\n\n## Rate limits\n\n100 requests per minute per key.' },
         { body: '## Versioning\n\nAll routes move under `/v2`. `/v1` stays for 12 months.\n\n## Rate limits\n\n100 requests per minute per key, 1000 for enterprise keys.', summary: 'Longer v1 window; enterprise limits', by: alexId },
@@ -1047,6 +1047,38 @@ async function seed() {
     await db.insert(productMembers).values({ productId, userId, responsibility, area }).onConflictDoNothing()
   }
   console.log(`  ensured ${responsibilityData.length} responsibilities`)
+
+  // ── Reviews and discussion ─────────────────────────────────────────────────
+  // Also through the services, so participants, states and audit rows match the app.
+  console.log('\nCreating reviews and comments...')
+  const { requestReview, decideReview, getOpenReview } = await import('./reviews')
+  const { addComment } = await import('./comments')
+  const { reviews: reviewsTable, comments: commentsTable, productSettings } = await import('./schema')
+  const specByTitle = async (title: string) => (await db.query.specs.findFirst({ where: (t, { eq }) => eq(t.title, title) }))!
+  const existingReviews = await db.select().from(reviewsTable)
+  if (existingReviews.length === 0) {
+    // The API product runs a guided workflow; the others stay open.
+    await db.insert(productSettings).values({ productId: apiId, workflowLevel: 'guided' }).onConflictDoNothing()
+
+    const collab = await specByTitle('Real-time collaboration protocol')
+    const approved = await requestReview({ subjectType: 'spec', subjectId: collab.id, note: 'Ready for sign-off before the plan starts.' }, { id: alexId })
+    await decideReview(approved.id, 'approved', 'Operation ordering reads right.', { id: lisaId })
+    await decideReview(approved.id, 'approved', undefined, { id: mikeId })
+
+    const gateway = await specByTitle('API Gateway v2 contract')
+    await requestReview({ subjectType: 'spec', subjectId: gateway.id, note: 'Mainly want eyes on the v1 sunset window.', dueAt: '2026-10-03' }, { id: sarahId })
+    const q = await addComment({ subjectType: 'spec', subjectId: gateway.id, kind: 'question', body: 'Does 12 months match what we promised enterprise customers in their contracts?',
+      anchor: { quote: 'stays for 12 months' } }, { id: mikeId })
+    await addComment({ subjectType: 'spec', subjectId: gateway.id, parentId: q.id, body: '@Alex Chen can you confirm with sales?', mentions: [alexId] }, { id: sarahId })
+    await addComment({ subjectType: 'spec', subjectId: gateway.id, kind: 'suggestion', body: 'Spell out what happens to keys that exceed the enterprise limit.' }, { id: lisaId })
+
+    const plan = await db.query.codePlans.findFirst({ where: (t, { eq }) => eq(t.id, collabPlanId) })
+    if (plan && !(await getOpenReview('code_plan', collabPlanId))) {
+      await requestReview({ subjectType: 'code_plan', subjectId: collabPlanId, note: 'Touches the web app and plan engine; code owners please confirm scope.' }, { id: alexId })
+    }
+    await addComment({ subjectType: 'code_plan', subjectId: collabPlanId, body: 'Should presence ship behind a flag for the first release?' }, { id: lisaId })
+  }
+  console.log(`  ensured reviews (${(await db.select().from(reviewsTable)).length}) and comments (${(await db.select().from(commentsTable)).length})`)
 
   // ── Activity events (sync_log) ────────────────────────────────────────────
   // History timelines prefer sync_log 'completed' events for plan dates, and

@@ -7,6 +7,9 @@ import { getOrganization } from '@/lib/db/queries'
 import { SettingsClient } from './settings-client'
 import { listApiKeys } from '@/lib/mcp/auth'
 import { config } from '@/lib/config'
+import { isOrgAdmin } from '@/lib/db/authz'
+import { getOrgWorkflowDefault, availableWorkflowLevels } from '@/lib/db/workflow'
+import { WorkflowPanel } from './workflow-panel'
 
 interface Props {
   searchParams: Promise<{ emailVerified?: string }>
@@ -35,8 +38,11 @@ export default async function SettingsPage({ searchParams }: Props) {
   const { emailVerified } = await searchParams
 
   const apiKeys = await listApiKeys(authUser.id)
+  const orgAdmin = profile.organizationId ? await isOrgAdmin(profile.organizationId, authUser.id) : false
+  const workflowDefault = orgAdmin ? await getOrgWorkflowDefault(profile.organizationId) : null
 
   return (
+    <div className="space-y-6">
     <SettingsClient
       apiKeys={apiKeys}
       user={{
@@ -54,5 +60,9 @@ export default async function SettingsPage({ searchParams }: Props) {
       pendingEmailChange={pendingEmailChange}
       emailJustVerified={emailVerified === '1'}
     />
+    {orgAdmin && profile.organizationId && workflowDefault && (
+      <WorkflowPanel organizationId={profile.organizationId} level={workflowDefault} available={availableWorkflowLevels()} />
+    )}
+    </div>
   )
 }

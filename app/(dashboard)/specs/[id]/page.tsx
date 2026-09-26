@@ -5,6 +5,11 @@ import { getSpec, listSpecRevisions } from '@/lib/db/specs'
 import { canWriteProduct } from '@/lib/db/authz'
 import { SpecEditor } from '@/components/native-specs'
 import { SpecHistory, SpecDiff } from '@/components/spec-history'
+import { ReviewPanel } from '@/components/review-panel'
+import { AnchorProvider, SelectableArticle, AnchoredCommentsPanel } from '@/components/anchored-discussion'
+import { getReviewSummary } from '@/lib/db/reviews'
+import { listComments, getProductAudience } from '@/lib/db/comments'
+import { checkActivation } from '@/lib/db/workflow'
 import { MarkdownContent } from '@/components/markdown-content'
 import { db } from '@/lib/db'
 import { assets, codePlans, workItems } from '@/lib/db/schema'
@@ -31,7 +36,13 @@ export default async function SpecPage({ params, searchParams }: {
   const { v, diff } = await searchParams
   const spec = await getSpec(id, user.id).catch(() => null)
   if (!spec) notFound()
-  const [revisions, canEdit, targetNames] = await Promise.all([listSpecRevisions(id, user.id), canWriteProduct(user.id, spec.productId), linkTargetNames(spec.links)])
+  const [revisions, canEdit, targetNames, review, threads, audience] = await Promise.all([
+    listSpecRevisions(id, user.id), canWriteProduct(user.id, spec.productId), linkTargetNames(spec.links),
+    getReviewSummary('spec', id, user.id), listComments('spec', id, user.id), getProductAudience(spec.productId),
+  ])
+  const activation = canEdit && spec.status !== 'active'
+    ? await checkActivation({ subjectType: 'spec', subjectId: id, transition: 'activate', actor: { id: user.id } })
+    : null
 
   const requested = v ? Number.parseInt(v, 10) : undefined
   const viewing = requested && requested !== spec.version ? revisions.find((r) => r.version === requested) : undefined
@@ -40,11 +51,12 @@ export default async function SpecPage({ params, searchParams }: {
   const previous = shown ? revisions.find((r) => r.version === shown.version - 1) : undefined
   const showDiff = diff === '1' && shown && previous
 
-  return <div className="mx-auto max-w-4xl space-y-6">
+  const path = `/specs/${id}`
+  return <AnchorProvider><div className="mx-auto max-w-4xl space-y-6">
     <div>
       <Link href="/specs" className="text-sm text-muted-foreground hover:underline">← Specs</Link>
       <h1 className="mt-1 text-2xl font-bold">{viewing?.title ?? spec.title}</h1>
-      <p className="text-sm text-muted-foreground">{spec.specType}{spec.area ? ` · ${spec.area}` : ''} · v{spec.version} · {spec.status} · authored by {spec.authorType}</p>
+      <p className="text-sm text-muted-foreground">{spec.specType}{spec.area ? ` · ${spec.area}` : ''} · v{spec.version} · {spec.status.replace('_', ' ')} · authored by {spec.authorType}</p>
     </div>
     {viewing && <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm">
       <span>You are viewing <strong>v{viewing.version}</strong> ({viewing.status}). The current version is v{spec.version}.</span>
@@ -56,9 +68,12 @@ export default async function SpecPage({ params, searchParams }: {
     {spec.supersededBy && <p>Superseded by <Link className="underline" href={`/specs/${spec.supersededBy}`}>replacement spec</Link></p>}
     {showDiff
       ? <><SpecDiff before={previous} after={shown} /><Link className="text-sm underline" href={viewing ? `/specs/${id}?v=${shown.version}` : `/specs/${id}`}>Show v{shown.version} in full</Link></>
-      : <article className="prose dark:prose-invert max-w-none rounded-lg border bg-card p-6"><MarkdownContent>{viewing?.body ?? spec.body}</MarkdownContent></article>}
-    {!viewing && !showDiff && canEdit && <SpecEditor key={`${spec.id}:${spec.version}`} spec={spec} />}
+      : <SelectableArticle enabled={!viewing} className="prose dark:prose-invert max-w-none rounded-lg border bg-card p-6"><MarkdownContent>{viewing?.body ?? spec.body}</MarkdownContent></SelectableArticle>}
+    {!viewing && !showDiff && spec.status !== 'superseded' && <ReviewPanel summary={review} currentUserId={user.id} path={path} noun="spec" />}
+    {!viewing && !showDiff && <AnchoredCommentsPanel subjectType="spec" subjectId={id} threads={threads} currentUserId={user.id} canModerate={canEdit}
+      currentVersion={spec.version} path={path} audience={audience.map((u) => ({ id: u.id, name: u.name }))} />}
+    {!viewing && !showDiff && canEdit && <SpecEditor key={`${spec.id}:${spec.version}`} spec={spec} activationWarning={activation?.warning ?? null} activationBlocked={activation && !activation.allowed ? activation.reasons.join(' ') || 'Blocked by the review workflow.' : null} />}
     <SpecHistory specId={id} revisions={revisions} currentVersion={spec.version} viewing={shown?.version} />
     <section className="space-y-2"><h2 className="font-semibold">Linked assets, plans and work items</h2><ul>{spec.links.map((l) => <li key={l.id}><Link className="text-sm underline" href={l.targetType === 'asset' ? `/assets/${l.targetId}` : l.targetType === 'code_plan' ? `/plans/${l.targetId}` : `/work-items?item=${l.targetId}`}>{targetNames.get(l.targetId) ?? l.targetType.replace('_', ' ')}</Link> <span className="text-xs text-muted-foreground">{l.targetType.replace('_', ' ')}{l.relationshipType ? ` · ${l.relationshipType}` : ''}</span></li>)}</ul>{spec.links.length === 0 && <p className="text-sm text-muted-foreground">Not linked yet.</p>}</section>
-  </div>
+  </div></AnchorProvider>
 }

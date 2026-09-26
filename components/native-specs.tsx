@@ -77,7 +77,7 @@ export function NativeSpecsPanel({ productId, targetType, targetId }: { productI
   </section>
 }
 
-export function SpecEditor({ spec }: { spec: Spec }) {
+export function SpecEditor({ spec, activationWarning = null, activationBlocked = null }: { spec: Spec; activationWarning?: string | null; activationBlocked?: string | null }) {
   const [body, setBody] = useState(spec.body)
   const [status, setStatus] = useState(spec.status)
   const [title, setTitle] = useState(spec.title)
@@ -93,7 +93,7 @@ export function SpecEditor({ spec }: { spec: Spec }) {
     setError('')
     try {
       if (replace) { const next = await supersedeSpecAction(spec.id, body, title); router.push(`/specs/${next.id}`) }
-      else { await updateSpecAction(spec.id, { body, title, specType, area: area || null, needsReview, status: status as 'draft' | 'active' | 'archived', expectedVersion: spec.version, changeSummary: changeSummary.trim() || undefined }); router.refresh() }
+      else { await updateSpecAction(spec.id, { body, title, specType, area: area || null, needsReview, status: status as 'draft' | 'in_review' | 'active' | 'archived', expectedVersion: spec.version, changeSummary: changeSummary.trim() || undefined }); router.refresh() }
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not save') }
   }) }
   return <details className="rounded-lg border p-4"><summary className="cursor-pointer font-medium">Edit or replace this spec</summary><div className="mt-4 space-y-4">
@@ -102,9 +102,11 @@ export function SpecEditor({ spec }: { spec: Spec }) {
     <Input aria-label="Spec area" placeholder="Area (optional)" value={area} onChange={(e) => setArea(e.target.value)} />
     {spec.sourceType === 'git_import' && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={needsReview} onChange={(e) => setNeedsReview(e.target.checked)} />Needs import review</label>}
     <RichTextEditor value={spec.body} onChange={setBody} size="tall" />
-    <label className="block text-sm">Status<select aria-label="Spec status" className={selectClass} value={status} onChange={(e) => setStatus(e.target.value)}><option value="draft">Draft</option><option value="active">Active</option><option value="archived">Archived</option></select></label>
+    <label className="block text-sm">Status<select aria-label="Spec status" className={selectClass} value={status} onChange={(e) => setStatus(e.target.value)}><option value="draft">Draft</option>{spec.status === 'in_review' && <option value="in_review">In review</option>}<option value="active">Active</option><option value="archived">Archived</option></select></label>
+    {status === 'active' && spec.status !== 'active' && activationBlocked && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{activationBlocked}</p>}
+    {status === 'active' && spec.status !== 'active' && !activationBlocked && activationWarning && <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">{activationWarning} You can still activate it.</p>}
     <Input aria-label="Change summary" placeholder="What changed in this version? (optional)" value={changeSummary} onChange={(e) => setChangeSummary(e.target.value)} maxLength={500} />
-    <Button disabled={pending || !title.trim() || !specType.trim()} onClick={() => save(false)}>Save as v{spec.version + 1}</Button>
+    <Button disabled={pending || !title.trim() || !specType.trim() || (status === 'active' && spec.status !== 'active' && !!activationBlocked)} onClick={() => save(false)}>{status === 'active' && spec.status !== 'active' && activationWarning ? `Activate anyway as v${spec.version + 1}` : `Save as v${spec.version + 1}`}</Button>
     <div className="space-y-2 border-t pt-4"><p className="text-sm text-muted-foreground">Changed the approach? Replace this spec with a new draft. Existing delivery receipts stay with this version.</p>
     <Button variant="outline" disabled={pending || !title.trim()} onClick={() => save(true)}>Supersede with new spec</Button></div>
     {error && <p role="alert" className="text-destructive">{error}</p>}

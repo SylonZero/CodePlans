@@ -5,6 +5,8 @@ import { canWriteProduct } from '@/lib/db/authz'
 import { getProductScope } from '@/lib/product-scope'
 import { SpecsClient, type SpecListRow } from './specs-client'
 import { SpecCreatePanel } from './spec-create-panel'
+import { openReviewStates } from '@/lib/db/reviews'
+import { countOpenThreads } from '@/lib/db/comments'
 
 export default async function SpecsPage() {
   const user = await authAdapter.getUser()
@@ -16,6 +18,8 @@ export default async function SpecsPage() {
     getProducts(user.id),
   ])
   const productNames = new Map(products.map((p) => [p.id, p.name]))
+  const ids = specRows.map((s) => s.id)
+  const [reviewStates, threadCounts] = await Promise.all([openReviewStates('spec', ids), countOpenThreads('spec', ids)])
   const writable = (await Promise.all(products.map(async (p) => ((await canWriteProduct(user.id, p.id)) ? p : null))))
     .filter((p): p is (typeof products)[number] => p !== null)
     .map((p) => ({ id: p.id, name: p.name }))
@@ -32,6 +36,8 @@ export default async function SpecsPage() {
     authorType: s.authorType,
     updatedAt: s.updatedAt.toISOString(),
     linkCount: s.links.length,
+    reviewState: reviewStates.get(s.id) ?? null,
+    openThreads: threadCounts.get(s.id) ?? 0,
   }))
 
   return (

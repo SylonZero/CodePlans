@@ -337,8 +337,14 @@ export async function updateCodePlanAction(id: string, formData: FormData) {
 
 export async function activatePlanAction(id: string) {
   await requireWriter({ codePlanId: id })
-  await updateCodePlan(id, { status: 'active' }, await currentEditor())
+  try {
+    await updateCodePlan(id, { status: 'active' }, await currentEditor())
+  } catch (err) {
+    // A review-workflow extension can block activation; its reasons go back to the UI.
+    return { error: err instanceof Error ? err.message : 'Could not activate the plan.' }
+  }
   revalidatePath(`/plans/${id}`)
+  return {}
 }
 
 export async function completePlanAction(id: string) {
