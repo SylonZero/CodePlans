@@ -1,7 +1,7 @@
 'use server'
 import { authAdapter } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
-import { createSpec, updateSpec, supersedeSpec, linkSpec, unlinkSpec, listSpecs, getAssetSpecs, specInput, specUpdateInput, type SpecTargetType, type SpecRelationshipType } from '@/lib/db/specs'
+import { createSpec, updateSpec, setSpecStatus, supersedeSpec, linkSpec, unlinkSpec, listSpecs, getAssetSpecs, specInput, specUpdateInput, type SpecTargetType, type SpecRelationshipType } from '@/lib/db/specs'
 import type { z } from 'zod'
 
 async function userId() {
@@ -19,6 +19,16 @@ export async function createSpecAction(data: z.input<typeof specInput>) {
 }
 export async function updateSpecAction(id: string, data: z.input<typeof specUpdateInput>) {
   const spec = await updateSpec(id, data, await userId()); refresh(); return spec
+}
+/** Lifecycle moves (activate, archive, restore). Never creates a version; returns errors rather than throwing so the message survives production builds. */
+export async function setSpecStatusAction(id: string, status: 'draft' | 'active' | 'archived', expectedVersion: number): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await setSpecStatus(id, status, await userId(), expectedVersion)
+    refresh()
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not change the status' }
+  }
 }
 export async function supersedeSpecAction(id: string, body: string, title?: string) {
   const spec = await supersedeSpec(id, body, title, await userId()); refresh(); return spec

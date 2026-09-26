@@ -184,10 +184,12 @@ describe('spec events in the activity stream', () => {
     const spec = await createSpec({ productId: F.productShared, title: 'Checkout', body: 'v1', specType: 'feature' }, F.alice)
     await updateSpec(spec.id, { body: 'v2' }, F.alice)
     await updateSpec(spec.id, { status: 'active' }, F.alice)
+    await updateSpec(spec.id, { area: 'checkout' }, F.alice)
     await linkSpec(spec.id, 'asset', F.assetApi, undefined, F.alice)
     const next = await supersedeSpec(spec.id, 'new approach', undefined, F.alice)
     const events = (await auditRowsFor(spec.id)).map((r) => [r.event, (r.payload as any).version])
-    expect(events).toEqual([['created', 1], ['revised', 2], ['activated', 3], ['linked', 3], ['superseded', 3]])
+    // Status and details changes are recorded but keep the version.
+    expect(events).toEqual([['created', 1], ['revised', 2], ['activated', 2], ['details_changed', 2], ['linked', 2], ['superseded', 2]])
     const rows = await auditRowsFor(spec.id)
     expect(rows.every((r) => r.entityType === 'spec' && r.productId === F.productShared && r.organizationId === F.org)).toBe(true)
     expect((await auditRowsFor(next.id)).map((r) => r.event)).toEqual(['created'])

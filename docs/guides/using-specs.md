@@ -17,23 +17,46 @@ The picker defaults a plan association to `references`.
 `workflow`, `schema`, `api`, `architecture`, `integration`, and `ops`. Optional
 `area` identifies a narrower scope, such as “chat file resource model.”
 
-New specs start as draft at v1. Every `update_spec` increments the version;
-`expectedVersion` rejects stale edits. Title, specType, area and needsReview
-can also be updated (and versioned), so imported classifications can be
-reviewed and the review flag cleared. Supported statuses are draft, active,
+New specs start as draft at v1. **Only content creates a version:** changing
+the title or body increments it and keeps the previous text in history.
+Status, specType, area and needsReview change in place on the current version,
+so activating, archiving or reclassifying a spec never produces a version whose
+text is identical to the last, and never outdates an approval. A save that
+changes nothing is ignored. `expectedVersion` rejects stale edits either way.
+Supported statuses are draft, in review (set by requesting a review), active
 and archived. Use `supersede_spec` when the approach changes: it creates a new
 draft at v1, retains provenance and associations, links both documents, and
 marks the old one superseded/read-only. Existing delivery receipts stay on the
 old spec.
 
-Every version's title, body, type, area and status is kept in
-`spec_revisions`, written in the same transaction that creates the version,
+Every version's title, body, type, area and status (as of that version) is
+kept in `spec_revisions`, written in the same transaction that creates it,
 with an optional `changeSummary`. The spec page lists the history, shows any
 past version read-only (`/specs/<id>?v=2`) and a line diff against the
 previous one (`?v=2&diff=1`). Agents read a pinned version with
 `get_spec_revision` and the list with `list_spec_revisions`. Specs that
 existed before history was retained start at their version at that time;
-earlier bodies were never stored and cannot be recovered.
+earlier bodies were never stored and cannot be recovered. Workspaces from
+before this change may have versions created by a status edit; reviews look
+past them, since only the title and body count.
+
+## On the spec page
+
+The bar at the top says where the spec stands and offers only what fits its
+state and your permissions:
+
+| Status | Actions |
+|---|---|
+| Draft | Request review · Activate · Revise content |
+| In review | Activate (asks first under a guided workflow while unapproved; becomes **Activate v*n*** once approved) · Revise content |
+| Active | Revise content · Archive · Supersede |
+| Archived | Restore to draft |
+
+None of these create a version except **Revise content**, which opens the
+editor: saving a changed title or text creates the next version and asks
+earlier approvers to look again. **Details** (type, area, the import flag)
+save on the current version. Viewers see the status and explanation without
+actions, and can still comment.
 
 ## Delivery and history
 
@@ -62,7 +85,8 @@ separate events carrying each other's IDs.
 2. `link_spec(specId, targetType, targetId, relationshipType?)` for each association.
 3. `get_spec(id)` or `list_specs(productId?, targetType?, targetId?, specType?)`
    to inspect; target filters must be supplied together.
-4. `update_spec(id, body?, status?, expectedVersion?)` for edits, or
+4. `update_spec(id, body?, title?, status?, specType?, area?, expectedVersion?)`
+   for edits (only a title or body change creates a version), or
    `supersede_spec(oldId, newBody, title?)` for a replacement approach.
 5. Resolve the work item, then `graduate_work_item(workItemId, sourceSpecId?)`
    after checking what was delivered.

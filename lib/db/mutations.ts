@@ -945,7 +945,7 @@ export async function createDesignNote(data: CreateDesignNoteData) {
   })
   await logAudit({ entityType: 'asset', entityId: data.assetId, event: 'design_note_added', actor, payload: { title: result.title } })
   const { revision, ...note } = result
-  if (revision) {
+  if (revision?.contentChanged) {
     await onSubjectRevised('spec', revision.spec.id, actor?.id)
     await auditSpec(revision.spec, 'revised', actor, { fromVersion: revision.spec.version - 1, toVersion: revision.spec.version, noteId: note.id })
   }

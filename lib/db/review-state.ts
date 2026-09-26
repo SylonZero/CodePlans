@@ -14,11 +14,11 @@ export const OPEN_STATES: ReviewState[] = ['open', 'changes_requested']
 
 /**
  * `version` is the subject's current version. `contentSince` is the oldest
- * version whose reviewable content is identical to the current one: a spec
- * status change (say, activating an approved draft) creates a version but
- * changes nothing a reviewer read, so a decision made at or after
- * `contentSince` still stands. Plans only change revision when content
- * changes, so for them the two are equal.
+ * version whose title and body are identical to the current one, so a
+ * decision made at or after it still stands. Specs only version on content
+ * changes now, but older workspaces have versions created by status edits;
+ * this looks past them. Plans only change revision when content changes, so
+ * for them the two are equal.
  */
 export type SubjectVersion = { version: number; contentSince: number }
 
@@ -30,7 +30,9 @@ export async function subjectVersion(subjectType: ReviewSubjectType, subjectId: 
   const spec = await db.query.specs.findFirst({ where: eq(specs.id, subjectId) })
   if (!spec) return null
   const revisions = await db.select().from(specRevisions).where(eq(specRevisions.specId, subjectId)).orderBy(desc(specRevisions.version))
-  const same = (r: typeof revisions[number]) => r.body === spec.body && r.title === spec.title && r.specType === spec.specType && (r.area ?? null) === (spec.area ?? null)
+  // Only the text a reviewer reads counts. Older data has versions created by
+  // status or metadata edits; this looks past them to the last real change.
+  const same = (r: typeof revisions[number]) => r.body === spec.body && r.title === spec.title
   let contentSince = spec.version
   for (const r of revisions) {
     if (r.version > spec.version) continue
