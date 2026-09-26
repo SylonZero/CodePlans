@@ -113,6 +113,56 @@ const handler = createMcpHandler(
     server.tool('get_spec_revision', 'Read a spec exactly as it was at a pinned version (for example the sourceSpecVersion on a capability). Returns an error when that version predates retained history.', {
       id: z.string(), version: z.number().int().positive(),
     }, async ({ id, version }, extra) => json((await getSpecRevision(id, version, uid(extra))) ?? { error: `Version ${version} of this spec was not retained` }))
+    // ── Comments & reviews ─────────────────────────────────────────────────
+    server.tool('list_comments', 'Read the discussion on a spec, plan, work item, release or asset: threads with replies, kinds (comment/question/suggestion), mentions, resolution, the version each comment was written on, and for spec text anchors whether they still match (anchored/outdated).', {
+      subjectType: z.enum(['spec', 'code_plan', 'work_item', 'release', 'asset']), subjectId: z.string(),
+    }, async ({ subjectType, subjectId }, extra) => {
+      const { listComments } = await import('@/lib/db/comments')
+      return json(await listComments(subjectType, subjectId, uid(extra)))
+    })
+    server.tool('add_comment', 'Comment on a spec, plan, work item, release or asset, or reply to a thread (parentId). Use kind question/suggestion when it fits, anchor.quote to point at exact spec text, and mentionEmails to notify workspace members. Comments are marked as agent-authored.', {
+      subjectType: z.enum(['spec', 'code_plan', 'work_item', 'release', 'asset']), subjectId: z.string(),
+      body: z.string().min(1).max(10_000), parentId: z.string().optional(), kind: z.enum(['comment', 'question', 'suggestion']).optional(),
+      anchor: z.object({ quote: z.string().min(1).max(1000) }).optional(), mentionEmails: z.array(z.string()).max(20).optional(),
+    }, async ({ mentionEmails, ...data }, extra) => {
+      requireWrite(extra)
+      const userId = uid(extra)
+      const { addComment } = await import('@/lib/db/comments')
+      const mentions: string[] = []
+      for (const email of mentionEmails ?? []) mentions.push(await resolveAssigneeEmail(userId, email))
+      return json(await addComment({ ...data, mentions }, { id: userId, kind: 'agent' }))
+    })
+    server.tool('resolve_comment', 'Resolve (or reopen with resolved=false) a top-level comment thread, e.g. after addressing the feedback in a spec revision.', {
+      id: z.string(), resolved: z.boolean().default(true),
+    }, async ({ id, resolved }, extra) => {
+      requireWrite(extra)
+      const { resolveComment } = await import('@/lib/db/comments')
+      return json(await resolveComment(id, resolved, { id: uid(extra), kind: 'agent' }))
+    })
+    server.tool('request_review', "Open a review on a spec or plan's current version. Without reviewerEmails, reviewers are suggested from responsibilities (area architects and code owners for specs; target code owners and engineering managers for plans); a guided workflow always adds them. Agents can request reviews and comment, but only people can approve.", {
+      subjectType: z.enum(['spec', 'code_plan']), subjectId: z.string(),
+      reviewerEmails: z.array(z.string()).max(20).optional(), note: z.string().max(2000).optional(), dueAt: z.string().optional(),
+    }, async ({ reviewerEmails, ...data }, extra) => {
+      requireWrite(extra)
+      const userId = uid(extra)
+      const { requestReview } = await import('@/lib/db/reviews')
+      const reviewers = reviewerEmails ? await Promise.all(reviewerEmails.map(async (e) => ({ userId: await resolveAssigneeEmail(userId, e) }))) : undefined
+      return json(await requestReview({ ...data, reviewers }, { id: userId, kind: 'agent' }))
+    })
+    server.tool('get_review', "A spec or plan's review status: the open review (reviewers, why they were asked, required flags, each decision and the version it was made on), earlier reviews, the last approved version and whether an approval still covers the current content.", {
+      subjectType: z.enum(['spec', 'code_plan']), subjectId: z.string(),
+    }, async ({ subjectType, subjectId }, extra) => {
+      const { getReviewSummary } = await import('@/lib/db/reviews')
+      const { suggestions: _s, audience: _a, viewer: _v, ...summary } = await getReviewSummary(subjectType, subjectId, uid(extra))
+      return json(summary)
+    })
+    server.tool('list_reviews', 'Open reviews visible to this key, optionally in one product, of one subject type, or only those waiting on the key owner.', {
+      productId: z.string().optional(), subjectType: z.enum(['spec', 'code_plan']).optional(), awaitingMe: z.boolean().optional(),
+    }, async ({ productId, subjectType, awaitingMe }, extra) => {
+      const userId = uid(extra)
+      const { listOpenReviews } = await import('@/lib/db/reviews')
+      return json(await listOpenReviews(userId, { productIds: productId ? [productId] : undefined, subjectType, awaitingUserId: awaitingMe ? userId : undefined }))
+    })
     server.tool('list_specs', 'List visible specs, optionally filtered by product, exact target association, or open specType taxonomy. targetType and targetId must be supplied together.', {
       productId: z.string().optional(), targetType: specTargetType.optional(), targetId: z.string().optional(), specType: z.string().optional(),
     }, async (filters, extra) => json(await listSpecs(uid(extra), filters)))
@@ -1026,13 +1076,13 @@ const handler = createMcpHandler(
 
     server.tool(
       'graduate_work_item',
-      "Graduate a resolved feature/enhancement work item into its asset's record as a capability, carrying delivery lineage (work item, plan, release). Idempotent — re-graduating returns the existing capability. Pins the linked spec version at graduation; when several specs are linked, sourceSpecId is required. Fails for unresolved items, bugs/debt, or items without a target asset.",
-      { workItemId: z.string(), sourceSpecId: z.string().optional() },
-      async ({ workItemId, sourceSpecId }, extra) => {
+      "Graduate a resolved feature/enhancement work item into its asset's record as a capability, carrying delivery lineage (work item, plan, release). Idempotent — re-graduating returns the existing capability. Pins a spec version: by default the latest approved version when the current text has not been approved, otherwise the current one; pass sourceSpecVersion to choose. When several specs are linked, sourceSpecId is required. Fails for unresolved items, bugs/debt, or items without a target asset.",
+      { workItemId: z.string(), sourceSpecId: z.string().optional(), sourceSpecVersion: z.number().int().positive().optional() },
+      async ({ workItemId, sourceSpecId, sourceSpecVersion }, extra) => {
         await requireWriteTo(extra, { workItemId })
         const { getWorkItem } = await import('@/lib/db/queries')
         if (!await getWorkItem(workItemId, uid(extra))) return json({ error: 'Work item not found or not accessible' })
-        return json(await graduateWorkItem(workItemId, sourceSpecId, { id: uid(extra), kind: 'agent' }))
+        return json(await graduateWorkItem(workItemId, sourceSpecId, { id: uid(extra), kind: 'agent' }, { sourceSpecVersion }))
       },
     )
   },

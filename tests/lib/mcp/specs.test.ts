@@ -62,3 +62,23 @@ describe('MCP write authorization', () => {
     await expect(call('update_task_status', { id: F.task1, status: 'done' }, F.carol)).rejects.toThrow('not accessible')
   })
 })
+
+describe('MCP comments and reviews', () => {
+  it('lets an agent comment, request a review and read it, but offers no way to approve', async () => {
+    const spec = unpack(await call('create_spec', { productId: F.productShared, title: 'Agent spec', body: 'Body text here', specType: 'api' }))
+    const comment = unpack(await call('add_comment', { subjectType: 'spec', subjectId: spec.id, body: 'Please check @Bob', kind: 'question', anchor: { quote: 'Body text' }, mentionEmails: ['bob@test.local'] }))
+    expect(comment).toMatchObject({ authorType: 'agent', kind: 'question', mentions: ['user-bob'] })
+    const threads = unpack(await call('list_comments', { subjectType: 'spec', subjectId: spec.id }, F.bob))
+    expect(threads[0]).toMatchObject({ anchorStatus: 'anchored', authorName: 'Alice' })
+    expect(unpack(await call('resolve_comment', { id: comment.id, resolved: true }))).toMatchObject({ resolvedById: F.alice })
+
+    const review = unpack(await call('request_review', { subjectType: 'spec', subjectId: spec.id, reviewerEmails: ['bob@test.local'] }))
+    expect(review).toMatchObject({ state: 'open', requestedByKind: 'agent' })
+    const summary = unpack(await call('get_review', { subjectType: 'spec', subjectId: spec.id }))
+    expect(summary.current.participants).toEqual([expect.objectContaining({ name: 'Bob', decision: 'pending' })])
+    expect(summary).not.toHaveProperty('audience')
+    expect(unpack(await call('list_reviews', { awaitingMe: true }, F.bob)).map((r: any) => r.subjectTitle)).toEqual(['Agent spec'])
+    expect([...registered.keys()].some((name) => /approve|decide/.test(name))).toBe(false)
+    await expect(call('add_comment', { subjectType: 'spec', subjectId: spec.id, body: 'x' }, F.alice, false)).rejects.toThrow('read-only')
+  })
+})
