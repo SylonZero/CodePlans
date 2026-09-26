@@ -2,10 +2,11 @@ import { createdBy, editedBy, type ArtifactActor } from './attribution'
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from './index'
-import { assets, codePlans, codePlanAssets, products, specs, specLinks, specEvents, specRevisions, users, workItems, workItemCodePlans } from './schema'
+import { assets, codePlans, codePlanAssets, products, reviews, specs, specLinks, specEvents, specRevisions, users, workItems, workItemCodePlans } from './schema'
 import { productAccessWhere } from './queries'
 import { assertCanWrite } from './authz'
 import { logAudit } from './audit'
+import { bumpPlanRevision, onSubjectRevised } from './review-state'
 
 export const specTargetType = z.enum(['asset', 'work_item', 'code_plan'])
 export const specRelationshipType = z.enum(['creates', 'revises', 'references'])
@@ -22,7 +23,7 @@ export const specUpdateFields = {
   area: z.string().trim().max(500).nullable().optional(),
   needsReview: z.boolean().optional(),
   body: z.string().max(500_000).optional(),
-  status: z.enum(['draft', 'active', 'archived']).optional(),
+  status: z.enum(['draft', 'in_review', 'active', 'archived']).optional(),
   expectedVersion: z.number().int().positive().optional(),
   changeSummary: z.string().trim().max(500).optional(),
 }
@@ -160,6 +161,7 @@ export async function updateSpec(id: string, input: z.input<typeof specUpdateInp
   const actor = { id: userId, kind: actorKind }
   const spec = await db.transaction(async (tx) => (await reviseSpec(tx, id, input, undefined, actor)).spec)
   await auditSpec(spec, revisionEvent(old, spec), actor, { fromVersion: old.version, toVersion: spec.version, fromStatus: old.status, status: spec.status })
+  await onSubjectRevised('spec', id)
   return spec
 }
 
@@ -187,8 +189,12 @@ export async function linkSpecInTransaction(d: SpecDb, specId: string, targetTyp
 export async function linkSpec(specId: string, targetType: SpecTargetType, targetId: string, relationshipType: SpecRelationshipType | undefined, userId: string) {
   const spec = await requireSpec(specId)
   await assertSpecProductWrite(userId, spec.productId)
+  const [before] = await db.select({ id: specLinks.id }).from(specLinks)
+    .where(and(eq(specLinks.specId, specId), eq(specLinks.targetType, targetType), eq(specLinks.targetId, targetId)))
   const link = await db.transaction((tx) => linkSpecInTransaction(tx, specId, targetType, targetId, relationshipType))
   await auditSpec(spec, 'linked', { id: userId }, { targetType, targetId, relationshipType: link.relationshipType })
+  // A plan's linked specs are part of what its review covered.
+  if (targetType === 'code_plan' && !before) await bumpPlanRevision(targetId)
   return link
 }
 
@@ -199,6 +205,7 @@ export async function unlinkSpec(specLinkId: string, userId: string) {
   await assertSpecProductWrite(userId, spec.productId)
   await db.delete(specLinks).where(eq(specLinks.id, specLinkId))
   await auditSpec(spec, 'unlinked', { id: userId }, { targetType: link.targetType, targetId: link.targetId })
+  if (link.targetType === 'code_plan') await bumpPlanRevision(link.targetId)
   return { id: specLinkId }
 }
 
@@ -220,6 +227,9 @@ export async function supersedeSpec(oldId: string, newBody: string, title: strin
     return next
   })
   await auditSpec(old, 'superseded', actor, { supersededBy: next.id })
+  // A replaced spec can't be approved any more; its open review ends with it.
+  await db.update(reviews).set({ state: 'withdrawn', closedAt: new Date() })
+    .where(and(eq(reviews.subjectType, 'spec'), eq(reviews.subjectId, oldId), inArray(reviews.state, ['open', 'changes_requested'])))
   await auditSpec(next, 'created', actor, { supersedes: oldId })
   return next
 }
