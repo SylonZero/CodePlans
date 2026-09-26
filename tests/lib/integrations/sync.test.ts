@@ -88,6 +88,21 @@ describe('runSync', () => {
     expect(enhancement.status).toBe('resolved') // closed → resolved
   })
 
+  it('tells engineering managers about new imports in one summary per run', async () => {
+    const { addProductMember } = await import('@/lib/db/responsibilities')
+    const { listNotifications } = await import('@/lib/db/notifications')
+    await addProductMember({ productId: F.productShared, userId: F.bob, responsibility: 'eng_manager' }, { id: F.alice })
+    const integration = await makeIntegration()
+    await runSync(integration as any, stubConnector(makeItems()))
+    const notes = (await listNotifications(F.bob)).filter((n) => n.eventType === 'work_item.created')
+    expect(notes.map((n) => [n.title, n.summary, n.actorKind])).toEqual([
+      ['Test repo sync: 2 new work items in Shared Product', '• Login broken on Safari\n• Dark mode support', 'connector'],
+    ])
+    // Nothing new on the next run, so nothing to say.
+    await runSync(integration as any, stubConnector(makeItems()))
+    expect((await listNotifications(F.bob)).filter((n) => n.eventType === 'work_item.created')).toHaveLength(1)
+  })
+
   it('is idempotent: unchanged items are skipped, changed ones updated', async () => {
     const integration = await makeIntegration()
     await runSync(integration as any, stubConnector(makeItems()))
@@ -355,6 +370,13 @@ describe('phase 5: milestone-linked plans & PR auto-linking', () => {
     // Second run: status already merged → no update
     const second = await runSync(integration as any, fullStubConnector())
     expect(second.prsUpdated).toBe(0)
+
+    // The plan's owner hears about the merge once.
+    const { codePlans } = await import('@/lib/db/schema.sqlite')
+    const [plan] = await d.select().from(codePlans).where(eq(codePlans.id, F.planActive))
+    const { listNotifications } = await import('@/lib/db/notifications')
+    const merged = (await listNotifications(plan.ownerId ?? plan.creatorId)).filter((n) => n.eventType === 'pr.merged')
+    expect(merged.map((n) => n.title)).toEqual(['PR merged for API Service on Active Plan'])
   })
 
   it('ignores PR URLs pointing at other repos', async () => {

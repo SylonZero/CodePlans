@@ -202,6 +202,11 @@ async function draftFor(e: AuditEvent): Promise<Draft | null> {
       const task = await db.query.tasks.findFirst({ where: eq(tasks.id, e.entityId) })
       return to && task ? { eventType: 'task.assigned', title: `${who} assigned you ${title}`, broadcastTitle: `${who} assigned ${title}`, recipients: [{ userId: to, reason: 'assignee' }], url: subjectUrl('task', e.entityId, { planId: task.codePlanId }) } : null
     }
+    case 'code_plan:created': {
+      const targets = (await db.select({ id: codePlanAssets.assetId }).from(codePlanAssets).where(eq(codePlanAssets.codePlanId, e.entityId))).map((r) => r.id)
+      return { eventType: 'plan.created', title: `${who} drafted the plan ${title}`,
+        recipients: [...(await codeOwnersOf(targets)), ...(await membersOf(e.productId, 'eng_manager'))] }
+    }
     case 'code_plan:activated': case 'code_plan:completed': {
       const targets = (await db.select({ id: codePlanAssets.assetId }).from(codePlanAssets).where(eq(codePlanAssets.codePlanId, e.entityId))).map((r) => r.id)
       return { eventType: e.event === 'activated' ? 'plan.activated' : 'plan.completed', title: `${who} ${e.event} ${title}`,
@@ -284,6 +289,50 @@ export async function notifyIntegrationError(integration: { id: string; organiza
     })), { organizationId: integration.organizationId, broadcast: { eventType: 'integration.error', title, summary, url } })).inApp
   } catch (err) {
     console.error('[notifications] integration error notice failed:', err)
+    return 0
+  }
+}
+
+/**
+ * One summary per sync run for newly imported work items, never one per item.
+ * Imports have no asset yet, so the product's engineering managers hear about
+ * them (they triage). Posted to Slack when the event's rule says so.
+ */
+export async function notifySyncImports(integration: { id: string; organizationId: string; name: string }, productId: string, items: { id: string; title: string }[]) {
+  if (!items.length) return 0
+  try {
+    const product = await db.query.products.findFirst({ where: eq(products.id, productId) })
+    if (!product) return 0
+    const n = items.length
+    const title = `${integration.name} sync: ${n} new work item${n === 1 ? '' : 's'} in ${product.name}`
+    const summary = items.slice(0, 3).map((i) => `• ${i.title}`).join('\n') + (n > 3 ? `\n…and ${n - 3} more` : '')
+    const url = '/work-items'
+    const runId = crypto.randomUUID()
+    const managers = await membersOf(productId, 'eng_manager')
+    return (await publish(managers.map((m) => ({
+      userId: m.userId, eventId: runId, eventType: 'work_item.created', productId, subjectType: 'product', subjectId: productId,
+      reason: m.reason, title, summary, url, actorKind: 'connector',
+    })), { organizationId: integration.organizationId, productId, eventId: runId, actorKind: 'connector', broadcast: { eventType: 'work_item.created', title, summary, url } })).inApp
+  } catch (err) {
+    console.error('[notifications] sync summary failed:', err)
+    return 0
+  }
+}
+
+/** A PR tracked on a plan was merged, as seen by a connector sync. The plan owner hears about it. */
+export async function notifyPrMerged(codePlanId: string, assetId: string, prUrl: string) {
+  try {
+    const plan = await db.query.codePlans.findFirst({ where: eq(codePlans.id, codePlanId) })
+    const asset = await db.query.assets.findFirst({ where: eq(assets.id, assetId) })
+    if (!plan || !asset) return 0
+    const title = `PR merged for ${asset.name} on ${plan.title}`
+    const url = subjectUrl('code_plan', plan.id)
+    return (await publish([{
+      userId: plan.ownerId ?? plan.creatorId, eventType: 'pr.merged', productId: plan.productId, subjectType: 'code_plan', subjectId: plan.id,
+      reason: plan.ownerId ? 'plan_owner' : 'author', title, summary: prUrl, url, actorKind: 'connector',
+    }], { productId: plan.productId, actorKind: 'connector', broadcast: { eventType: 'pr.merged', title, summary: prUrl, url } })).inApp
+  } catch (err) {
+    console.error('[notifications] PR merged notice failed:', err)
     return 0
   }
 }

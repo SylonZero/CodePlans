@@ -35,9 +35,10 @@ channel: in-app, email and Slack. The defaults are:
 | Mentioned *(required)* | ✔ | ✔ | |
 | Reply, Comment, Review comment | ✔ | | |
 | New spec, Spec revised, Spec active, Spec superseded | ✔ | | ✔ |
-| New work item | ✔ | | ✔ |
+| New work item (imports from a connected tool arrive as one summary per sync, to engineering managers) | ✔ | | ✔ |
 | Work item assigned, Task assigned | ✔ | ✔ | |
 | Plan activated, Plan completed | ✔ | | ✔ |
+| Plan created, PR merged (seen by a connector sync) | ✔ | | |
 | Plan targets your asset, Capability graduated, Design note | ✔ | | |
 | Release shipped | ✔ | ✔ | ✔ |
 | Responsibility assigned | ✔ | ✔ | |

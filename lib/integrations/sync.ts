@@ -75,6 +75,7 @@ export async function runSync(integration: IntegrationRow, connector: Connector)
   const externalItems = await connector.listItems({ token }, config, since)
 
   let created = 0
+  const imported: { id: string; title: string }[] = []
   let updated = 0
   let unchanged = 0
 
@@ -127,12 +128,18 @@ export async function runSync(integration: IntegrationRow, connector: Connector)
         })
         .returning()
       created += 1
+      imported.push({ id: row.id, title: row.title })
       await logSyncEvent(integration, row.id, 'created', item)
     }
   }
 
   const taskStats = await syncPlanTasks(integration, connector, { token }, config)
   const prsUpdated = await syncPrStatuses(integration, connector, { token }, config)
+
+  if (imported.length) {
+    const { notifySyncImports } = await import('@/lib/db/notification-rules')
+    await notifySyncImports(integration, config.productId, imported)
+  }
 
   return { created, updated, unchanged, ...taskStats, prsUpdated }
 }
@@ -220,6 +227,7 @@ async function syncPrStatuses(
     .select({
       id: codePlanAssets.id,
       codePlanId: codePlanAssets.codePlanId,
+      assetId: codePlanAssets.assetId,
       prUrl: codePlanAssets.prUrl,
       prStatus: codePlanAssets.prStatus,
     })
@@ -257,6 +265,10 @@ async function syncPrStatuses(
       })
     } catch (err) {
       console.error('[sync] log failed:', err)
+    }
+    if (status === 'merged') {
+      const { notifyPrMerged } = await import('@/lib/db/notification-rules')
+      await notifyPrMerged(row.codePlanId, row.assetId, row.prUrl!)
     }
   }
   return updated

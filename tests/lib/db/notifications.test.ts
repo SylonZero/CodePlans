@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { users, organizationMembers, notifications } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { createSpec, updateSpec, linkSpec } from '@/lib/db/specs'
-import { setAssetOwners, createWorkItem, updateWorkItem, createTask, createRelease, updateRelease, setReleaseAsset } from '@/lib/db/mutations'
+import { setAssetOwners, createCodePlan, createWorkItem, updateWorkItem, createTask, createRelease, updateRelease, setReleaseAsset } from '@/lib/db/mutations'
 import { addProductMember } from '@/lib/db/responsibilities'
 import { requestReview, decideReview } from '@/lib/db/reviews'
 import { addComment } from '@/lib/db/comments'
@@ -83,6 +83,13 @@ describe('responsibility-routed notifications', () => {
     await createWorkItem({ productId: F.productShared, assetId: F.assetApi, type: 'bug', title: 'Token leak', description: '', severity: 'high', tags: [] }, F.bob)
     expect(await inbox(ERIN)).toContainEqual(['work_item.created', 'code_owner:API Service', 'Bob filed Token leak'])
     expect(await inbox(F.alice)).toContainEqual(['work_item.created', 'eng_manager', 'Bob filed Token leak'])
+  })
+
+  it('tells code owners of target assets and engineering managers about a new plan', async () => {
+    await addProductMember({ productId: F.productShared, userId: F.alice, responsibility: 'eng_manager' }, { id: F.alice })
+    await createCodePlan({ productId: F.productShared, title: 'Token rotation', description: '', type: 'feature', tags: [], targetAssetIds: [F.assetApi] }, F.bob)
+    expect(await inbox(ERIN)).toContainEqual(['plan.created', 'code_owner:API Service', 'Bob drafted the plan Token rotation'])
+    expect(await inbox(F.alice)).toContainEqual(['plan.created', 'eng_manager', 'Bob drafted the plan Token rotation'])
   })
 
   it('tells people when work is assigned to them', async () => {

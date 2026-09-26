@@ -353,7 +353,8 @@ Each phase is shippable on its own.
 
 1. **Approval is never required by default.** Products start at **Open**.
 2. **Plan review is core.** Code owners review a plan before effort starts, because that is the cheapest point to stop a misdirected change; PR review in Git comes after the cost is paid.
+3. **Retention is 90 days.** Finished deliveries and notifications marked done are deleted after 90 days; `sync_log` remains the permanent record.
 
 ## Open questions
 
-1. **Retention:** how long to keep `notifications` and `notification_deliveries`. The proposal is 90 days for delivered rows, with `sync_log` remaining the permanent record.
+None at the moment.
