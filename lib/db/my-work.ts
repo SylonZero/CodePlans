@@ -21,8 +21,8 @@ import type { ReviewReason } from './schema.sqlite'
  * and can be marked done or snoozed.
  */
 
-export type Lens = 'developer' | 'code_owner' | 'architect' | 'eng_manager'
-export const LENS_LABELS: Record<Lens, string> = { developer: 'Developer', code_owner: 'Code owner', architect: 'Architect', eng_manager: 'Eng manager' }
+export { LENS_LABELS, reasonLabel, type Lens } from '@/lib/my-work-labels'
+import type { Lens } from '@/lib/my-work-labels'
 
 export type InboxItem = {
   key: string
@@ -70,19 +70,6 @@ export type MyWork = {
     releaseReadiness: { id: string; name: string; status: string; openPlans: number; unstamped: number; productName: string }[]
     mergedNotShipped: { id: string; title: string; releaseName: string | null }[]
   }
-}
-
-const REASON_TEXT: Record<string, string> = {
-  architect: 'architect', code_owner: 'code owner', eng_manager: 'eng manager', requested: 'reviewer', reviewer: 'reviewer',
-  mentioned: 'mentioned', thread: 'in thread', author: 'author', plan_owner: 'plan owner', owner: 'owner', reporter: 'reporter',
-  assignee: 'assignee', requester: 'requested review', approver: 'approved earlier', contributor: 'contributor',
-}
-
-/** "code_owner:API Gateway" → "code owner · API Gateway". */
-export function reasonLabel(reason: string) {
-  const [head, rest] = reason.split(':')
-  const base = REASON_TEXT[head] ?? head.replace('_', ' ')
-  return rest ? `${base} · ${rest}` : base
 }
 
 const ACTION_NOTIFICATIONS = ['comment.mention', 'comment.reply', 'comment.created', 'work_item.assigned', 'task.assigned', 'review.stale', 'responsibility.assigned']
