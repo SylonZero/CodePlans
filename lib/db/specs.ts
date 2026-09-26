@@ -165,7 +165,7 @@ export async function updateSpec(id: string, input: z.input<typeof specUpdateInp
   }
   const spec = await db.transaction(async (tx) => (await reviseSpec(tx, id, input, undefined, actor)).spec)
   await auditSpec(spec, revisionEvent(old, spec), actor, { fromVersion: old.version, toVersion: spec.version, fromStatus: old.status, status: spec.status })
-  await onSubjectRevised('spec', id)
+  await onSubjectRevised('spec', id, userId)
   return spec
 }
 
@@ -198,7 +198,7 @@ export async function linkSpec(specId: string, targetType: SpecTargetType, targe
   const link = await db.transaction((tx) => linkSpecInTransaction(tx, specId, targetType, targetId, relationshipType))
   await auditSpec(spec, 'linked', { id: userId }, { targetType, targetId, relationshipType: link.relationshipType })
   // A plan's linked specs are part of what its review covered.
-  if (targetType === 'code_plan' && !before) await bumpPlanRevision(targetId)
+  if (targetType === 'code_plan' && !before) await bumpPlanRevision(targetId, userId)
   return link
 }
 
@@ -209,7 +209,7 @@ export async function unlinkSpec(specLinkId: string, userId: string) {
   await assertSpecProductWrite(userId, spec.productId)
   await db.delete(specLinks).where(eq(specLinks.id, specLinkId))
   await auditSpec(spec, 'unlinked', { id: userId }, { targetType: link.targetType, targetId: link.targetId })
-  if (link.targetType === 'code_plan') await bumpPlanRevision(link.targetId)
+  if (link.targetType === 'code_plan') await bumpPlanRevision(link.targetId, userId)
   return { id: specLinkId }
 }
 

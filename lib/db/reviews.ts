@@ -7,6 +7,7 @@ import { logAudit } from './audit'
 import { specAssetAnchors } from './specs'
 import { getProductAudience } from './comments'
 import { getWorkflowLevel } from './workflow'
+import { completeForSubject } from './notifications'
 import { OPEN_STATES, decisionIsCurrent, lastApprovedVersion, recomputeReview, subjectVersion, type SubjectVersion } from './review-state'
 import type { ArtifactActor } from './attribution'
 import type { ReviewDecision, ReviewReason, ReviewState, ReviewSubjectType, WorkflowLevel } from './schema.sqlite'
@@ -164,6 +165,8 @@ export async function decideReview(reviewId: string, decision: z.input<typeof re
     })
   }
   const state = await recomputeReview(reviewId)
+  // Deciding answers the request: it leaves the reviewer's inbox.
+  await completeForSubject(actor.id, review.subjectType, review.subjectId, ['review.requested', 'review.updated'])
   const subject = await resolveSubject(review.subjectType as ReviewSubjectType, review.subjectId)
   await logAudit({ entityType: review.subjectType as ReviewSubjectType, entityId: review.subjectId,
     event: choice === 'approved' ? 'review_approved' : choice === 'changes_requested' ? 'review_changes_requested' : 'review_commented',

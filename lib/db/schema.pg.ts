@@ -667,3 +667,32 @@ export const productSettings = pgTable('product_settings', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   updatedById: uuid('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
 })
+
+// In-app notifications: one row per recipient per event. State items in My Work
+// (tasks, triage, evidence gaps) are derived by query; only events live here.
+export const notifications = pgTable('notifications', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // The sync_log row that caused it, when there is one.
+  eventId: uuid('event_id'),
+  eventType: text('event_type').notNull(),
+  productId: uuid('product_id').references(() => products.id, { onDelete: 'cascade' }),
+  subjectType: text('subject_type').notNull(),
+  subjectId: uuid('subject_id').notNull(),
+  // Why this person was told: 'mentioned', 'reviewer', 'code_owner:<assetName>', ...
+  reason: text('reason').notNull(),
+  // Rendered when created so the bell reads the same after the subject changes.
+  title: text('title').notNull(),
+  summary: text('summary').notNull().default(''),
+  url: text('url').notNull(),
+  actorId: uuid('actor_id').references(() => users.id, { onDelete: 'set null' }),
+  actorKind: text('actor_kind'),
+  readAt: timestamp('read_at', { withTimezone: true }),
+  doneAt: timestamp('done_at', { withTimezone: true }),
+  snoozedUntil: timestamp('snoozed_until', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('notifications_user_idx').on(t.userId, t.doneAt, t.createdAt),
+  // Delivery is idempotent per event and person.
+  uniqueIndex('notifications_event_user_idx').on(t.eventId, t.userId),
+])

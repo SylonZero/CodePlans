@@ -670,3 +670,32 @@ export const productSettings = sqliteTable('product_settings', {
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
   updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
 })
+
+// In-app notifications: one row per recipient per event. State items in My Work
+// (tasks, triage, evidence gaps) are derived by query; only events live here.
+export const notifications = sqliteTable('notifications', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // The sync_log row that caused it, when there is one.
+  eventId: text('event_id'),
+  eventType: text('event_type').notNull(),
+  productId: text('product_id').references(() => products.id, { onDelete: 'cascade' }),
+  subjectType: text('subject_type').notNull(),
+  subjectId: text('subject_id').notNull(),
+  // Why this person was told: 'mentioned', 'reviewer', 'code_owner:<assetName>', ...
+  reason: text('reason').notNull(),
+  // Rendered when created so the bell reads the same after the subject changes.
+  title: text('title').notNull(),
+  summary: text('summary').notNull().default(''),
+  url: text('url').notNull(),
+  actorId: text('actor_id').references(() => users.id, { onDelete: 'set null' }),
+  actorKind: text('actor_kind'),
+  readAt: integer('read_at', { mode: 'timestamp_ms' }),
+  doneAt: integer('done_at', { mode: 'timestamp_ms' }),
+  snoozedUntil: integer('snoozed_until', { mode: 'timestamp_ms' }),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('notifications_user_idx').on(t.userId, t.doneAt, t.createdAt),
+  // Delivery is idempotent per event and person.
+  uniqueIndex('notifications_event_user_idx').on(t.eventId, t.userId),
+])

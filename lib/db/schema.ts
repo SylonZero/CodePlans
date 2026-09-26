@@ -20,6 +20,7 @@ export const {
   reviewParticipants,
   orgSettings,
   productSettings,
+  notifications,
   specEvents,
   users,
   organizations,

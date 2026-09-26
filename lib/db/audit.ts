@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { productIdFor, type WriteTarget } from './authz'
 import type { ArtifactActor } from './attribution'
 import type { SyncEntityType } from './schema.sqlite'
+import type { AuditEvent } from './notification-rules'
 
 export type AuditEntry = {
   entityType: SyncEntityType
@@ -70,7 +71,7 @@ export async function logAudit(entry: AuditEntry) {
   try {
     const { productId, organizationId } = await resolveAuditScope(entry)
     if (!organizationId) return
-    await db.insert(syncLog).values({
+    const [row] = await db.insert(syncLog).values({
       organizationId,
       productId,
       entityType: entry.entityType,
@@ -79,8 +80,25 @@ export async function logAudit(entry: AuditEntry) {
       actorId: entry.actor.id,
       actorKind: entry.actor.kind ?? 'user',
       payload: entry.payload ?? {},
-    })
+    }).returning()
+    if (row) await dispatch({ ...row, payload: (row.payload ?? {}) as Record<string, unknown> })
   } catch (err) {
     console.error('[audit] log failed:', err)
+  }
+}
+
+/**
+ * Notify people about an event. Inside a request, Next's after() runs it once
+ * the response is sent so writes never wait on fan-out; outside a request
+ * (scripts, tests) it runs inline.
+ */
+async function dispatch(event: AuditEvent) {
+  const { notifyForEvent } = await import('./notification-rules')
+  const run = () => notifyForEvent(event)
+  try {
+    const { after } = await import('next/server')
+    after(run)
+  } catch {
+    await run()
   }
 }

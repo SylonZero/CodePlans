@@ -354,7 +354,7 @@ export async function updateCodePlan(id: string, data: UpdateCodePlanData, actor
     scopeChanged = (await syncPlanAssets(id, targetAssetIds, actor)) || scopeChanged
     await refreshSpecAssetLinks('code_plan', id)
   }
-  if (scopeChanged) await bumpPlanRevision(id)
+  if (scopeChanged) await bumpPlanRevision(id, actor?.id)
   const event =
     data.status === 'active' ? 'activated'
     : data.status === 'completed' ? 'completed'
@@ -407,6 +407,7 @@ export async function createTask(data: CreateTaskData, actor?: ArtifactActor) {
   if (existing) return existing
   const [task] = await db.insert(tasks).values({ ...data, ...createdBy(actor) }).returning()
   await logAudit({ entityType: 'task', entityId: task.id, event: 'created', actor, payload: { title: task.title } })
+  if (task.assigneeId) await logAudit({ entityType: 'task', entityId: task.id, event: 'assigned', actor, payload: { title: task.title, assigneeId: task.assigneeId } })
   return task
 }
 
@@ -443,6 +444,9 @@ export async function updateTask(id: string, data: UpdateTaskData, actor?: Artif
     .where(eq(tasks.id, id))
     .returning()
   if (task) await logAudit({ entityType: 'task', entityId: task.id, event: 'updated', actor, payload: { title: task.title } })
+  if (task?.assigneeId && task.assigneeId !== existing.assigneeId) {
+    await logAudit({ entityType: 'task', entityId: task.id, event: 'assigned', actor, payload: { title: task.title, assigneeId: task.assigneeId } })
+  }
   return task ?? null
 }
 
@@ -570,6 +574,7 @@ export async function createWorkItem(data: CreateWorkItemData, userId: string, a
     .values({ ...data, ...createdBy(actor), reporterId: userId })
     .returning()
   await logAudit({ entityType: 'work_item', entityId: item.id, event: 'created', actor, payload: { title: item.title, type: item.type } })
+  if (item.ownerId) await logAudit({ entityType: 'work_item', entityId: item.id, event: 'assigned', actor, payload: { title: item.title, ownerId: item.ownerId } })
   return item
 }
 
@@ -599,6 +604,9 @@ export async function updateWorkItem(id: string, data: UpdateWorkItemData, actor
     .returning()
   if (item && patch.assetId !== undefined) await refreshSpecAssetLinks('work_item', id)
   if (item) await logAudit({ entityType: 'work_item', entityId: item.id, event: 'updated', actor, payload: { title: item.title } })
+  if (item?.ownerId && item.ownerId !== existing.ownerId) {
+    await logAudit({ entityType: 'work_item', entityId: item.id, event: 'assigned', actor, payload: { title: item.title, ownerId: item.ownerId } })
+  }
   return item ?? null
 }
 
@@ -643,7 +651,7 @@ export async function addPlanAsset(codePlanId: string, assetId: string, actor?: 
   const [row] = await db.insert(codePlanAssets).values({ codePlanId, assetId }).returning()
   await refreshSpecAssetLinks('code_plan', codePlanId)
   await logAudit({ entityType: 'code_plan', entityId: codePlanId, event: 'asset_added', actor, payload: { assetId } })
-  await bumpPlanRevision(codePlanId)
+  await bumpPlanRevision(codePlanId, actor?.id)
   return row
 }
 
@@ -654,7 +662,7 @@ export async function removePlanAsset(codePlanId: string, assetId: string, actor
     .returning({ id: codePlanAssets.id })
   if (deleted) {
     await logAudit({ entityType: 'code_plan', entityId: codePlanId, event: 'asset_removed', actor, payload: { assetId } })
-    await bumpPlanRevision(codePlanId)
+    await bumpPlanRevision(codePlanId, actor?.id)
   }
   return deleted ?? null
 }
@@ -690,7 +698,7 @@ export async function linkWorkItemToPlan(workItemId: string, codePlanId: string,
     .returning()
   await refreshSpecAssetLinks('work_item', workItemId)
   await logAudit({ entityType: 'work_item', entityId: workItemId, event: 'linked_to_plan', actor, payload: { codePlanId } })
-  await bumpPlanRevision(codePlanId)
+  await bumpPlanRevision(codePlanId, actor?.id)
   return link
 }
 
@@ -706,7 +714,7 @@ export async function unlinkWorkItemFromPlan(workItemId: string, codePlanId: str
     .returning({ id: workItemCodePlans.id })
   if (deleted) {
     await logAudit({ entityType: 'work_item', entityId: workItemId, event: 'unlinked_from_plan', actor, payload: { codePlanId } })
-    await bumpPlanRevision(codePlanId)
+    await bumpPlanRevision(codePlanId, actor?.id)
   }
   return deleted ?? null
 }
@@ -938,7 +946,7 @@ export async function createDesignNote(data: CreateDesignNoteData) {
   await logAudit({ entityType: 'asset', entityId: data.assetId, event: 'design_note_added', actor, payload: { title: result.title } })
   const { revision, ...note } = result
   if (revision) {
-    await onSubjectRevised('spec', revision.spec.id)
+    await onSubjectRevised('spec', revision.spec.id, actor?.id)
     await auditSpec(revision.spec, 'revised', actor, { fromVersion: revision.spec.version - 1, toVersion: revision.spec.version, noteId: note.id })
   }
   return note

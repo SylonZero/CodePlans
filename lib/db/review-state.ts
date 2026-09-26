@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm'
 import { db } from './index'
 import { codePlans, reviewParticipants, reviews, specRevisions, specs } from './schema'
 import type { ReviewState, ReviewSubjectType } from './schema.sqlite'
+import { createNotifications, type NotificationInput } from './notifications'
 
 /**
  * Review state that other writers must keep consistent: recomputing a
@@ -77,17 +78,35 @@ export async function recomputeReview(reviewId: string): Promise<ReviewState | n
  * approved has changed — an approval of v3 says nothing about v4, and nothing
  * silently carries it forward.
  */
-export async function onSubjectRevised(subjectType: ReviewSubjectType, subjectId: string) {
+export async function onSubjectRevised(subjectType: ReviewSubjectType, subjectId: string, actorId?: string) {
   const rows = await db.select().from(reviews).where(and(eq(reviews.subjectType, subjectType), eq(reviews.subjectId, subjectId), inArray(reviews.state, [...OPEN_STATES, 'approved'])))
   if (!rows.length) return
   const v = await subjectVersion(subjectType, subjectId)
+  const notices: NotificationInput[] = []
+  const title = subjectType === 'spec'
+    ? (await db.query.specs.findFirst({ where: eq(specs.id, subjectId) }))?.title ?? ''
+    : (await db.query.codePlans.findFirst({ where: eq(codePlans.id, subjectId) }))?.title ?? ''
+  const url = subjectType === 'spec' ? `/specs/${subjectId}` : `/plans/${subjectId}`
+  const base = { productId: rows[0].productId, subjectType, subjectId, url, actorId: actorId ?? null }
   for (const r of rows) {
+    const participants = await db.select().from(reviewParticipants).where(eq(reviewParticipants.reviewId, r.id))
     if (r.state === 'approved') {
-      if (!decisionIsCurrent(r.approvedVersion, v)) await db.update(reviews).set({ state: 'stale' }).where(eq(reviews.id, r.id))
+      if (decisionIsCurrent(r.approvedVersion, v)) continue
+      await db.update(reviews).set({ state: 'stale' }).where(eq(reviews.id, r.id))
+      // The people who approved, and whoever asked, should know the approval no longer covers the text.
+      for (const p of participants.filter((p) => p.decision === 'approved')) {
+        notices.push({ ...base, userId: p.userId, eventType: 'review.stale', reason: 'approver', title: `${title} changed after you approved v${r.approvedVersion}` })
+      }
+      if (r.requestedById) notices.push({ ...base, userId: r.requestedById, eventType: 'review.stale', reason: 'requester', title: `${title} changed since its v${r.approvedVersion} approval` })
     } else {
       await recomputeReview(r.id)
+      // Reviewers whose decision no longer covers the content need to look again.
+      for (const p of participants.filter((p) => p.decision !== 'pending' && !decisionIsCurrent(p.decidedAtVersion, v))) {
+        notices.push({ ...base, userId: p.userId, eventType: 'review.updated', reason: 'reviewer', title: `${title} was revised to v${v?.version} — your review needs another look` })
+      }
     }
   }
+  if (notices.length) await createNotifications(notices)
 }
 
 /** The most recent version an approval covered, even if the subject has moved on since. */
@@ -109,7 +128,7 @@ export async function isApprovedNow(subjectType: ReviewSubjectType, subjectId: s
  * plan commits to changes — scope (targets, addressed work items), linked
  * specs or the description — so plan reviews can pin to it.
  */
-export async function bumpPlanRevision(planId: string) {
+export async function bumpPlanRevision(planId: string, actorId?: string) {
   const [plan] = await db.update(codePlans).set({ revision: sql`${codePlans.revision} + 1` }).where(eq(codePlans.id, planId)).returning({ id: codePlans.id })
-  if (plan) await onSubjectRevised('code_plan', planId)
+  if (plan) await onSubjectRevised('code_plan', planId, actorId)
 }
