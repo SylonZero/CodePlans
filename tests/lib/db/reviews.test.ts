@@ -189,7 +189,7 @@ describe('graduation pins the approved version', () => {
     await decideReview(review.id, 'approved', undefined, { id: ERIN })
     await updateSpec(spec.id, { body: 'Next iteration, not yet agreed.' }, F.alice)
     const result = await graduateWorkItem('wi-grad', undefined, { id: F.alice })
-    expect('capability' in result && result.capability.sourceSpecVersion).toBe(1)
+    expect((result as any).capability.sourceSpecVersion).toBe(1)
   })
 
   it('accepts an explicit version within range', async () => {
@@ -199,6 +199,6 @@ describe('graduation pins the approved version', () => {
     await updateSpec(spec.id, { body: 'v2' }, F.alice)
     expect(await graduateWorkItem('wi-grad2', undefined, { id: F.alice }, { sourceSpecVersion: 9 })).toHaveProperty('error')
     const ok = await graduateWorkItem('wi-grad2', undefined, { id: F.alice }, { sourceSpecVersion: 1 })
-    expect('capability' in ok && ok.capability.sourceSpecVersion).toBe(1)
+    expect((ok as any).capability.sourceSpecVersion).toBe(1)
   })
 })

@@ -18,6 +18,8 @@ import type { EnterpriseHooks } from './types'
 
 const defaultHooks: EnterpriseHooks = {
   navItems: () => [],
+  reviewGate: () => ({ allowed: true, reasons: [] }),
+  workflowLevels: () => ['open', 'guided'],
 }
 
 const REGISTRY_KEY = Symbol.for('codeplans.ee.registry')

@@ -3,6 +3,7 @@ import { db } from './index'
 import { requireSpec, reviseSpec, specAssetAnchors, refreshSpecAssetLinks, auditSpec } from './specs'
 import { logAudit } from './audit'
 import { bumpPlanRevision, decisionIsCurrent, lastApprovedVersion, onSubjectRevised, subjectVersion } from './review-state'
+import { assertActivationAllowed } from './workflow'
 import { productIdFor } from './authz'
 import {
   products,
@@ -339,6 +340,9 @@ type UpdateCodePlanData = Partial<
 export async function updateCodePlan(id: string, data: UpdateCodePlanData, actor?: ArtifactActor) {
   const { targetAssetIds, ...columns } = data
   const before = await db.query.codePlans.findFirst({ where: eq(codePlans.id, id) })
+  if (before && actor && data.status === 'active' && before.status !== 'active') {
+    await assertActivationAllowed({ subjectType: 'code_plan', subjectId: id, transition: 'activate', actor })
+  }
   const [plan] = await db
     .update(codePlans)
     .set({ ...columns, ...editedBy(actor), updatedAt: new Date() })
@@ -429,6 +433,9 @@ export async function updateTask(id: string, data: UpdateTaskData, actor?: Artif
           actualEffort: data.actualEffort,
         }
       : data
+  if (actor && patch.status === 'in_progress' && existing.status === 'not_started') {
+    await assertActivationAllowed({ subjectType: 'code_plan', subjectId: existing.codePlanId, transition: 'start_task', taskId: id, actor })
+  }
 
   const [task] = await db
     .update(tasks)
@@ -444,6 +451,10 @@ export async function updateTaskStatus(id: string, status: 'not_started' | 'in_p
   if (!existing) return null
   // Status is mirrored — close/reopen the issue in the external tracker instead.
   if (existing.source !== 'native') return null
+  // Starting work is an activation: an extension may require the plan to be approved first.
+  if (actor && status !== 'not_started' && existing.status === 'not_started') {
+    await assertActivationAllowed({ subjectType: 'code_plan', subjectId: existing.codePlanId, transition: 'start_task', taskId: id, actor })
+  }
 
   const [task] = await db
     .update(tasks)

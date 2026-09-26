@@ -7,6 +7,7 @@ import { productAccessWhere } from './queries'
 import { assertCanWrite } from './authz'
 import { logAudit } from './audit'
 import { bumpPlanRevision, onSubjectRevised } from './review-state'
+import { assertActivationAllowed } from './workflow'
 
 export const specTargetType = z.enum(['asset', 'work_item', 'code_plan'])
 export const specRelationshipType = z.enum(['creates', 'revises', 'references'])
@@ -159,6 +160,9 @@ export async function updateSpec(id: string, input: z.input<typeof specUpdateInp
   const old = await requireSpec(id)
   await assertSpecProductWrite(userId, old.productId)
   const actor = { id: userId, kind: actorKind }
+  if (input.status === 'active' && old.status !== 'active') {
+    await assertActivationAllowed({ subjectType: 'spec', subjectId: id, transition: 'activate', actor })
+  }
   const spec = await db.transaction(async (tx) => (await reviseSpec(tx, id, input, undefined, actor)).spec)
   await auditSpec(spec, revisionEvent(old, spec), actor, { fromVersion: old.version, toVersion: spec.version, fromStatus: old.status, status: spec.status })
   await onSubjectRevised('spec', id)

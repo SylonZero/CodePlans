@@ -34,7 +34,38 @@ export type NavExtension = {
 export type EnterpriseHooks = {
   /** Extra items rendered under "Settings" in the dashboard sidebar. */
   navItems: () => NavExtension[]
+  /**
+   * Called on every activation path — a spec becoming active, a plan being
+   * activated, a task being started (including by an agent through MCP) —
+   * with plain data about the transition. Return `allowed: false` with
+   * human-readable reasons to block it; the caller surfaces them verbatim.
+   * The community default always allows.
+   */
+  reviewGate: (ctx: ReviewGateContext) => ReviewGateResult | Promise<ReviewGateResult>
+  /** Workflow levels a product may be set to. The community default is open and guided. */
+  workflowLevels: () => WorkflowLevelOption[]
 }
+
+export type WorkflowLevelOption = 'open' | 'guided' | 'gated'
+
+export type ReviewGateContext = {
+  productId: string
+  subjectType: 'spec' | 'code_plan'
+  subjectId: string
+  transition: 'activate' | 'start_task'
+  /** For start_task, the task being started. */
+  taskId?: string
+  actorId: string
+  actorKind: 'user' | 'agent'
+  workflowLevel: WorkflowLevelOption
+  /** Whether an approval covers the subject's current content. */
+  approved: boolean
+  /** Ids of code owners whose assets the subject touches, and of the requester/author, for smart-skip rules. */
+  codeOwnerIds: string[]
+  authorId: string | null
+}
+
+export type ReviewGateResult = { allowed: boolean; reasons: string[] }
 
 /**
  * The shape a private enterprise package is expected to export as its
