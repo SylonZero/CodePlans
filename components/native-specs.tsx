@@ -77,38 +77,73 @@ export function NativeSpecsPanel({ productId, targetType, targetId }: { productI
   </section>
 }
 
-export function SpecEditor({ spec, activationWarning = null, activationBlocked = null }: { spec: Spec; activationWarning?: string | null; activationBlocked?: string | null }) {
+/**
+ * Editing a spec, in two parts. Revising the title or text creates the next
+ * version (and can replace the spec outright); type, area and the import flag
+ * save in place. Lifecycle moves live in the action bar at the top of the page.
+ */
+export function SpecEditor({ spec }: { spec: Spec }) {
   const [body, setBody] = useState(spec.body)
-  const [status, setStatus] = useState(spec.status)
   const [title, setTitle] = useState(spec.title)
   const [specType, setSpecType] = useState(spec.specType)
   const [area, setArea] = useState(spec.area ?? '')
   const [needsReview, setNeedsReview] = useState(spec.needsReview)
   const [changeSummary, setChangeSummary] = useState('')
+  const [open, setOpen] = useState<{ revise: boolean; details: boolean }>({ revise: false, details: false })
   const [error, setError] = useState('')
   const [pending, start] = useTransition()
   const router = useRouter()
+  useEffect(() => {
+    function onOpen(e: Event) {
+      const section = (e as CustomEvent<'revise' | 'details' | 'supersede'>).detail
+      const key = section === 'details' ? 'details' : 'revise'
+      setOpen((o) => ({ ...o, [key]: true }))
+      requestAnimationFrame(() => document.getElementById(section === 'supersede' ? 'spec-supersede' : `spec-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    }
+    window.addEventListener('spec-editor:open', onOpen)
+    return () => window.removeEventListener('spec-editor:open', onOpen)
+  }, [])
   if (spec.status === 'superseded') return null
-  function save(replace: boolean) { start(async () => {
+  const contentChanged = body !== spec.body || title.trim() !== spec.title
+  const detailsChanged = specType.trim() !== spec.specType || (area.trim() || null) !== (spec.area ?? null) || needsReview !== spec.needsReview
+  function run(fn: () => Promise<void>) { start(async () => {
     setError('')
-    try {
-      if (replace) { const next = await supersedeSpecAction(spec.id, body, title); router.push(`/specs/${next.id}`) }
-      else { await updateSpecAction(spec.id, { body, title, specType, area: area || null, needsReview, status: status as 'draft' | 'in_review' | 'active' | 'archived', expectedVersion: spec.version, changeSummary: changeSummary.trim() || undefined }); router.refresh() }
-    } catch (e) { setError(e instanceof Error ? e.message : 'Could not save') }
+    try { await fn() } catch (e) { setError(e instanceof Error ? e.message : 'Could not save') }
   }) }
-  return <details className="rounded-lg border p-4"><summary className="cursor-pointer font-medium">Edit or replace this spec</summary><div className="mt-4 space-y-4">
-    <label className="block text-sm">Title<Input aria-label="Spec title" value={title} onChange={(e) => setTitle(e.target.value)} /></label>
-    <label className="block text-sm">Type<Input aria-label="Spec type" value={specType} onChange={(e) => setSpecType(e.target.value)} /></label>
-    <Input aria-label="Spec area" placeholder="Area (optional)" value={area} onChange={(e) => setArea(e.target.value)} />
-    {spec.sourceType === 'git_import' && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={needsReview} onChange={(e) => setNeedsReview(e.target.checked)} />Needs import review</label>}
-    <RichTextEditor value={spec.body} onChange={setBody} size="tall" />
-    <label className="block text-sm">Status<select aria-label="Spec status" className={selectClass} value={status} onChange={(e) => setStatus(e.target.value)}><option value="draft">Draft</option>{spec.status === 'in_review' && <option value="in_review">In review</option>}<option value="active">Active</option><option value="archived">Archived</option></select></label>
-    {status === 'active' && spec.status !== 'active' && activationBlocked && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{activationBlocked}</p>}
-    {status === 'active' && spec.status !== 'active' && !activationBlocked && activationWarning && <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">{activationWarning} You can still activate it.</p>}
-    <Input aria-label="Change summary" placeholder="What changed in this version? (optional)" value={changeSummary} onChange={(e) => setChangeSummary(e.target.value)} maxLength={500} />
-    <Button disabled={pending || !title.trim() || !specType.trim() || (status === 'active' && spec.status !== 'active' && !!activationBlocked)} onClick={() => save(false)}>{status === 'active' && spec.status !== 'active' && activationWarning ? `Activate anyway as v${spec.version + 1}` : `Save as v${spec.version + 1}`}</Button>
-    <div className="space-y-2 border-t pt-4"><p className="text-sm text-muted-foreground">Changed the approach? Replace this spec with a new draft. Existing delivery receipts stay with this version.</p>
-    <Button variant="outline" disabled={pending || !title.trim()} onClick={() => save(true)}>Supersede with new spec</Button></div>
+  const saveContent = () => run(async () => {
+    await updateSpecAction(spec.id, { body, title, expectedVersion: spec.version, changeSummary: changeSummary.trim() || undefined })
+    router.refresh()
+  })
+  const saveDetails = () => run(async () => {
+    await updateSpecAction(spec.id, { specType, area: area.trim() || null, needsReview, expectedVersion: spec.version })
+    router.refresh()
+  })
+  const supersede = () => run(async () => { const next = await supersedeSpecAction(spec.id, body, title); router.push(`/specs/${next.id}`) })
+  return <div className="space-y-3">
+    <details id="spec-revise" className="rounded-lg border p-4" open={open.revise} onToggle={(e) => { const isOpen = (e.currentTarget as HTMLDetailsElement).open; setOpen((o) => o.revise === isOpen ? o : { ...o, revise: isOpen }) }}>
+      <summary className="cursor-pointer font-medium">Revise content</summary>
+      <div className="mt-4 space-y-4">
+        <p className="text-sm text-muted-foreground">Saving a change to the title or text creates v{spec.version + 1} and keeps v{spec.version} in the history. Reviewers who approved v{spec.version} will be asked to look again.</p>
+        <label className="block text-sm">Title<Input aria-label="Spec title" value={title} onChange={(e) => setTitle(e.target.value)} /></label>
+        <RichTextEditor value={spec.body} onChange={setBody} size="tall" />
+        <Input aria-label="Change summary" placeholder="What changed in this version? (optional)" value={changeSummary} onChange={(e) => setChangeSummary(e.target.value)} maxLength={500} />
+        <Button disabled={pending || !title.trim() || !contentChanged} onClick={saveContent}>Save as v{spec.version + 1}</Button>
+        <div id="spec-supersede" className="space-y-2 border-t pt-4">
+          <p className="text-sm text-muted-foreground">Changed the approach? Replace this spec with a new draft using the text above. Existing delivery receipts stay with this spec.</p>
+          <Button variant="outline" disabled={pending || !title.trim()} onClick={supersede}>Supersede with new spec</Button>
+        </div>
+      </div>
+    </details>
+    <details id="spec-details" className="rounded-lg border p-4" open={open.details} onToggle={(e) => { const isOpen = (e.currentTarget as HTMLDetailsElement).open; setOpen((o) => o.details === isOpen ? o : { ...o, details: isOpen }) }}>
+      <summary className="cursor-pointer font-medium">Details</summary>
+      <div className="mt-4 space-y-4">
+        <p className="text-sm text-muted-foreground">Type, area and the import flag are saved on v{spec.version} without creating a new version.</p>
+        <label className="block text-sm">Type<Input aria-label="Spec type" value={specType} onChange={(e) => setSpecType(e.target.value)} /></label>
+        <label className="block text-sm">Area<Input aria-label="Spec area" placeholder="Area (optional)" value={area} onChange={(e) => setArea(e.target.value)} /></label>
+        {spec.sourceType === 'git_import' && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={needsReview} onChange={(e) => setNeedsReview(e.target.checked)} />Needs import review</label>}
+        <Button variant="outline" disabled={pending || !specType.trim() || !detailsChanged} onClick={saveDetails}>Save details</Button>
+      </div>
+    </details>
     {error && <p role="alert" className="text-destructive">{error}</p>}
-  </div></details>
+  </div>
 }

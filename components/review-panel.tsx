@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -173,6 +173,15 @@ function RequestForm({ summary, path }: { summary: ReviewSummary; path: string }
 
 export function ReviewPanel({ summary, currentUserId, path, noun }: { summary: ReviewSummary; currentUserId: string; path: string; noun: 'spec' | 'plan' }) {
   const [requesting, setRequesting] = useState(false)
+  // The spec action bar's "Request review" opens the form here.
+  useEffect(() => {
+    function onRequest() {
+      setRequesting(true)
+      requestAnimationFrame(() => document.getElementById('review')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    }
+    window.addEventListener('review:request', onRequest)
+    return () => window.removeEventListener('review:request', onRequest)
+  }, [])
   const current = summary.current
   return <section id="review" className="space-y-4 rounded-lg border bg-card p-5">
     <div className="flex flex-wrap items-center gap-2">

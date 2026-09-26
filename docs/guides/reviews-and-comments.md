@@ -29,8 +29,10 @@ plan's `revision`). Reviewers approve, request changes (with a note) or comment.
 - The review is **approved** when every required reviewer approves the current
   content (with no required reviewers, everyone on it counts as required). Any
   required reviewer requesting changes puts it in *Changes requested*.
-- Once approved, a later content change marks the approval **outdated**. A
-  status-only change, such as activating the approved spec, does not.
+- Once approved, a later content change marks the approval **outdated**.
+  Status and details changes don't create versions at all, so activating the
+  approved spec keeps both its version number and its approval. The spec page
+  offers **Activate v*n*** as soon as the review is approved.
 - A plan's revision moves when its targets, addressed work items, linked specs
   or description change.
 - Requesting a review moves a draft spec to *in review*; withdrawing returns it
