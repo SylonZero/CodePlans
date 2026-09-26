@@ -183,6 +183,13 @@
       "when": 1790390000000,
       "tag": "0025_product_members",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790400000000,
+      "tag": "0026_collaboration",
+      "breakpoints": true
     }
   ]
 }

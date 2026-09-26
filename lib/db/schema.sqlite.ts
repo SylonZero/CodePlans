@@ -33,6 +33,15 @@ export type IntegrationStatus = 'active' | 'paused' | 'error'
 export type SyncEntityType = 'work_item' | 'task' | 'code_plan' | 'asset' | 'product' | 'release' | 'asset_dependency' | 'integration' | 'spec'
 export type ActorKind = 'user' | 'agent' | 'connector'
 export type ProductResponsibility = 'eng_manager' | 'architect' | 'contributor'
+export type CommentSubjectType = 'spec' | 'code_plan' | 'work_item' | 'release' | 'asset'
+export type CommentKind = 'comment' | 'suggestion' | 'question'
+export type CommentAnchor = { quote: string; prefix?: string; suffix?: string }
+export type ReviewSubjectType = 'spec' | 'code_plan'
+export type ReviewState = 'open' | 'changes_requested' | 'approved' | 'withdrawn' | 'stale'
+export type ReviewReason = 'architect' | 'code_owner' | 'eng_manager' | 'requested'
+export type ReviewDecision = 'pending' | 'approved' | 'changes_requested' | 'commented'
+// Community levels are open and guided; 'gated' is recognized so an extension can enforce it.
+export type WorkflowLevel = 'open' | 'guided' | 'gated'
 export type ReleaseStatus = 'planned' | 'in_progress' | 'shipped' | 'abandoned'
 
 // ---------------------------------------------------------------------------
@@ -228,6 +237,9 @@ export const codePlans = sqliteTable('code_plans', {
   specUrl: text('spec_url'),
   // A plan ships in at most one release; detaching a release never touches its plans.
   releaseId: text('release_id').references((): AnySQLiteColumn => releases.id, { onDelete: 'set null' }),
+  // Bumped when scope (targets, addressed work items), linked specs or the description change.
+  // Plan reviews pin to it the way spec reviews pin to specs.version.
+  revision: integer('revision').notNull().default(1),
   source: text('source').$type<ItemSource>().notNull().default('native'),
   connectionId: text('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
   externalId: text('external_id'),
@@ -562,3 +574,99 @@ export const specEvents = sqliteTable('spec_events', {
   noteId: text('note_id').references(() => assetDesignLog.id, { onDelete: 'set null' }),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
 }, (t) => [index('spec_events_asset_idx').on(t.assetId)])
+
+
+// ---------------------------------------------------------------------------
+// Collaboration: comments and reviews
+// ---------------------------------------------------------------------------
+
+// Feedback threads on specs, plans, work items, releases and assets. A comment
+// is pinned to the subject version it was written against so anchored remarks
+// can be shown as outdated once the text moves on.
+export const comments = sqliteTable('comments', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  productId: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  subjectType: text('subject_type').$type<CommentSubjectType>().notNull(),
+  subjectId: text('subject_id').notNull(),
+  subjectVersion: integer('subject_version'),
+  // One level of threading: replies point at a top-level comment.
+  parentId: text('parent_id').references((): AnySQLiteColumn => comments.id, { onDelete: 'cascade' }),
+  // Set when the comment is the note attached to a review decision.
+  reviewId: text('review_id').references((): AnySQLiteColumn => reviews.id, { onDelete: 'set null' }),
+  // { quote, prefix, suffix } for inline spec comments; re-matched after revisions.
+  anchor: text('anchor', { mode: 'json' }).$type<CommentAnchor | null>(),
+  body: text('body').notNull(),
+  kind: text('kind').$type<CommentKind>().notNull().default('comment'),
+  authorId: text('author_id').references(() => users.id, { onDelete: 'set null' }),
+  authorType: text('author_type').$type<'user' | 'agent'>().notNull().default('user'),
+  resolvedAt: integer('resolved_at', { mode: 'timestamp_ms' }),
+  resolvedById: text('resolved_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+  editedAt: integer('edited_at', { mode: 'timestamp_ms' }),
+  deletedAt: integer('deleted_at', { mode: 'timestamp_ms' }),
+}, (t) => [
+  index('comments_subject_idx').on(t.subjectType, t.subjectId, t.createdAt),
+  index('comments_parent_idx').on(t.parentId),
+])
+
+export const commentMentions = sqliteTable('comment_mentions', {
+  commentId: text('comment_id').notNull().references(() => comments.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('comment_mentions_pk').on(t.commentId, t.userId),
+  index('comment_mentions_user_idx').on(t.userId),
+])
+
+// A review is an attestation on a pinned subject version: approving v3 says
+// nothing about v4. While open, decisions count only at the subject's current
+// version; once approved, a later revision marks the review stale.
+export const reviews = sqliteTable('reviews', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  productId: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  subjectType: text('subject_type').$type<ReviewSubjectType>().notNull(),
+  subjectId: text('subject_id').notNull(),
+  // Version when requested; approvedVersion is the version that was approved.
+  subjectVersion: integer('subject_version').notNull(),
+  approvedVersion: integer('approved_version'),
+  requestedById: text('requested_by_id').references(() => users.id, { onDelete: 'set null' }),
+  requestedByKind: text('requested_by_kind').$type<'user' | 'agent'>().notNull().default('user'),
+  note: text('note'),
+  dueAt: text('due_at'),
+  state: text('state').$type<ReviewState>().notNull().default('open'),
+  requestedAt: integer('requested_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+  closedAt: integer('closed_at', { mode: 'timestamp_ms' }),
+}, (t) => [
+  index('reviews_subject_idx').on(t.subjectType, t.subjectId, t.requestedAt),
+  index('reviews_product_state_idx').on(t.productId, t.state),
+])
+
+export const reviewParticipants = sqliteTable('review_participants', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  reviewId: text('review_id').notNull().references(() => reviews.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // The responsibility held when added; kept even if it changes later.
+  reason: text('reason').$type<ReviewReason>().notNull(),
+  required: integer('required', { mode: 'boolean' }).notNull().default(false),
+  decision: text('decision').$type<ReviewDecision>().notNull().default('pending'),
+  decidedAt: integer('decided_at', { mode: 'timestamp_ms' }),
+  decidedAtVersion: integer('decided_at_version'),
+}, (t) => [
+  uniqueIndex('review_participants_user_idx').on(t.reviewId, t.userId),
+  index('review_participants_pending_idx').on(t.userId, t.decision),
+])
+
+// First org-level configuration storage. One row per org, created on demand.
+export const orgSettings = sqliteTable('org_settings', {
+  organizationId: text('organization_id').primaryKey().references(() => organizations.id, { onDelete: 'cascade' }),
+  workflowDefault: text('workflow_default').$type<WorkflowLevel>().notNull().default('open'),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+  updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+})
+
+// Per-product overrides. A null workflow level inherits the org default.
+export const productSettings = sqliteTable('product_settings', {
+  productId: text('product_id').primaryKey().references(() => products.id, { onDelete: 'cascade' }),
+  workflowLevel: text('workflow_level').$type<WorkflowLevel>(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+  updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+})

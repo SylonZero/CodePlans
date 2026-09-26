@@ -14,6 +14,7 @@ import {
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
+import type { CommentSubjectType, CommentKind, CommentAnchor, ReviewSubjectType, ReviewState, ReviewReason, ReviewDecision, WorkflowLevel } from './schema.sqlite'
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -232,6 +233,9 @@ export const codePlans = pgTable('code_plans', {
   specUrl: text('spec_url'),
   // A plan ships in at most one release; detaching a release never touches its plans.
   releaseId: uuid('release_id').references((): AnyPgColumn => releases.id, { onDelete: 'set null' }),
+  // Bumped when scope (targets, addressed work items), linked specs or the description change.
+  // Plan reviews pin to it the way spec reviews pin to specs.version.
+  revision: integer('revision').notNull().default(1),
   source: text('source').notNull().default('native'),
   connectionId: uuid('connection_id').references(() => integrations.id, { onDelete: 'set null' }),
   externalId: text('external_id'),
@@ -567,3 +571,99 @@ export const specEvents = pgTable('spec_events', {
   noteId: uuid('note_id').references(() => assetDesignLog.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('spec_events_asset_idx').on(t.assetId)])
+
+
+// ---------------------------------------------------------------------------
+// Collaboration: comments and reviews
+// ---------------------------------------------------------------------------
+
+// Feedback threads on specs, plans, work items, releases and assets. A comment
+// is pinned to the subject version it was written against so anchored remarks
+// can be shown as outdated once the text moves on.
+export const comments = pgTable('comments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  subjectType: text('subject_type').$type<CommentSubjectType>().notNull(),
+  subjectId: uuid('subject_id').notNull(),
+  subjectVersion: integer('subject_version'),
+  // One level of threading: replies point at a top-level comment.
+  parentId: uuid('parent_id').references((): AnyPgColumn => comments.id, { onDelete: 'cascade' }),
+  // Set when the comment is the note attached to a review decision.
+  reviewId: uuid('review_id').references((): AnyPgColumn => reviews.id, { onDelete: 'set null' }),
+  // { quote, prefix, suffix } for inline spec comments; re-matched after revisions.
+  anchor: jsonb('anchor').$type<CommentAnchor | null>(),
+  body: text('body').notNull(),
+  kind: text('kind').$type<CommentKind>().notNull().default('comment'),
+  authorId: uuid('author_id').references(() => users.id, { onDelete: 'set null' }),
+  authorType: text('author_type').$type<'user' | 'agent'>().notNull().default('user'),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  resolvedById: uuid('resolved_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  editedAt: timestamp('edited_at', { withTimezone: true }),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+}, (t) => [
+  index('comments_subject_idx').on(t.subjectType, t.subjectId, t.createdAt),
+  index('comments_parent_idx').on(t.parentId),
+])
+
+export const commentMentions = pgTable('comment_mentions', {
+  commentId: uuid('comment_id').notNull().references(() => comments.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('comment_mentions_pk').on(t.commentId, t.userId),
+  index('comment_mentions_user_idx').on(t.userId),
+])
+
+// A review is an attestation on a pinned subject version: approving v3 says
+// nothing about v4. While open, decisions count only at the subject's current
+// version; once approved, a later revision marks the review stale.
+export const reviews = pgTable('reviews', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  subjectType: text('subject_type').$type<ReviewSubjectType>().notNull(),
+  subjectId: uuid('subject_id').notNull(),
+  // Version when requested; approvedVersion is the version that was approved.
+  subjectVersion: integer('subject_version').notNull(),
+  approvedVersion: integer('approved_version'),
+  requestedById: uuid('requested_by_id').references(() => users.id, { onDelete: 'set null' }),
+  requestedByKind: text('requested_by_kind').$type<'user' | 'agent'>().notNull().default('user'),
+  note: text('note'),
+  dueAt: text('due_at'),
+  state: text('state').$type<ReviewState>().notNull().default('open'),
+  requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
+  closedAt: timestamp('closed_at', { withTimezone: true }),
+}, (t) => [
+  index('reviews_subject_idx').on(t.subjectType, t.subjectId, t.requestedAt),
+  index('reviews_product_state_idx').on(t.productId, t.state),
+])
+
+export const reviewParticipants = pgTable('review_participants', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  reviewId: uuid('review_id').notNull().references(() => reviews.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // The responsibility held when added; kept even if it changes later.
+  reason: text('reason').$type<ReviewReason>().notNull(),
+  required: boolean('required').notNull().default(false),
+  decision: text('decision').$type<ReviewDecision>().notNull().default('pending'),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+  decidedAtVersion: integer('decided_at_version'),
+}, (t) => [
+  uniqueIndex('review_participants_user_idx').on(t.reviewId, t.userId),
+  index('review_participants_pending_idx').on(t.userId, t.decision),
+])
+
+// First org-level configuration storage. One row per org, created on demand.
+export const orgSettings = pgTable('org_settings', {
+  organizationId: uuid('organization_id').primaryKey().references(() => organizations.id, { onDelete: 'cascade' }),
+  workflowDefault: text('workflow_default').$type<WorkflowLevel>().notNull().default('open'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedById: uuid('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+})
+
+// Per-product overrides. A null workflow level inherits the org default.
+export const productSettings = pgTable('product_settings', {
+  productId: uuid('product_id').primaryKey().references(() => products.id, { onDelete: 'cascade' }),
+  workflowLevel: text('workflow_level').$type<WorkflowLevel>(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedById: uuid('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+})
