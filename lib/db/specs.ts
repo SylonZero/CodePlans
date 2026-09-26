@@ -22,7 +22,6 @@ export const specUpdateFields = {
   title: z.string().trim().min(1).max(500).optional(),
   specType: z.string().trim().min(1).max(100).optional(),
   area: z.string().trim().max(500).nullable().optional(),
-  needsReview: z.boolean().optional(),
   body: z.string().max(500_000).optional(),
   status: z.enum(['draft', 'in_review', 'active', 'archived']).optional(),
   expectedVersion: z.number().int().positive().optional(),
@@ -114,7 +113,9 @@ export async function createSpec(input: z.input<typeof specInput>, userId: strin
   await assertSpecProductWrite(userId, data.productId)
   const actor = { id: userId, kind: authorType }
   const row = await db.transaction(async (tx) => {
-    const [created] = await tx.insert(specs).values({ ...data, authorType, ...createdBy(actor) }).returning()
+    // Imports start in review: someone checks the content and classification before it's current intent.
+    const status = data.sourceType === 'git_import' ? 'in_review' : 'draft'
+    const [created] = await tx.insert(specs).values({ ...data, status, authorType, ...createdBy(actor) }).returning()
     await recordRevision(tx, created, actor)
     return created
   })
@@ -154,14 +155,12 @@ export async function reviseSpec(d: SpecDb, id: string, input: z.input<typeof sp
   const contentChanged = contentChanges(old, data)
   const detailsChanged = (data.specType !== undefined && data.specType !== old.specType)
     || (data.area !== undefined && (data.area || null) !== (old.area ?? null))
-    || (data.needsReview !== undefined && data.needsReview !== old.needsReview)
     || (data.status !== undefined && data.status !== old.status)
   if (!contentChanged && !detailsChanged) return { spec: old, events: [], contentChanged: false, changed: false }
   const [row] = await d.update(specs).set({
     ...(data.title !== undefined ? { title: data.title } : {}),
     ...(data.specType !== undefined ? { specType: data.specType } : {}),
     ...(data.area !== undefined ? { area: data.area } : {}),
-    ...(data.needsReview !== undefined ? { needsReview: data.needsReview } : {}),
     ...(data.body !== undefined ? { body: data.body } : {}),
     ...(data.status !== undefined ? { status: data.status } : {}),
     ...editedBy(actor), ...(contentChanged ? { version: old.version + 1 } : {}), updatedAt: new Date(),
@@ -253,7 +252,7 @@ export async function supersedeSpec(oldId: string, newBody: string, title: strin
   const actor = { id: userId, kind: authorType }
   const next = await db.transaction(async (tx) => {
     if (old.status === 'superseded' || old.supersededBy) throw new Error('Spec is already superseded')
-    const [next] = await tx.insert(specs).values({ ...data, ...createdBy({ id: userId, kind: authorType }), supersedes: oldId, authorType, needsReview: old.needsReview }).returning()
+    const [next] = await tx.insert(specs).values({ ...data, ...createdBy({ id: userId, kind: authorType }), supersedes: oldId, authorType }).returning()
     await recordRevision(tx, next, actor, `Replaces "${old.title}" v${old.version}`)
     const [changed] = await tx.update(specs).set({ status: 'superseded', supersededBy: next.id, ...editedBy({ id: userId, kind: authorType }), updatedAt: new Date() })
       .where(and(eq(specs.id, oldId), eq(specs.version, old.version), isNull(specs.supersededBy))).returning()

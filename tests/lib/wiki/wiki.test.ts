@@ -240,7 +240,7 @@ describe('product wiki', () => {
         .some((a) => a.assetId === foreign.id),
     ).toBe(false)
   })
-  it('marks specs and plans with an open review, separately from import triage', async () => {
+  it('lists specs and plans with an open review, and imports waiting to be checked, as awaiting review', async () => {
     const { requestReview } = await import('@/lib/db/reviews')
     const spec = await createSpec({ productId: F.productShared, title: 'Reviewed', body: 'x', specType: 'api' }, F.alice)
     await requestReview({ subjectType: 'spec', subjectId: spec.id, reviewers: [{ userId: F.bob }] }, { id: F.alice })
@@ -248,6 +248,9 @@ describe('product wiki', () => {
     const data = (await getWikiProduct('shared-product', F.alice))!
     const awaiting = searchWiki(data.documents, { awaitingReview: true }).map((r) => r.document.key).sort()
     expect(awaiting).toEqual([`plan:${F.planActive}`, `spec:${spec.id}`].sort())
-    expect(searchWiki(data.documents, { triage: true })).toEqual([])
+    const imported = await createSpec({ productId: F.productShared, title: 'Imported', body: 'y', specType: 'api', sourceType: 'git_import', sourceUrl: 'https://github.com/acme/app/blob/main/docs/a.md' }, F.alice)
+    expect(imported.status).toBe('in_review')
+    const after = (await getWikiProduct('shared-product', F.alice))!
+    expect(searchWiki(after.documents, { awaitingReview: true }).map((r) => r.document.key)).toContain(`spec:${imported.id}`)
   })
 })

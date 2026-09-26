@@ -45,8 +45,6 @@ export type WikiDocument = {
   specType?: string
   sourceUrl?: string | null
   sourceType?: string
-  /** Git-import quality flag: classification and content still need a human pass. */
-  needsReview?: boolean
   /** An open review (spec or plan) and its state; absent when none is open. */
   reviewState?: 'open' | 'changes_requested' | null
   placeholder?: boolean
@@ -127,6 +125,11 @@ export function plainText(value: string) {
     .replace(/\s+/g, ' ')
     .trim()
 }
+/** Waiting on someone to check it: an open review, or a spec in review without one yet (a fresh import). */
+export function awaitsReview(doc: Pick<WikiDocument, 'kind' | 'status' | 'reviewState'>) {
+  return !!doc.reviewState || (doc.kind === 'spec' && doc.status === 'in_review')
+}
+
 export function searchWiki(
   documents: WikiDocument[],
   filters: {
@@ -136,9 +139,7 @@ export function searchWiki(
     status?: string
     since?: string
     archived?: boolean
-    /** Imported specs flagged for triage (needsReview). */
-    triage?: boolean
-    /** Specs and plans with an open review. */
+    /** Specs in review (including imports not yet checked) and plans with an open review. */
     awaitingReview?: boolean
     area?: string
   },
@@ -163,8 +164,7 @@ export function searchWiki(
           : !filters.archived && inactiveStatuses.has(doc.status)
       )
         return []
-      if (filters.triage && !doc.needsReview) return []
-      if (filters.awaitingReview && !doc.reviewState) return []
+      if (filters.awaitingReview && !awaitsReview(doc)) return []
       if (filters.area && doc.area !== filters.area) return []
       if (
         filters.since &&

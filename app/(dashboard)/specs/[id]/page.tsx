@@ -46,7 +46,7 @@ export default async function SpecPage({ params, searchParams }: {
     : null
   const open = review.current
   const actionState: SpecActionState = {
-    specId: id, status: spec.status as SpecActionState['status'], version: spec.version, canEdit,
+    specId: id, status: spec.status as SpecActionState['status'], version: spec.version, canEdit, imported: spec.sourceType === 'git_import',
     approvedNow: review.approvedNow, lastApprovedVersion: review.lastApprovedVersion,
     openReview: open ? {
       total: open.participants.length,
@@ -76,7 +76,6 @@ export default async function SpecPage({ params, searchParams }: {
       <Link className="underline" href={`/specs/${id}`}>Back to current</Link>
     </div>}
     {spec.sourceUrl && /^https?:\/\//.test(spec.sourceUrl) && <a className="text-sm underline" href={spec.sourceUrl} target="_blank" rel="noreferrer">Original {spec.sourceType === 'git_import' ? 'git import' : 'source'} citation</a>}
-    {spec.needsReview && <p className="text-sm text-muted-foreground">Imported spec: review the classification and content.</p>}
     {spec.supersedes && <p>Replaces <Link className="underline" href={`/specs/${spec.supersedes}`}>previous spec</Link></p>}
     {spec.supersededBy && <p>Superseded by <Link className="underline" href={`/specs/${spec.supersededBy}`}>replacement spec</Link></p>}
     {showDiff

@@ -20,7 +20,7 @@ export type SpecListRow = {
   area: string | null
   status: string
   version: number
-  needsReview: boolean
+  sourceType: string
   authorType: string
   updatedAt: string
   linkCount: number
@@ -36,12 +36,12 @@ export const specStatusStyles: Record<string, string> = {
   superseded: 'bg-muted text-muted-foreground line-through',
 }
 
-type TabKey = 'current' | 'review' | 'triage' | 'retired' | 'all'
+type TabKey = 'current' | 'review' | 'retired' | 'all'
 
 const inTab: Record<TabKey, (s: SpecListRow) => boolean> = {
   current: (s) => s.status === 'draft' || s.status === 'in_review' || s.status === 'active',
-  review: (s) => s.reviewState !== null,
-  triage: (s) => s.needsReview && (s.status === 'draft' || s.status === 'in_review' || s.status === 'active'),
+  // An open review, or in review without one yet (a fresh import waiting on a check).
+  review: (s) => s.reviewState !== null || s.status === 'in_review',
   retired: (s) => s.status === 'archived' || s.status === 'superseded',
   all: () => true,
 }
@@ -76,7 +76,6 @@ export function SpecsClient({ specs, showProduct }: { specs: SpecListRow[]; show
           <TabsList className="bg-muted">
             <TabsTrigger value="current">Current ({specs.filter(inTab.current).length})</TabsTrigger>
             <TabsTrigger value="review">In review ({specs.filter(inTab.review).length})</TabsTrigger>
-            <TabsTrigger value="triage">Import triage ({specs.filter(inTab.triage).length})</TabsTrigger>
             <TabsTrigger value="retired">Archived ({specs.filter(inTab.retired).length})</TabsTrigger>
             <TabsTrigger value="all">All ({specs.length})</TabsTrigger>
           </TabsList>
@@ -115,7 +114,7 @@ export function SpecsClient({ specs, showProduct }: { specs: SpecListRow[]; show
                   <div className="flex shrink-0 items-center gap-2">
                     {s.openThreads > 0 && <span className="text-xs text-muted-foreground" title="Open comment threads">{s.openThreads} open {s.openThreads === 1 ? 'thread' : 'threads'}</span>}
                     {s.reviewState && <Badge variant="secondary" className={REVIEW_STATE_STYLES[s.reviewState]}>{REVIEW_STATE_LABELS[s.reviewState]}</Badge>}
-                    {s.needsReview && <Badge variant="outline" className="border-warning/50 text-warning">Import triage</Badge>}
+                    {s.sourceType === 'git_import' && <Badge variant="outline" className="text-muted-foreground" title="Imported from a git repository">Imported</Badge>}
                     <span className="font-mono text-xs text-muted-foreground">v{s.version}</span>
                     {!(s.status === 'in_review' && s.reviewState) && <Badge variant="secondary" className={cn(specStatusStyles[s.status])}>{s.status.replace('_', ' ')}</Badge>}
                   </div>

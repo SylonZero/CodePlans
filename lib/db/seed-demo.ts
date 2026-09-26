@@ -988,6 +988,8 @@ async function seed() {
   console.log('\nCreating specs...')
 
   type SeedSpec = {
+    /** Set for a spec imported from git; it starts in review. */
+    sourceUrl?: string
     productId: string; title: string; specType: string; area?: string; authorId: string
     versions: { body: string; summary?: string; status?: 'draft' | 'active'; by?: string }[]
     links: { targetType: 'asset' | 'code_plan'; targetId: string; relationshipType?: 'creates' | 'revises' | 'references' }[]
@@ -1023,6 +1025,13 @@ async function seed() {
       versions: [{ body: '## Preferences\n\nUsers choose per event whether to get a push, an email, or nothing.' }],
       links: [{ targetType: 'code_plan', targetId: pushPlanId, relationshipType: 'creates' }],
     },
+    {
+      // Imported from the repo's docs folder and not yet checked: it sits in review.
+      productId: platformId, title: 'Search ranking signals', specType: 'architecture', area: 'search', authorId: lisaId,
+      sourceUrl: 'https://github.com/codeplans/platform/blob/main/docs/search/ranking.md',
+      versions: [{ body: '## Signals\n\nRank by title match, then recency, then how many plans link the document.\n\n## Boosts\n\nActive specs rank above drafts.' }],
+      links: [{ targetType: 'asset', targetId: searchId }],
+    },
   ]
   const { createSpec, updateSpec, linkSpec } = await import('./specs')
   const { specs: specsTable } = await import('./schema')
@@ -1030,7 +1039,8 @@ async function seed() {
     const existing = await db.query.specs.findFirst({ where: (t, { and, eq }) => and(eq(t.productId, def.productId), eq(t.title, def.title)) })
     if (existing) continue
     const [first, ...rest] = def.versions
-    const spec = await createSpec({ productId: def.productId, title: def.title, body: first.body, specType: def.specType, area: def.area }, def.authorId)
+    const spec = await createSpec({ productId: def.productId, title: def.title, body: first.body, specType: def.specType, area: def.area,
+      ...(def.sourceUrl ? { sourceType: 'git_import' as const, sourceUrl: def.sourceUrl } : {}) }, def.authorId)
     for (const v of rest) await updateSpec(spec.id, { body: v.body, changeSummary: v.summary, status: v.status }, v.by ?? def.authorId)
     for (const l of def.links) await linkSpec(spec.id, l.targetType, l.targetId, l.relationshipType, def.authorId)
   }

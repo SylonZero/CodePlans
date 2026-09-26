@@ -12,7 +12,10 @@ Use `list_specs(productId)` to index imported specs by `sourceUrl` within that
 product. For each document, reuse its existing spec or call
 `create_spec(productId, title, body, specType, area?, sourceType: git_import,
 sourceUrl)` with the full Markdown body. `sourceUrl` is provenance; after import,
-CodePlans owns the body. A rerun must not silently replace later native edits.
+CodePlans owns the body. Imported specs start **in review**: a person checks the
+content and classification, then activates the spec or requests a formal
+review. Don't activate imports from the skill, and don't try to set the old
+`needsReview` flag; it no longer exists. A rerun must not silently replace later native edits.
 Use `update_spec` with `expectedVersion` for an intentional revision, or
 `supersede_spec` if the approach changed.
 

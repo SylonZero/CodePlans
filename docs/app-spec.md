@@ -105,7 +105,7 @@ ship additive, journaled `0017_native_specs` Drizzle migrations.
 
 | Table | Fields and constraints |
 |---|---|
-| `specs` | `id`, `productId` (cascade FK), `title`, GFM `body`, open-string `specType`, optional `area`, `status` (draft/active/archived/superseded), `version` (starts at 1), self-FKs `supersedes` / `supersededBy`, `sourceType` (native/git_import), `sourceUrl`, `needsReview`, `authorType`, timestamps |
+| `specs` | `id`, `productId` (cascade FK), `title`, GFM `body`, open-string `specType`, optional `area`, `status` (draft/in_review/active/archived/superseded; git imports start in_review), `version` (starts at 1), self-FKs `supersedes` / `supersededBy`, `sourceType` (native/git_import), `sourceUrl`, `authorType`, timestamps |
 | `spec_links` | `id`, `specId` (cascade FK), `targetType` (asset/work_item/code_plan), `targetId`, optional `relationshipType` (creates/revises/references for plans), `createdAt`; unique `(specId, targetType, targetId)` |
 | `spec_events` | `id`, `specId`, `assetId`, `kind` (spec_linked/spec_updated), title/type snapshots, `fromVersion` / `toVersion`, optional `planId`, `workItemId`, `noteId`, `createdAt` |
 
@@ -125,7 +125,7 @@ diffs are outside scope.
 
 Legacy `code_plans.specUrl` and `work_items.specUrl` remain readable citations;
 native forms and MCP no longer write them. `scripts/migrate-specs.ts` imports
-them with product-scoped deduplication and review flags. It defaults to dry-run
+them with product-scoped deduplication, and imported specs start in review. It defaults to dry-run
 and never overwrites later native content on reruns. See the
 [migration commands and PostgreSQL verifier](guides/using-specs.md#migrating-existing-urls).
 

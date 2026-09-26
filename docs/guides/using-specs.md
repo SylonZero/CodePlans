@@ -19,7 +19,7 @@ The picker defaults a plan association to `references`.
 
 New specs start as draft at v1. **Only content creates a version:** changing
 the title or body increments it and keeps the previous text in history.
-Status, specType, area and needsReview change in place on the current version,
+Status, specType and area change in place on the current version,
 so activating, archiving or reclassifying a spec never produces a version whose
 text is identical to the last, and never outdates an approval. A save that
 changes nothing is ignored. `expectedVersion` rejects stale edits either way.
@@ -54,8 +54,8 @@ state and your permissions:
 
 None of these create a version except **Revise content**, which opens the
 editor: saving a changed title or text creates the next version and asks
-earlier approvers to look again. **Details** (type, area, the import flag)
-save on the current version. Viewers see the status and explanation without
+earlier approvers to look again. **Details** (type and area) save on the
+current version. Viewers see the status and explanation without
 actions, and can still comment.
 
 ## Delivery and history
@@ -126,8 +126,9 @@ fetcher; inaccessible, malformed, or unsupported URLs become placeholder specs
 and never block import. The fetcher supports branch names containing slashes and keeps the full
 original URL as provenance.
 
-URLs deduplicate within a product, never across products. Every import is
-flagged `needsReview`; the original URL is preserved. Re-runs reuse specs and
+URLs deduplicate within a product, never across products. Every import
+starts **in review**, so someone checks its content and classification before
+activating it or asking for a formal review; the original URL is preserved. Re-runs reuse specs and
 existing associations without replacing curated bodies or delivery receipts.
 The script leaves original `specUrl` columns intact.
 

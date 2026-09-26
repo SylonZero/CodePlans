@@ -20,7 +20,7 @@ Build order: foundations (authz enforcement, event emission, spec revision bodie
 | My Work | `app/(dashboard)/my-work/page.tsx` shows four lists: open tasks assigned to me, plans I own, work items I own, and assets I own (`getOwnedAssets`, which ignores product scope). | It is a list of *things I own*, not *things waiting on me*. It has no review queue, no feedback, and no "why". |
 | Roles | `organization_members.role` is `owner/admin/editor/viewer`. `authz.ts` only gates deletes. `inviteMemberAction` and integration creation have no role check, and `viewer` is not blocked from writing anywhere. | The permission model exists on paper only. Review and notification config need real enforcement first. |
 | Ownership | `asset_owners` ("declared responsibility, like code owners, not an ACL"), `codePlans.ownerId`, `workItems.ownerId/reporterId`, `tasks.assigneeId`. No `product_members`. | Code owner and developer already exist implicitly. Engineering manager and architect don't exist at all. |
-| Specs | Status is `draft/active/archived/superseded`. `reviseSpec` bumps `version` with CAS. `needsReview` is an **import-quality** flag set only by the git migration. `spec_events` has no actor. Spec changes are not written to `sync_log`. Old bodies are not retained. | The wiki's "Specs needing review" view is really an *import-triage* view. Nobody can review a revision, because the revision's content isn't kept. |
+| Specs | Status is `draft/active/archived/superseded`. `reviseSpec` bumps `version` with CAS. `needsReview` was an **import-quality** flag set only by the git migration (since removed: imports now start `in_review`). `spec_events` has no actor. Spec changes are not written to `sync_log`. Old bodies are not retained. | The wiki's "Specs needing review" view is really an *import-triage* view. Nobody can review a revision, because the revision's content isn't kept. |
 | Comments | None. The only "comment" code writes back to external trackers (`lib/integrations/writeback.ts`). | There is no feedback channel inside CodePlans. |
 | Events | `sync_log` via `logAudit` (about 51 call sites, never throws) feeds the activity feed and asset history. `logAudit` resolves the org from `users.organizationId`, the *current-org pointer*. | This is a usable event source, but it must key off the *entity's* product and org, or notifications for multi-org users will route to the wrong org. |
 | Delivery | `lib/email.ts` uses Resend for verification and invite emails only (env `RESEND_API_KEY`). There are no webhooks and no cron; sync is manual. The header Bell button has no handler. | No notification pipeline exists yet, and there is no org-level settings storage (`organizations` has no config column). |
@@ -169,7 +169,7 @@ workflow: { level: 'open' | 'guided' }
 
 **Split the two meanings of "review" in the wiki:**
 
-- `needsReview` → rename it in the UI to **"Needs triage (imported)"**. Keep the column, since this is a data-quality signal.
+- `needsReview` → originally kept as a separate import-triage signal. **Superseded:** imports now start `in_review` and the column was dropped (migration 0030), so there is one "needs checking" signal, not two.
 - New **"Awaiting review"** view: specs with an open `reviews` row. This is what the wiki mock already implies, and the main app gains the same list at `/specs?view=review`. Add the missing Specs list page, which currently exists only as `/specs/[id]`.
 
 ### 4. My Work as a role-aware inbox

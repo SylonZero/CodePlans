@@ -3,6 +3,7 @@ import { WikiTime } from './time'
 import { WikiMarkdown } from './markdown'
 import { wikiOutline, sourceKey } from '@/lib/wiki/markdown'
 import {
+  awaitsReview,
   kindLabels,
   plainText,
   wikiHref,
@@ -33,7 +34,7 @@ export function DocumentList({
               {d.specType ? ` / ${d.specType}` : ''}
             </span>
             <span
-              className={`wiki-state ${d.needsReview || d.reviewState ? 'wiki-review' : ''}`}
+              className={`wiki-state ${awaitsReview(d) ? 'wiki-review' : ''}`}
             >
               {d.placeholder
                 ? 'Source reference'
@@ -41,9 +42,7 @@ export function DocumentList({
                   ? 'Changes requested'
                   : d.reviewState
                     ? 'In review'
-                    : d.needsReview
-                      ? 'Import triage'
-                      : d.status.replaceAll('_', ' ')}
+                    : d.status.replaceAll('_', ' ')}
             </span>
           </div>
           <Link href={wikiHref(data.product.slug, { doc: d.key })}>
@@ -403,11 +402,6 @@ export function DocumentReader({
           {doc.reviewState && (
             <Link className="wiki-review" href={`${doc.editUrl}#review`}>
               {doc.reviewState === 'changes_requested' ? 'Changes requested' : 'In review'}
-            </Link>
-          )}
-          {doc.needsReview && (
-            <Link className="wiki-review" href={doc.editUrl}>
-              Import triage
             </Link>
           )}
         </div>
