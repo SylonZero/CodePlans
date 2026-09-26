@@ -378,6 +378,7 @@ export async function getCodePlans(userId: string, filters: PlanFilters = {}): P
       productId: codePlans.productId,
       type: codePlans.type,
       status: codePlans.status,
+      revision: codePlans.revision,
       tags: codePlans.tags,
       startDate: codePlans.startDate,
       endDate: codePlans.endDate,
