@@ -15,7 +15,7 @@ These captures use a synthetic Atlas demo workspace. Select an image to inspect 
 
 [![Full spec reader with GFM tables, version details, authors, and section navigation](../screenshots/wiki-reader.png)](../screenshots/wiki-reader.png)
 
-*Read the whole document with its context alongside. [See the product overview and search in the visual tour](https://sylonzero.github.io/CodePlans/#wiki).*
+*Read the whole document with its context alongside. [See the product overview and search in the visual tour](https://sylonzero.github.io/CodePlans/specs.html).*
 
 ## Browse an asset's story
 

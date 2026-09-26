@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CodePlans — Self-host</title>
+  <meta name="description" content="Run CodePlans yourself: quickstart, deployment modes, environment variables and the tech stack." />
+  <link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+<!-- Generated page: the nav and footer are repeated on every page of the site. -->
+<nav>
+  <div class="container inner">
+    <a class="nav-logo" href="index.html" style="text-decoration:none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> CodePlans</a>
+    <div class="nav-links">
+      <a href="index.html">Overview</a><a href="plan.html">Plan &amp; deliver</a><a href="assets.html">Assets</a><a href="specs.html">Specs &amp; Wiki</a><a href="reviews.html">Reviews</a><a href="my-work.html">My Work</a><a href="agents.html">AI agents</a><a href="self-host.html" class="active" aria-current="page">Self-host</a><a href="docs.html">Docs</a>
+      <a class="btn-gh" href="https://github.com/SylonZero/CodePlans" target="_blank" rel="noopener"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.38.6.11.82-.26.82-.58v-2.03c-3.34.72-4.04-1.61-4.04-1.61-.54-1.38-1.33-1.75-1.33-1.75-1.09-.74.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4 11.5 11.5 0 0 1 3 .4c2.28-1.55 3.3-1.23 3.3-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/></svg> GitHub</a>
+    </div>
+  </div>
+</nav>
+<section class="page-hero"><div class="container"><div class="crumb"><a href="index.html">CodePlans</a> / Self-host</div><h1>Run it yourself</h1><p class="hero-sub">SQLite locally with nothing external, or Postgres and Supabase in production. Two settings decide how your instance behaves.</p><div class="links"><a href="https://github.com/SylonZero/CodePlans/blob/master/.env.example">.env.example</a><a href="https://github.com/SylonZero/CodePlans/blob/master/docs/app-spec.md">App spec</a></div></div></section>
+<main>
+<!-- ── Quickstart ── -->
+<section class="section" id="quickstart">
+  <div class="container">
+    <div class="section-label">Quickstart</div>
+    <h2>Up and running in minutes</h2>
+    <p class="section-sub">Local SQLite mode requires no cloud account, no API keys, nothing external.</p>
+
+    <div class="code-block">
+      <div><span class="comment"># Clone and install</span></div>
+      <div><span class="cmd">git clone</span> <span class="arg">https://github.com/SylonZero/CodePlans.git</span> && <span class="cmd">cd</span> CodePlans</div>
+      <div><span class="cmd">pnpm install</span></div>
+      <br>
+      <div><span class="comment"># Configure (defaults work for local SQLite)</span></div>
+      <div><span class="cmd">cp</span> .env.example .env.local</div>
+      <br>
+      <div><span class="comment"># Run migrations and create the admin account</span></div>
+      <div><span class="cmd">pnpm</span> <span class="arg">db:migrate</span></div>
+      <div><span class="cmd">pnpm</span> <span class="arg">db:seed</span></div>
+      <br>
+      <div><span class="comment"># Start the dev server</span></div>
+      <div><span class="cmd">pnpm</span> <span class="arg">dev</span></div>
+    </div>
+
+    <p style="margin-top: 16px; font-size: 0.875rem; color: var(--muted);">
+      Open <a href="http://localhost:3000">localhost:3000</a> and sign in with
+      <code style="font-size:0.8rem">admin@example.com</code> / <code style="font-size:0.8rem">Password1!</code>.
+      Change your password in <strong>Settings → Security</strong> after first login.
+    </p>
+
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; font-size: 0.875rem; color: var(--text); line-height: 1.6; margin-top: 16px;">
+      <strong style="color: var(--accent);">Want realistic demo data?</strong>
+      Run <code>pnpm db:seed-demo</code> after the initial seed to populate products, assets, plans, specs, reviews and responsibilities — the data behind every screenshot on this site.
+      All demo accounts use password <code>Password1!</code>.
+    </div>
+
+    <div class="callout">
+      <strong>Deploying to a server?</strong> Set <code>AUTH_URL=https://your-server-domain</code> (or <code>http://ip:port</code>) in <code>.env.local</code>.
+      Auth.js requires this in production to construct correct callback URLs — without it, login redirects will fail.
+      If running the dev server on a remote machine, also set <code>ALLOWED_DEV_ORIGINS=your.server.ip</code>.
+    </div>
+  </div>
+</section>
+
+<!-- ── Configuration ── -->
+<section class="section" id="config">
+  <div class="container">
+    <div class="section-label">Configuration</div>
+    <h2>Deployment modes &amp; environment variables</h2>
+    <p class="section-sub">Two independent knobs control how your instance behaves — the deployment model and who can register.</p>
+
+    <div class="config-grid">
+      <div class="config-card">
+        <div class="config-card-header">HOST_MODE — deployment model</div>
+        <div class="config-row">
+          <div class="config-val">team</div>
+          <div class="config-desc">Single private team. One org, registration closed by default, billing UI hidden. Recommended for self-hosted installs.</div>
+        </div>
+        <div class="config-row">
+          <div class="config-val">saas</div>
+          <div class="config-desc">Multi-tenant hosted. Multiple independent orgs, open registration possible, billing UI available.</div>
+        </div>
+      </div>
+      <div class="config-card">
+        <div class="config-card-header">REGISTRATION — who can create accounts</div>
+        <div class="config-row">
+          <div class="config-val">closed</div>
+          <div class="config-desc">/signup returns 404. Users are created by an admin via <code>pnpm db:seed</code>.</div>
+        </div>
+        <div class="config-row">
+          <div class="config-val">invite</div>
+          <div class="config-desc">/signup shows an invite-only message. (Token invite flow is planned.)</div>
+        </div>
+        <div class="config-row">
+          <div class="config-val">open</div>
+          <div class="config-desc">Anyone who can reach the server can sign up.</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 24px;">
+      <table class="env-table">
+        <thead>
+          <tr>
+            <th>Variable</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="env-var">PORT</td>
+            <td class="env-default">3000</td>
+            <td class="env-desc">Port the dev server binds to.</td>
+          </tr>
+          <tr>
+            <td class="env-var">HOST_MODE</td>
+            <td class="env-default">saas</td>
+            <td class="env-desc"><code>team</code> (private self-hosted) or <code>saas</code> (multi-tenant hosted).</td>
+          </tr>
+          <tr>
+            <td class="env-var">REGISTRATION</td>
+            <td class="env-default">open</td>
+            <td class="env-desc"><code>closed</code>, <code>invite</code>, or <code>open</code> — controls who can create accounts.</td>
+          </tr>
+          <tr>
+            <td class="env-var">AUTH_PROVIDER</td>
+            <td class="env-default">local</td>
+            <td class="env-desc"><code>local</code> (bcrypt + session cookie) or <code>supabase</code>.</td>
+          </tr>
+          <tr>
+            <td class="env-var">DB_PROVIDER</td>
+            <td class="env-default">sqlite</td>
+            <td class="env-desc"><code>sqlite</code> or <code>postgres</code>.</td>
+          </tr>
+          <tr>
+            <td class="env-var">DATABASE_URL</td>
+            <td class="env-default">:memory:</td>
+            <td class="env-desc">SQLite: <code>file:data/codeplans.db</code> or <code>:memory:</code>. Postgres: full connection string.</td>
+          </tr>
+          <tr>
+            <td class="env-var">DB_SSL</td>
+            <td class="env-default">true</td>
+            <td class="env-desc">Set <code>false</code> for local or non-SSL Postgres (e.g. Railway, local Docker).</td>
+          </tr>
+          <tr>
+            <td class="env-var">AUTH_SECRET</td>
+            <td class="env-default">—</td>
+            <td class="env-desc">Secret for local auth session signing. Min 32 chars. Generate: <code>openssl rand -base64 32</code>.</td>
+          </tr>
+          <tr>
+            <td class="env-var">AUTH_URL</td>
+            <td class="env-default">—</td>
+            <td class="env-desc">
+              <span class="env-required">Required in production</span><br>
+              Full URL of the server (e.g. <code>https://codeplans.yourteam.com</code> or <code>http://ip:3000</code>).
+              Auth.js uses this to construct callback URLs and validate login redirects.
+              Not needed for <code>localhost</code> dev.
+            </td>
+          </tr>
+          <tr>
+            <td class="env-var">BILLING_ENABLED</td>
+            <td class="env-default">true</td>
+            <td class="env-desc">Set <code>false</code> to hide billing UI. Always off when <code>HOST_MODE=team</code>.</td>
+          </tr>
+          <tr>
+            <td class="env-var">ALLOWED_DEV_ORIGINS</td>
+            <td class="env-default">—</td>
+            <td class="env-desc">Comma-separated hosts allowed to access Next.js dev resources. Needed when running the dev server on a remote machine.</td>
+          </tr>
+          <tr>
+            <td class="env-var">RESEND_API_KEY</td>
+            <td class="env-default">—</td>
+            <td class="env-desc">Resend API key for transactional email and the fallback notification channel. Without this, verification URLs are logged to the server console — fine for local dev.</td>
+          </tr>
+          <tr>
+            <td class="env-var">RESEND_FROM_EMAIL</td>
+            <td class="env-default">CodePlans &lt;noreply@codeplans.ai&gt;</td>
+            <td class="env-desc">From address used in outgoing emails. Workspace admins can also set email and Slack up in Settings.</td>
+          </tr><tr><td class="env-var">RESEND_API_URL</td><td class="env-default">https://api.resend.com</td><td class="env-desc">Send notification email through a Resend-compatible relay.</td></tr><tr><td class="env-var">NOTIFY_WEBHOOK_ALLOWED_HOSTS</td><td class="env-default">—</td><td class="env-desc">Extra hosts allowed for the notification webhook (only <code>hooks.slack.com</code> by default).</td></tr><tr><td class="env-var">CRON_SECRET</td><td class="env-default">—</td><td class="env-desc">Enables <code>/api/cron/notifications</code> (email/Slack retries) for an external cron.</td></tr><tr><td class="env-var">NOTIFY_INTERVAL_SECONDS</td><td class="env-default">60</td><td class="env-desc">Team mode retries notifications in-process at this interval; <code>0</code> turns it off.</td></tr>
+          <tr>
+            <td class="env-var">ANTHROPIC_API_KEY</td>
+            <td class="env-default">—</td>
+            <td class="env-desc">Enables AI drafting (release notes, design notes). Without it, all AI features are hidden — the app never requires it.</td>
+          </tr>
+          <tr>
+            <td class="env-var">AI_ENABLED</td>
+            <td class="env-default">true</td>
+            <td class="env-desc">Set <code>false</code> to force AI drafting off even when an API key is configured.</td>
+          </tr>
+          <tr>
+            <td class="env-var">AI_MODEL</td>
+            <td class="env-default">claude-opus-5</td>
+            <td class="env-desc">Claude model used for drafting.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="font-size: 0.875rem; color: var(--muted);">
+      See <a href="https://github.com/SylonZero/CodePlans/blob/master/.env.example"><code>.env.example</code></a> for the full annotated configuration file.
+    </p>
+  </div>
+</section>
+
+<!-- ── Stack ── -->
+<section class="section" id="stack">
+  <div class="container">
+    <div class="section-label">Tech stack</div>
+    <h2>Built on proven, modern tooling</h2>
+    <p class="section-sub">No heavy abstractions. Readable Next.js App Router code with a clean DB layer you can fork and adapt.</p>
+
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;">
+      <table class="stack-table">
+        <thead>
+          <tr>
+            <th>Layer</th>
+            <th>Technology</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="layer">Framework</td>
+            <td class="tech">Next.js 16 <span class="chip">App Router</span></td>
+            <td class="note">Server Components, Server Actions, streaming</td>
+          </tr>
+          <tr>
+            <td class="layer">Language</td>
+            <td class="tech">TypeScript 5.7</td>
+            <td class="note">Strict mode throughout</td>
+          </tr>
+          <tr>
+            <td class="layer">Styling</td>
+            <td class="tech">Tailwind CSS v4 + Radix UI</td>
+            <td class="note">shadcn/ui component patterns</td>
+          </tr>
+          <tr>
+            <td class="layer">ORM</td>
+            <td class="tech">Drizzle ORM</td>
+            <td class="note">Dual SQLite + Postgres schemas with migrations</td>
+          </tr>
+          <tr>
+            <td class="layer">Database</td>
+            <td class="tech">SQLite <span class="chip">local</span> / PostgreSQL <span class="chip">cloud</span></td>
+            <td class="note">Switched via <code>DB_PROVIDER</code> env var</td>
+          </tr>
+          <tr>
+            <td class="layer">Auth</td>
+            <td class="tech">Local bcrypt <span class="chip">local</span> / Supabase <span class="chip">cloud</span></td>
+            <td class="note">Switched via <code>AUTH_PROVIDER</code> env var</td>
+          </tr>
+          <tr>
+            <td class="layer">Charts</td>
+            <td class="tech">Recharts</td>
+            <td class="note">Velocity, effort accuracy, tech debt trends</td>
+          </tr>
+          <tr>
+            <td class="layer">Documents</td>
+            <td class="tech">TipTap + React Markdown</td>
+            <td class="note">Shared typography, GFM tables, task lists, and line breaks in pages and panels</td>
+          </tr>
+          <tr>
+            <td class="layer">Testing</td>
+            <td class="tech">Vitest</td>
+            <td class="note">412 tests covering data, authorization, reviews, notifications, MCP access, imports and Markdown; isolated temporary SQLite databases plus an opt-in real PostgreSQL migration and behavior verifier</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+
+</main>
+<div class="container"><div class="page-nav"><a href="agents.html"><span>← Previous</span>AI agents</a><a class="next" href="docs.html"><span>Next →</span>Docs</a></div></div>
+<footer>
+  <div class="container footer-inner">
+    <div class="footer-left">
+      <span class="footer-logo">CodePlans</span>
+      <span class="footer-copy">© 2026 Sai Prakash · MIT License · Community edition</span>
+    </div>
+    <div class="footer-links">
+      <a href="https://codeplans.ai" target="_blank" rel="noopener">Beta Signup</a>
+      <a href="https://github.com/SylonZero/CodePlans" target="_blank" rel="noopener">GitHub</a>
+      <a href="docs.html">Docs</a>
+      <a href="https://github.com/SylonZero/CodePlans/blob/master/LICENSE" target="_blank" rel="noopener">License</a>
+    </div>
+  </div>
+</footer>
+<script src="assets/site.js"></script>
+</body>
+</html>

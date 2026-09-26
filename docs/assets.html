@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CodePlans — Assets</title>
+  <meta name="description" content="The Asset Atlas, asset record, history and dependencies in CodePlans." />
+  <link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+<!-- Generated page: the nav and footer are repeated on every page of the site. -->
+<nav>
+  <div class="container inner">
+    <a class="nav-logo" href="index.html" style="text-decoration:none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> CodePlans</a>
+    <div class="nav-links">
+      <a href="index.html">Overview</a><a href="plan.html">Plan &amp; deliver</a><a href="assets.html" class="active" aria-current="page">Assets</a><a href="specs.html">Specs &amp; Wiki</a><a href="reviews.html">Reviews</a><a href="my-work.html">My Work</a><a href="agents.html">AI agents</a><a href="self-host.html">Self-host</a><a href="docs.html">Docs</a>
+      <a class="btn-gh" href="https://github.com/SylonZero/CodePlans" target="_blank" rel="noopener"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.38.6.11.82-.26.82-.58v-2.03c-3.34.72-4.04-1.61-4.04-1.61-.54-1.38-1.33-1.75-1.33-1.75-1.09-.74.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4 11.5 11.5 0 0 1 3 .4c2.28-1.55 3.3-1.23 3.3-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/></svg> GitHub</a>
+    </div>
+  </div>
+</nav>
+<section class="page-hero"><div class="container"><div class="crumb"><a href="index.html">CodePlans</a> / Assets</div><h1>Know your system, and what shipped in it</h1><p class="hero-sub">Assets are the services, apps, libraries and datastores your products are made of. CodePlans maps them, tracks their health and debt, and keeps a record of what each one does, built from delivered work.</p><div class="links"><a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/asset-atlas.md">Asset Atlas guide</a><a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/asset-history.md">History & record</a><a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/modeling-monorepos.md">Modeling monorepos</a></div></div></section>
+<main>
+<div class="container"><div class="feature-row"><div class="row-text"><div class="section-label">Asset Atlas</div><h2>A system map drawn from your inventory</h2><p>Products become columns, and assets are placed by layer with dependency edges between them. Lenses recolor the map by <strong>health</strong>, <strong>debt</strong> or <strong>delivery activity</strong>. Hover an asset to see its blast radius. Grid and table views sit beside it.</p><p><a class="more" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/asset-atlas.md">Read the guide →</a></p></div><div class="row-media"><figure class="shot "><a href="screenshots/asset-map.png" aria-label="Open full size: The Asset Atlas: assets by product with dependency edges and a health lens"><img src="screenshots/asset-map.png" alt="The Asset Atlas: assets by product with dependency edges and a health lens" width="2880" height="1800" loading="lazy"></a></figure></div></div><div class="feature-row flip"><div class="row-text"><div class="section-label">Asset record</div><h2>What an asset actually does, with evidence</h2><p>The Record tab is a capabilities register built from delivered work. Each claim carries its work item, plan, release and the <strong>spec version it implemented</strong>. Active specs show current intent next to the latest version confirmed by delivery. Known issues and debt are derived from open work.</p><p><a class="more" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/asset-history.md">Asset history & record guide →</a></p></div><div class="row-media"><figure class="shot "><a href="screenshots/asset-record.png" aria-label="Open full size: Auth Service record: spec coverage and a graduated capability with its lineage"><img src="screenshots/asset-record.png" alt="Auth Service record: spec coverage and a graduated capability with its lineage" width="2880" height="1800" loading="lazy"></a></figure></div></div><div class="feature-row"><div class="row-text"><div class="section-label">History & design log</div><h2>A version ladder for every asset</h2><p>Releases shipped, plans delivered, debt opened and resolved, and spec revisions, grouped by version. Humans and agents add <strong>design notes</strong> worth keeping; agent-written notes carry an agent badge.</p></div><div class="row-media"><figure class="shot "><a href="screenshots/asset-history.png" aria-label="Open full size: Asset history grouped by version with a design note and plan delivery"><img src="screenshots/asset-history.png" alt="Asset history grouped by version with a design note and plan delivery" width="2880" height="1800" loading="lazy"></a></figure></div></div><div class="feature-row flip"><div class="row-text"><div class="section-label">Dependencies</div><h2>Both directions of the graph</h2><p>What an asset depends on and what depends on it, feeding impact analysis whenever a plan targets it. Owners, discussion and a personal <strong>Mute</strong> switch live on the same page.</p><p><a class="more" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/modeling-monorepos.md">Modeling monorepos →</a></p></div><div class="row-media"><figure class="shot "><a href="screenshots/asset-dependencies.png" aria-label="Open full size: Auth Service dependencies: depends on PostgreSQL, depended on by the web app and gateway"><img src="screenshots/asset-dependencies.png" alt="Auth Service dependencies: depends on PostgreSQL, depended on by the web app and gateway" width="2880" height="1800" loading="lazy"></a></figure></div></div></div>
+</main>
+<div class="container"><div class="page-nav"><a href="plan.html"><span>← Previous</span>Plan &amp; deliver</a><a class="next" href="specs.html"><span>Next →</span>Specs &amp; Wiki</a></div></div>
+<footer>
+  <div class="container footer-inner">
+    <div class="footer-left">
+      <span class="footer-logo">CodePlans</span>
+      <span class="footer-copy">© 2026 Sai Prakash · MIT License · Community edition</span>
+    </div>
+    <div class="footer-links">
+      <a href="https://codeplans.ai" target="_blank" rel="noopener">Beta Signup</a>
+      <a href="https://github.com/SylonZero/CodePlans" target="_blank" rel="noopener">GitHub</a>
+      <a href="docs.html">Docs</a>
+      <a href="https://github.com/SylonZero/CodePlans/blob/master/LICENSE" target="_blank" rel="noopener">License</a>
+    </div>
+  </div>
+</footer>
+<script src="assets/site.js"></script>
+</body>
+</html>
