@@ -8,6 +8,7 @@ import { config } from '@/lib/config'
 import { getProductScope } from '@/lib/product-scope'
 import { getEnterpriseHooks } from '@/lib/ee/registry'
 import { canCreateProductIn } from '@/lib/db/authz'
+import { countUnread } from '@/lib/db/notifications'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const authUser = await authAdapter.getUser()
@@ -48,6 +49,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     }
   }
 
+  const unreadNotifications = authUser ? await countUnread(authUser.id) : 0
   const scopeId = await getProductScope()
   const selectedProductId = productList.some((p) => p.id === scopeId) ? scopeId : null
 
@@ -59,6 +61,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       selectedProductId={selectedProductId}
       billingEnabled={config.billing.enabled}
       extraNavItems={getEnterpriseHooks().navItems()}
+      unreadNotifications={unreadNotifications}
     >
       {children}
       <Toaster position="bottom-right" />

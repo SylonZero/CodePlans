@@ -99,3 +99,44 @@ export async function loadDiscussionAction(subjectType: 'spec' | 'code_plan' | '
   ])
   return { threads, audience: audience.map((u) => ({ id: u.id, name: u.name })), canModerate, currentUserId: me.id, currentVersion: subject.version }
 }
+
+// Notifications ---------------------------------------------------------------
+
+export type BellNotification = { id: string; eventType: string; title: string; summary: string; url: string; reason: string; read: boolean; createdAt: string }
+
+export async function bellAction(limit = 12): Promise<{ unread: number; items: BellNotification[] }> {
+  const me = await actor()
+  const { listNotifications, countUnread } = await import('@/lib/db/notifications')
+  const [rows, unread] = await Promise.all([listNotifications(me.id, { limit }), countUnread(me.id)])
+  return {
+    unread,
+    items: rows.map((n) => ({ id: n.id, eventType: n.eventType, title: n.title, summary: n.summary, url: n.url, reason: n.reason, read: !!n.readAt, createdAt: n.createdAt.toISOString() })),
+  }
+}
+
+export async function unreadCountAction() {
+  const { countUnread } = await import('@/lib/db/notifications')
+  return countUnread((await actor()).id)
+}
+
+export async function markNotificationsReadAction(ids: string[] | 'all') {
+  const me = await actor()
+  const { markRead, markAllRead } = await import('@/lib/db/notifications')
+  if (ids === 'all') await markAllRead(me.id)
+  else await markRead(me.id, ids)
+  revalidatePath('/my-work')
+}
+
+export async function markNotificationsDoneAction(ids: string[], done = true) {
+  const me = await actor()
+  const { markDone } = await import('@/lib/db/notifications')
+  await markDone(me.id, ids, done)
+  revalidatePath('/my-work')
+}
+
+export async function snoozeNotificationsAction(ids: string[], days: number) {
+  const me = await actor()
+  const { snooze } = await import('@/lib/db/notifications')
+  await snooze(me.id, ids, new Date(Date.now() + Math.min(Math.max(days, 1), 30) * 86_400_000))
+  revalidatePath('/my-work')
+}

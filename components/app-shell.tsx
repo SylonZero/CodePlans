@@ -1,5 +1,6 @@
 'use client'
 
+import { NotificationBell } from '@/components/notification-bell'
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
@@ -50,6 +51,7 @@ import type { NavExtension } from '@/lib/ee/types'
 type AppShellProps = {
   children: React.ReactNode
   user: { name: string; email: string; billingTier: BillingTier | string; viewOnly?: boolean }
+  unreadNotifications?: number
   orgName: string | null
   products: { id: string; name: string; slug: string }[]
   selectedProductId: string | null
@@ -91,7 +93,7 @@ const secondaryNavigationBase = [
   { name: 'Settings', href: '/settings', icon: Settings },
 ]
 
-export function AppShell({ children, user, orgName, products, selectedProductId, billingEnabled = true, extraNavItems = [] }: AppShellProps) {
+export function AppShell({ children, user, orgName, products, selectedProductId, billingEnabled = true, extraNavItems = [], unreadNotifications = 0 }: AppShellProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -322,9 +324,7 @@ export function AppShell({ children, user, orgName, products, selectedProductId,
             )}
             <ThemeToggle />
 
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
-            </Button>
+            <NotificationBell initialUnread={unreadNotifications} />
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
