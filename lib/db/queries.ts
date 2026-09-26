@@ -923,7 +923,8 @@ export type OwnedAsset = {
 }
 
 /** Assets the user owns, with health and debt rollups — for My Work. */
-export async function getOwnedAssets(userId: string): Promise<OwnedAsset[]> {
+/** Assets the user is declared code owner of, limited to products they can see (and the scoped product, if given). */
+export async function getOwnedAssets(userId: string, opts: { productId?: string } = {}): Promise<OwnedAsset[]> {
   const rows = await db
     .select({
       id: assets.id,
@@ -937,7 +938,12 @@ export async function getOwnedAssets(userId: string): Promise<OwnedAsset[]> {
     .from(assetOwners)
     .innerJoin(assets, eq(assetOwners.assetId, assets.id))
     .innerJoin(products, eq(assets.productId, products.id))
-    .where(and(eq(assetOwners.userId, userId), isNull(assets.archivedAt)))
+    .where(and(
+      eq(assetOwners.userId, userId),
+      isNull(assets.archivedAt),
+      await productAccessWhere(userId),
+      opts.productId ? eq(assets.productId, opts.productId) : undefined,
+    ))
     .orderBy(assets.name)
   if (rows.length === 0) return []
 
