@@ -67,7 +67,7 @@ heading and body matches; results include highlighted excerpts and are paginated
 Archived, superseded, removed, cancelled, abandoned, deprecated, and wont-do
 records are hidden by default unless explicitly selected or included.
 
-**Needs review** lists current specs carrying the review flag. Use the archive
+**Awaiting review** lists specs and plans with an open review (see [Reviews and comments](reviews-and-comments.md)). **Import triage** lists current specs carrying the git-import review flag. Use the archive
 filter to include older approaches. Review edits use the native spec editor,
 which preserves optimistic version checks. Empty/placeholder bodies appear as
 source references with an explicit explanation, not completed documents.

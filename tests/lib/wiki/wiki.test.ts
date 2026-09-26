@@ -240,4 +240,14 @@ describe('product wiki', () => {
         .some((a) => a.assetId === foreign.id),
     ).toBe(false)
   })
+  it('marks specs and plans with an open review, separately from import triage', async () => {
+    const { requestReview } = await import('@/lib/db/reviews')
+    const spec = await createSpec({ productId: F.productShared, title: 'Reviewed', body: 'x', specType: 'api' }, F.alice)
+    await requestReview({ subjectType: 'spec', subjectId: spec.id, reviewers: [{ userId: F.bob }] }, { id: F.alice })
+    await requestReview({ subjectType: 'code_plan', subjectId: F.planActive, reviewers: [{ userId: F.bob }] }, { id: F.alice })
+    const data = (await getWikiProduct('shared-product', F.alice))!
+    const awaiting = searchWiki(data.documents, { awaitingReview: true }).map((r) => r.document.key).sort()
+    expect(awaiting).toEqual([`plan:${F.planActive}`, `spec:${spec.id}`].sort())
+    expect(searchWiki(data.documents, { triage: true })).toEqual([])
+  })
 })

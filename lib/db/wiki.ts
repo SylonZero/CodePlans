@@ -21,6 +21,7 @@ import {
   users,
 } from './schema'
 import { effectiveLayer } from '@/lib/types'
+import { openReviewStates } from './reviews'
 import {
   type WikiData,
   type WikiDocument,
@@ -154,6 +155,11 @@ export const getWikiProduct = cache(
     })
     const aset = new Set(aids),
       pmap = new Map(planRows.map((p) => [p.id, p])),
+      reviewStates = new Map([
+        ...(await openReviewStates('spec', specRows.map((s) => s.id))),
+        ...(await openReviewStates('code_plan', planRows.map((p) => p.id))),
+      ]),
+      openReview = (id: string) => (reviewStates.get(id) as 'open' | 'changes_requested' | undefined) ?? null,
       imap = new Map(itemRows.map((i) => [i.id, i]))
     const direct = (id: string): WikiAssociation[] =>
       aset.has(id) ? [{ assetId: id, label: 'Direct association' }] : []
@@ -230,6 +236,7 @@ export const getWikiProduct = cache(
         key: `plan:${p.id}`,
         id: p.id,
         kind: 'plan',
+        reviewState: openReview(p.id),
         title: p.title,
         body: p.description,
         status: p.status,
@@ -280,6 +287,7 @@ export const getWikiProduct = cache(
         sourceUrl: s.sourceUrl,
         sourceType: s.sourceType,
         needsReview: s.needsReview,
+        reviewState: openReview(s.id),
         placeholder:
           s.body === 'Content not yet imported — see sourceUrl.' ||
           !s.body.trim(),
