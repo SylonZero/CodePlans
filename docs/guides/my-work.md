@@ -64,5 +64,9 @@ touch their assets or approvals, new work on their assets, assignments, plan
 activation and completion, releases shipped, graduations and new
 responsibilities.
 
+Admins can also send notifications by email and to a Slack channel, and
+choose which events do. You can turn off email for yourself. See
+[Email and Slack notifications](notifications.md).
+
 Agents can read the same inbox with `get_my_work` and `list_notifications`,
 and clear handled items with `mark_notifications_done`.

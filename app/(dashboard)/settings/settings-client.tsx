@@ -14,6 +14,8 @@ import { Separator } from '@/components/ui/separator'
 import { User, Bell, Shield, Sparkles, Key, KeyRound, Upload } from 'lucide-react'
 import type { UserRole, BillingTier } from '@/lib/types'
 import { updateProfileAction, changePasswordAction, requestEmailChangeAction, cancelEmailChangeAction } from '../actions'
+import { setEmailPreferenceAction } from './notifications/actions'
+import { EVENT_GROUP_LABELS, type EventGroup } from '@/lib/notification-catalog'
 
 interface Props {
   user: {
@@ -31,6 +33,70 @@ interface Props {
   pendingEmailChange?: { newEmail: string; expiresAt: string } | null
   emailJustVerified?: boolean
   apiKeys?: ApiKeyRow[]
+  emailPrefs?: EmailPrefs
+  initialTab?: string
+}
+
+type EmailPrefs = {
+  /** Whether the workspace can send email at all. */
+  workspaceEmail: boolean
+  prefs: Record<string, boolean>
+  events: { type: string; label: string; description: string; group: EventGroup; workspaceEmail: boolean }[]
+}
+
+/** A person's own email switches. They can only turn email off for what the workspace sends. */
+function EmailPreferences({ emailPrefs }: { emailPrefs: EmailPrefs }) {
+  const [prefs, setPrefs] = useState(emailPrefs.prefs)
+  const [error, setError] = useState('')
+  const [, start] = useTransition()
+  const allOn = prefs['*'] !== false
+  function toggle(type: string, on: boolean) {
+    setError('')
+    setPrefs((p) => { const next = { ...p }; if (on) delete next[type]; else next[type] = false; return next })
+    start(async () => {
+      const r = await setEmailPreferenceAction(type, on)
+      if (!r.ok) setError(r.error)
+    })
+  }
+  const sent = emailPrefs.events.filter((e) => e.workspaceEmail)
+  const groups = [...new Set(sent.map((e) => e.group))]
+  return (
+    <Card className="bg-card border-border">
+      <CardHeader>
+        <CardTitle>Email notifications</CardTitle>
+        <CardDescription>
+          {emailPrefs.workspaceEmail
+            ? 'Choose which of your workspace\'s email notifications you receive. In-app notifications and My Work are unaffected.'
+            : 'Your workspace hasn\'t set up email yet, so you only get in-app notifications. An admin can connect email in workspace notification settings.'}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <p className="font-medium">All email</p>
+            <p className="text-sm text-muted-foreground">Turn off to stop every notification email</p>
+          </div>
+          <Switch aria-label="All email" checked={allOn} disabled={!emailPrefs.workspaceEmail} onCheckedChange={(v) => toggle('*', v)} />
+        </div>
+        {emailPrefs.workspaceEmail && sent.length > 0 && groups.map((g) => (
+          <div key={g} className="space-y-4">
+            <Separator />
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{EVENT_GROUP_LABELS[g]}</p>
+            {sent.filter((e) => e.group === g).map((e) => (
+              <div key={e.type} className="flex items-center justify-between gap-4">
+                <div className="space-y-0.5">
+                  <p className="font-medium">{e.label}</p>
+                  <p className="text-sm text-muted-foreground">{e.description}</p>
+                </div>
+                <Switch aria-label={`Email: ${e.label}`} checked={allOn && prefs[e.type] !== false} disabled={!allOn} onCheckedChange={(v) => toggle(e.type, v)} />
+              </div>
+            ))}
+          </div>
+        ))}
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+      </CardContent>
+    </Card>
+  )
 }
 
 function ProfileTab({ user, org, billingEnabled, pendingEmailChange, emailJustVerified }: Props) {
@@ -305,7 +371,9 @@ function SecurityTab() {
   )
 }
 
-export function SettingsClient({ user, org, billingEnabled = true, pendingEmailChange, emailJustVerified, apiKeys = [] }: Props) {
+const TABS = ['profile', 'notifications', 'features', 'security', 'api-keys']
+
+export function SettingsClient({ user, org, billingEnabled = true, pendingEmailChange, emailJustVerified, apiKeys = [], emailPrefs, initialTab }: Props) {
   return (
     <div className="space-y-8">
       <div>
@@ -313,7 +381,7 @@ export function SettingsClient({ user, org, billingEnabled = true, pendingEmailC
         <p className="text-muted-foreground">Manage your account and preferences</p>
       </div>
 
-      <Tabs defaultValue="profile" className="space-y-6">
+      <Tabs defaultValue={initialTab && TABS.includes(initialTab) ? initialTab : 'profile'} className="space-y-6">
         <TabsList className="bg-muted">
           <TabsTrigger value="profile" className="gap-2">
             <User className="h-4 w-4" />
@@ -351,31 +419,8 @@ export function SettingsClient({ user, org, billingEnabled = true, pendingEmailC
           />
         </TabsContent>
 
-        {/* Notifications — local UI state only, no backend yet */}
         <TabsContent value="notifications" className="space-y-6">
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle>Email Notifications</CardTitle>
-              <CardDescription>Configure when you receive email notifications</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {[
-                { title: 'Task Assignments', description: 'When you are assigned to a task', defaultChecked: true },
-                { title: 'Plan Updates', description: 'When a code plan you follow is updated', defaultChecked: true },
-                { title: 'Team Activity', description: 'When team members join or complete tasks', defaultChecked: false },
-                { title: 'Weekly Digest', description: 'A summary of activity in your organization', defaultChecked: true },
-                { title: 'Product Updates', description: 'News about CodePlans features and updates', defaultChecked: false },
-              ].map((item) => (
-                <div key={item.title} className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <p className="font-medium">{item.title}</p>
-                    <p className="text-sm text-muted-foreground">{item.description}</p>
-                  </div>
-                  <Switch defaultChecked={item.defaultChecked} />
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+          {emailPrefs && <EmailPreferences emailPrefs={emailPrefs} />}
         </TabsContent>
 
         {/* Features — local UI state only */}
