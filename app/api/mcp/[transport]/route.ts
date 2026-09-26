@@ -113,6 +113,29 @@ const handler = createMcpHandler(
     server.tool('get_spec_revision', 'Read a spec exactly as it was at a pinned version (for example the sourceSpecVersion on a capability). Returns an error when that version predates retained history.', {
       id: z.string(), version: z.number().int().positive(),
     }, async ({ id, version }, extra) => json((await getSpecRevision(id, version, uid(extra))) ?? { error: `Version ${version} of this spec was not retained` }))
+    // ── My Work & notifications ────────────────────────────────────────────
+    server.tool('get_my_work', "What's waiting on the key owner, in the same bands as the My Work page: needsYou (each item has a verb, a reason it is theirs, and a url), inFlight (tasks grouped by plan with the plan's specs, approval state and PR status; plans they own; specs they're writing) and watching. Start a session here. Optionally scope to one product; lens panels for their responsibilities are included.", {
+      productId: z.string().optional(),
+    }, async ({ productId }, extra) => {
+      const { getMyWork } = await import('@/lib/db/my-work')
+      return json(await getMyWork(uid(extra), { productId }))
+    })
+    server.tool('list_notifications', "The key owner's notifications, newest first (not done, not snoozed), with the reason each was sent.", {
+      limit: z.number().int().min(1).max(100).default(30),
+    }, async ({ limit }, extra) => {
+      const { listNotifications } = await import('@/lib/db/notifications')
+      return json((await listNotifications(uid(extra), { limit })).map(({ id, eventType, title, summary, url, reason, readAt, createdAt, subjectType, subjectId }) =>
+        ({ id, eventType, title, summary, url, reason, read: !!readAt, createdAt, subjectType, subjectId })))
+    })
+    server.tool('mark_notifications_done', 'Mark notifications done once handled (they leave My Work and the bell).', {
+      ids: z.array(z.string()).min(1).max(100),
+    }, async ({ ids }, extra) => {
+      requireWrite(extra)
+      const { markDone } = await import('@/lib/db/notifications')
+      await markDone(uid(extra), ids)
+      return json({ done: ids.length })
+    })
+
     // ── Comments & reviews ─────────────────────────────────────────────────
     server.tool('list_comments', 'Read the discussion on a spec, plan, work item, release or asset: threads with replies, kinds (comment/question/suggestion), mentions, resolution, the version each comment was written on, and for spec text anchors whether they still match (anchored/outdated).', {
       subjectType: z.enum(['spec', 'code_plan', 'work_item', 'release', 'asset']), subjectId: z.string(),

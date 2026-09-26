@@ -82,3 +82,18 @@ describe('MCP comments and reviews', () => {
     await expect(call('add_comment', { subjectType: 'spec', subjectId: spec.id, body: 'x' }, F.alice, false)).rejects.toThrow('read-only')
   })
 })
+
+describe('MCP my work', () => {
+  it('returns the key owner\'s inbox and lets them clear notifications', async () => {
+    const { requestReview } = await import('@/lib/db/reviews')
+    const spec = unpack(await call('create_spec', { productId: F.productShared, title: 'Queue spec', body: 'b', specType: 'api' }))
+    await requestReview({ subjectType: 'spec', subjectId: spec.id, reviewers: [{ userId: F.bob }] }, { id: F.alice })
+    await call('add_comment', { subjectType: 'spec', subjectId: spec.id, body: 'ping @Bob', mentionEmails: ['bob@test.local'] })
+    const work = unpack(await call('get_my_work', {}, F.bob))
+    expect(work.needsYou.map((i: any) => i.verb)).toEqual(expect.arrayContaining(['Review', 'Reply']))
+    const notes = unpack(await call('list_notifications', {}, F.bob))
+    expect(notes.map((n: any) => n.eventType)).toEqual(expect.arrayContaining(['review.requested', 'comment.mention']))
+    await call('mark_notifications_done', { ids: notes.map((n: any) => n.id) }, F.bob)
+    expect(unpack(await call('list_notifications', {}, F.bob))).toEqual([])
+  })
+})
