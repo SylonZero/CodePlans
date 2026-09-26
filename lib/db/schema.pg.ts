@@ -515,7 +515,6 @@ export const specs = pgTable('specs', {
   supersededBy: uuid('superseded_by').references((): AnyPgColumn => specs.id, { onDelete: 'set null' }),
   sourceType: text('source_type').notNull().default('native'),
   sourceUrl: text('source_url'),
-  needsReview: boolean('needs_review').notNull().default(false),
   authorType: text('author_type').notNull().default('user'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

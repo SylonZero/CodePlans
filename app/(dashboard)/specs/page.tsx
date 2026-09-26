@@ -32,7 +32,7 @@ export default async function SpecsPage() {
     area: s.area,
     status: s.status,
     version: s.version,
-    needsReview: s.needsReview,
+    sourceType: s.sourceType,
     authorType: s.authorType,
     updatedAt: s.updatedAt.toISOString(),
     linkCount: s.links.length,

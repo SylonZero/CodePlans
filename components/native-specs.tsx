@@ -79,15 +79,13 @@ export function NativeSpecsPanel({ productId, targetType, targetId }: { productI
 
 /**
  * Editing a spec, in two parts. Revising the title or text creates the next
- * version (and can replace the spec outright); type, area and the import flag
- * save in place. Lifecycle moves live in the action bar at the top of the page.
+ * version (and can replace the spec outright); type and area save in place. Lifecycle moves live in the action bar at the top of the page.
  */
 export function SpecEditor({ spec }: { spec: Spec }) {
   const [body, setBody] = useState(spec.body)
   const [title, setTitle] = useState(spec.title)
   const [specType, setSpecType] = useState(spec.specType)
   const [area, setArea] = useState(spec.area ?? '')
-  const [needsReview, setNeedsReview] = useState(spec.needsReview)
   const [changeSummary, setChangeSummary] = useState('')
   const [open, setOpen] = useState<{ revise: boolean; details: boolean }>({ revise: false, details: false })
   const [error, setError] = useState('')
@@ -105,7 +103,7 @@ export function SpecEditor({ spec }: { spec: Spec }) {
   }, [])
   if (spec.status === 'superseded') return null
   const contentChanged = body !== spec.body || title.trim() !== spec.title
-  const detailsChanged = specType.trim() !== spec.specType || (area.trim() || null) !== (spec.area ?? null) || needsReview !== spec.needsReview
+  const detailsChanged = specType.trim() !== spec.specType || (area.trim() || null) !== (spec.area ?? null)
   function run(fn: () => Promise<void>) { start(async () => {
     setError('')
     try { await fn() } catch (e) { setError(e instanceof Error ? e.message : 'Could not save') }
@@ -115,7 +113,7 @@ export function SpecEditor({ spec }: { spec: Spec }) {
     router.refresh()
   })
   const saveDetails = () => run(async () => {
-    await updateSpecAction(spec.id, { specType, area: area.trim() || null, needsReview, expectedVersion: spec.version })
+    await updateSpecAction(spec.id, { specType, area: area.trim() || null, expectedVersion: spec.version })
     router.refresh()
   })
   const supersede = () => run(async () => { const next = await supersedeSpecAction(spec.id, body, title); router.push(`/specs/${next.id}`) })
@@ -137,10 +135,9 @@ export function SpecEditor({ spec }: { spec: Spec }) {
     <details id="spec-details" className="rounded-lg border p-4" open={open.details} onToggle={(e) => { const isOpen = (e.currentTarget as HTMLDetailsElement).open; setOpen((o) => o.details === isOpen ? o : { ...o, details: isOpen }) }}>
       <summary className="cursor-pointer font-medium">Details</summary>
       <div className="mt-4 space-y-4">
-        <p className="text-sm text-muted-foreground">Type, area and the import flag are saved on v{spec.version} without creating a new version.</p>
+        <p className="text-sm text-muted-foreground">Type and area are saved on v{spec.version} without creating a new version.</p>
         <label className="block text-sm">Type<Input aria-label="Spec type" value={specType} onChange={(e) => setSpecType(e.target.value)} /></label>
         <label className="block text-sm">Area<Input aria-label="Spec area" placeholder="Area (optional)" value={area} onChange={(e) => setArea(e.target.value)} /></label>
-        {spec.sourceType === 'git_import' && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={needsReview} onChange={(e) => setNeedsReview(e.target.checked)} />Needs import review</label>}
         <Button variant="outline" disabled={pending || !specType.trim() || !detailsChanged} onClick={saveDetails}>Save details</Button>
       </div>
     </details>

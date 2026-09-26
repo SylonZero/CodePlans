@@ -4,6 +4,7 @@ import { authAdapter } from '@/lib/auth'
 import { getProducts } from '@/lib/db/queries'
 import { getWikiProduct } from '@/lib/db/wiki'
 import {
+  awaitsReview,
   kindLabels,
   inactiveStatuses,
   wikiKinds,
@@ -56,7 +57,8 @@ export default async function WikiProduct({ params, searchParams }: Props) {
   const q = read('q').slice(0, 250),
     assetId = read('asset'),
     docKey = read('doc'),
-    view = read('view'),
+    // 'triage' was the old import-triage view; imports now sit in review.
+    view = read('view') === 'triage' ? 'review' : read('view'),
     kind = read('kind'),
     status = read('status'),
     since = read('since'),
@@ -72,7 +74,6 @@ export default async function WikiProduct({ params, searchParams }: Props) {
   const listing =
     view === 'documents' ||
     view === 'review' ||
-    view === 'triage' ||
     !!q ||
     !!kind ||
     !!status ||
@@ -86,7 +87,6 @@ export default async function WikiProduct({ params, searchParams }: Props) {
     since,
     area,
     archived: read('archived') === '1',
-    triage: view === 'triage',
     awaitingReview: view === 'review',
   }
   const results = listing ? searchWiki(data.documents, filters) : []
@@ -112,10 +112,7 @@ export default async function WikiProduct({ params, searchParams }: Props) {
       (order.includes(a) ? order.indexOf(a) : 99) -
         (order.includes(b) ? order.indexOf(b) : 99) || a.localeCompare(b),
   )
-  const triage = data.documents.filter(
-      (d) => d.needsReview && !inactiveStatuses.has(d.status),
-    ),
-    awaiting = data.documents.filter((d) => d.reviewState),
+  const awaiting = data.documents.filter(awaitsReview),
     unassigned = data.documents.filter(
       (d) => !d.associations.length && !inactiveStatuses.has(d.status),
     ),
@@ -212,12 +209,6 @@ export default async function WikiProduct({ params, searchParams }: Props) {
               >
                 Awaiting review <small>{awaiting.length}</small>
               </Link>
-              <Link
-                className={view === 'triage' ? 'selected' : ''}
-                href={wikiHref(slug, { view: 'triage' })}
-              >
-                Import triage <small>{triage.length}</small>
-              </Link>
               {layers.map((layer) => (
                 <details key={layer} open className="wiki-layer">
                   <summary>
@@ -255,8 +246,6 @@ export default async function WikiProduct({ params, searchParams }: Props) {
                 asset?.name ??
                 (view === 'review'
                   ? 'Awaiting review'
-                  : view === 'triage'
-                    ? 'Import triage'
                   : view === 'changes'
                     ? 'Recent changes'
                     : listing
@@ -269,23 +258,19 @@ export default async function WikiProduct({ params, searchParams }: Props) {
           ) : listing ? (
             <>
               <p className="wiki-eyebrow">
-                {view === 'review' || view === 'triage' ? 'Document readiness' : 'Product library'}
+                {view === 'review' ? 'Document readiness' : 'Product library'}
                 {asset ? ` / ${asset.name}` : ''}
               </p>
               <h1>
                 {view === 'review'
                   ? 'Specs and plans awaiting review'
-                  : view === 'triage'
-                    ? 'Imported specs to triage'
                   : q
                     ? `Search results`
                     : 'Explore the documents'}
               </h1>
               <p className="wiki-lead">
                 {view === 'review'
-                  ? 'These have an open review. Reviewers approve a specific version in CodePlans; an approval stops covering a spec or plan once its content changes.'
-                  : view === 'triage'
-                    ? 'Check content, titles, classification, and source references of imported specs in CodePlans. Imported drafts are not automatically delivered capabilities.'
+                  ? 'These have an open review, or are specs in review that nobody has checked yet, such as fresh imports. Reviewers approve a specific version in CodePlans; an approval stops covering a spec or plan once its content changes.'
                   : 'Search content, headings, areas, repository paths, and technical identifiers.'}
               </p>
               <details className="wiki-filter-disclosure">
@@ -306,7 +291,7 @@ export default async function WikiProduct({ params, searchParams }: Props) {
                   <input
                     type="hidden"
                     name="view"
-                    value={view === 'review' || view === 'triage' ? view : 'documents'}
+                    value={view === 'review' ? view : 'documents'}
                   />
                   <label className="wiki-query-label">
                     Search
@@ -402,9 +387,7 @@ export default async function WikiProduct({ params, searchParams }: Props) {
                             ? 'Changes requested'
                             : d.reviewState
                               ? 'In review'
-                              : d.needsReview
-                                ? 'Import triage'
-                                : d.status.replaceAll('_', ' ')}
+                              : d.status.replaceAll('_', ' ')}
                         </span>
                       </div>
                       <Link
@@ -525,18 +508,9 @@ export default async function WikiProduct({ params, searchParams }: Props) {
                   className="wiki-callout"
                   href={wikiHref(slug, { view: 'review' })}
                 >
-                  {awaiting.length} {awaiting.length === 1 ? 'document is' : 'documents are'} awaiting review →
-                </Link>
-              )}
-              {triage.length > 0 && (
-                <Link
-                  className="wiki-callout"
-                  href={wikiHref(slug, { view: 'triage' })}
-                >
-                  {triage.length} imported spec
-                  {triage.length === 1 ? ' needs' : 's need'} triage
-                  {triage.some((d) => d.placeholder)
-                    ? ` · ${triage.filter((d) => d.placeholder).length} source references awaiting content`
+                  {awaiting.length} {awaiting.length === 1 ? 'document is' : 'documents are'} awaiting review
+                  {awaiting.some((d) => d.placeholder)
+                    ? ` · ${awaiting.filter((d) => d.placeholder).length} source references awaiting content`
                     : ''}{' '}
                   →
                 </Link>

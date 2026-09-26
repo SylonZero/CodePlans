@@ -518,7 +518,6 @@ export const specs = sqliteTable('specs', {
   supersededBy: text('superseded_by').references((): AnySQLiteColumn => specs.id, { onDelete: 'set null' }),
   sourceType: text('source_type').notNull().default('native'),
   sourceUrl: text('source_url'),
-  needsReview: integer('needs_review', { mode: 'boolean' }).notNull().default(false),
   authorType: text('author_type').notNull().default('user'),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),

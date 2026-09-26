@@ -83,6 +83,8 @@ current document and associations. `create_spec` stores a new document;
 For a plan, declare `creates`, `revises`, or `references`. Use `update_spec`
 with `expectedVersion` for an edit, or `supersede_spec` for a new approach.
 Imported git URLs are provenance; never replace native edits on a capture rerun.
+Specs created with `sourceType: git_import` start in review for a person to
+check; only a title or body edit creates a new version.
 
 **While delivering a plan** — keep the record live: `update_task_status` as
 work lands, `update_plan_asset` to record branch/PR status, `create_work_item`

@@ -93,9 +93,9 @@ function json(data: unknown) {
 
 const handler = createMcpHandler(
   (server) => {
-    server.tool('create_spec', 'Create a native, product-owned GFM spec (draft, version 1). Git is an import source; supply sourceUrl for git_import.', specInput.shape,
+    server.tool('create_spec', 'Create a native, product-owned GFM spec at version 1. Native specs start as draft. Git is an import source: supply sourceType git_import with sourceUrl, and the spec starts in_review so a person checks its content and classification before activating it or requesting a review.', specInput.shape,
       async (data, extra) => { requireWrite(extra); return json(await createSpec(data, uid(extra), 'agent')) })
-    server.tool('update_spec', 'Update a spec. Changing title or body creates a new version (its text is kept in history, and approvals of the old text go stale). Changing only status, specType, area or needsReview saves in place without a new version, so activating an approved spec keeps its approval. Use expectedVersion to reject stale edits. Superseded specs are read-only; use supersede_spec for a changed approach.', {
+    server.tool('update_spec', 'Update a spec. Changing title or body creates a new version (its text is kept in history, and approvals of the old text go stale). Changing only status, specType or area saves in place without a new version, so activating an approved spec keeps its approval. Use expectedVersion to reject stale edits. Superseded specs are read-only; use supersede_spec for a changed approach.', {
       id: z.string(), ...specUpdateFields,
     }, async ({ id, ...data }, extra) => { requireWrite(extra); return json(await updateSpec(id, specUpdateInput.parse(data), uid(extra), 'agent')) })
     server.tool('supersede_spec', 'Replace an approach: create a new draft at v1, preserve provenance and associations, and mark the old spec superseded. Delivery receipts stay on the old spec.', {

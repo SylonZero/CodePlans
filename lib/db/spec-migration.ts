@@ -45,7 +45,7 @@ export async function migrateLegacySpecs(productId: string, options: {
       specId = await db.transaction(async (tx) => {
         const [created] = existing ? [] : await tx.insert(specs).values({
           productId, title: sources[0].title, body: body.slice(0, 500_000), specType,
-          sourceType: 'git_import', sourceUrl, needsReview: true, authorType: 'agent',
+          sourceType: 'git_import', sourceUrl, status: 'in_review', authorType: 'agent',
         }).onConflictDoNothing().returning()
         const row = existing ?? created ?? (await tx.select().from(specs).where(where))[0]
         if (!row) throw new Error('Could not create or resolve imported spec')
@@ -58,7 +58,7 @@ export async function migrateLegacySpecs(productId: string, options: {
       })
     }
     entries.push({ sourceUrl, specId: specId ?? null, action: existing ? 'reuse' : 'create',
-      specType, needsReview: existing?.needsReview ?? true, placeholder: body === IMPORT_PLACEHOLDER,
+      specType, status: existing?.status ?? 'in_review', placeholder: body === IMPORT_PLACEHOLDER,
       collapsedDuplicates: sources.length - 1, targets: sources.map(({ id, targetType }) => ({ id, targetType })),
     })
   }

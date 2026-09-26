@@ -286,7 +286,6 @@ export const getWikiProduct = cache(
         specType: s.specType,
         sourceUrl: s.sourceUrl,
         sourceType: s.sourceType,
-        needsReview: s.needsReview,
         reviewState: openReview(s.id),
         placeholder:
           s.body === 'Content not yet imported — see sourceUrl.' ||

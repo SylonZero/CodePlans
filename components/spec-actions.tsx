@@ -13,6 +13,8 @@ export type SpecActionState = {
   status: 'draft' | 'in_review' | 'active' | 'archived' | 'superseded'
   version: number
   canEdit: boolean
+  /** Imported from git: arrives in review so someone checks it before it's current intent. */
+  imported: boolean
   approvedNow: boolean
   lastApprovedVersion: number | null
   /** The open review, if any: how many reviewers still need to (re)decide. */
@@ -44,7 +46,10 @@ function explain(s: SpecActionState) {
     case 'in_review':
       if (s.openReview?.changesRequested) return 'Changes were requested. Revise the content, then ask the reviewers to look again.'
       if (s.openReview) return `Waiting on ${s.openReview.waiting} of ${s.openReview.total} reviewer${s.openReview.total === 1 ? '' : 's'}.`
-      return s.approvedNow ? `${v} is approved and ready to activate.` : 'In review.'
+      if (s.approvedNow) return `${v} is approved and ready to activate.`
+      return s.imported
+        ? 'Imported from git. Check the content and classification, then activate it or ask for a review.'
+        : 'In review, with no reviewers asked yet.'
     case 'active': return s.approvedNow || !s.lastApprovedVersion
       ? `This is the current design intent. Revising the content creates v${s.version + 1}.`
       : `Active, but the last approval covers v${s.lastApprovedVersion} only.`
@@ -88,7 +93,7 @@ export function SpecActionBar({ state }: { state: SpecActionState }) {
         </div>
         {s.canEdit && s.status !== 'superseded' && (
           <div className="flex shrink-0 flex-wrap gap-2">
-            {s.status === 'draft' && (
+            {(s.status === 'draft' || (s.status === 'in_review' && !s.openReview && !s.approvedNow)) && (
               <Button size="sm" variant="outline" onClick={openReviewRequest}><ClipboardCheck className="mr-1.5 h-4 w-4" />Request review</Button>
             )}
             {canActivate && (

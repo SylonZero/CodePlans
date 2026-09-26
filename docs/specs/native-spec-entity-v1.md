@@ -126,7 +126,7 @@ Existing `code_plans.specUrl` / `work_items.specUrl` values become `specs` rows 
 
 - `sourceType: git_import`, `sourceUrl: <the original specUrl>`
 - `body`: fetched-and-converted from the git blob where reachable; left as a placeholder ("content not yet imported — see sourceUrl") where the link is dead (e.g. the two malformed URLs found above), so migration never blocks on broken links
-- `specType`: inferred heuristically from path/title keywords where possible (`schema`, `test`, etc.), defaulted to `feature` otherwise, flagged `needsReview: true` for a manual pass
+- `specType`: inferred heuristically from path/title keywords where possible (`schema`, `test`, etc.), defaulted to `feature` otherwise, and the spec starts in review for a manual pass (originally a `needsReview` flag; replaced by the `in_review` status and removed in migration 0030)
 - Linked back to the plan/work item that carried the original `specUrl`, `relationshipType: creates`
 - **Duplicate URLs collapse to one spec row**, linked from every plan/work item that referenced it (fixes the "Meetings: Company-DB-Native Design" / "Program, Team, and General workspace-scoped meetings" duplication found above)
 
@@ -178,8 +178,9 @@ No feature flag needed for the schema/MCP layer — additive, `specUrl` stays fu
   commit in one transaction.
 - With multiple work-item specs, graduation requires `sourceSpecId`; the UI
   prompts for the choice. This makes the singular receipt unambiguous.
-- `update_spec` also accepts title, specType, area and needsReview so imported
-  metadata can be corrected and review completed; those edits bump version.
+- `update_spec` also accepts title, specType and area so imported metadata can
+  be corrected; only title and body edits bump version, and activating the
+  spec completes the check.
   `expectedVersion` protects against stale writes.
 - Draft/active specs appear in `activeSpecs`; no delivery is represented by
   null. Superseded/archived specs stay accessible through their original links
