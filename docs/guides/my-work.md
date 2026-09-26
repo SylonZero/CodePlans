@@ -8,7 +8,9 @@ assets you own, and the tasks, plans and specs that are yours.
 ## Three bands
 
 **Needs you** lists things blocked on your action. Each item starts with a verb
-and shows why it is yours (for example *code owner · API Gateway*).
+and shows why it is yours (for example *code owner · API Gateway*). It shows five
+items at a time, beside your lens's panels; page through the rest with the
+arrows.
 
 | Item | When it appears |
 |---|---|

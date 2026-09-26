@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { AlertTriangle, Box, Check, Circle, Clock, Eye, FileText, GitPullRequest, Inbox, Play, Rocket, Workflow } from 'lucide-react'
+import { AlertTriangle, Box, Check, ChevronLeft, ChevronRight, Circle, Clock, Eye, FileText, GitPullRequest, Inbox, Play, Rocket, Workflow } from 'lucide-react'
 import { cn, formatDateShort } from '@/lib/utils'
 import { timeAgo } from '@/components/comments-panel'
 import { markNotificationsDoneAction, snoozeNotificationsAction } from '../collab-actions'
@@ -73,7 +73,7 @@ function ItemRow({ item, compact }: { item: InboxItem; compact?: boolean }) {
 function Section({ icon: Icon, title, count, children, action }: { icon: typeof Inbox; title: string; count?: number; children: React.ReactNode; action?: React.ReactNode }) {
   return (
     <section className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex min-h-7 items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-base font-semibold"><Icon className="h-4 w-4 text-muted-foreground" />{title}{count !== undefined && <span className="text-sm font-normal text-muted-foreground">{count}</span>}</h2>
         {action}
       </div>
@@ -97,7 +97,7 @@ function PanelCard({ title, children, empty }: { title: string; children: React.
 
 function LensPanels({ lens, panels }: { lens: Lens; panels: MyWork['panels'] }) {
   if (lens === 'code_owner') return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid gap-4">
       <PanelCard title={`Assets you own (${panels.ownedAssets.length})`} empty={!panels.ownedAssets.length}>
         <ul className="divide-y divide-border">{panels.ownedAssets.map((a) => (
           <li key={a.id} className="flex items-center justify-between gap-2 py-2 text-sm">
@@ -115,7 +115,7 @@ function LensPanels({ lens, panels }: { lens: Lens; panels: MyWork['panels'] }) 
     </div>
   )
   if (lens === 'architect') return (
-    <div className="grid gap-4 lg:grid-cols-3">
+    <div className="grid gap-4">
       <PanelCard title="Reviews in your area" empty={!panels.reviewQueue.length}>
         <ul className="space-y-2">{panels.reviewQueue.map((r) => (
           <li key={r.id} className="text-sm">
@@ -137,7 +137,7 @@ function LensPanels({ lens, panels }: { lens: Lens; panels: MyWork['panels'] }) 
     </div>
   )
   if (lens === 'eng_manager') return (
-    <div className="grid gap-4 lg:grid-cols-3">
+    <div className="grid gap-4">
       <PanelCard title="Plans at risk" empty={!panels.plansAtRisk.length}>
         <ul className="space-y-2">{panels.plansAtRisk.map((p) => (
           <li key={p.id} className="text-sm">
@@ -164,6 +164,33 @@ function LensPanels({ lens, panels }: { lens: Lens; panels: MyWork['panels'] }) 
   return null
 }
 
+const NEEDS_YOU_PAGE = 5
+
+/** Needs you, five at a time. */
+function NeedsYou({ items }: { items: InboxItem[] }) {
+  const [page, setPage] = useState(0)
+  const pages = Math.max(1, Math.ceil(items.length / NEEDS_YOU_PAGE))
+  // Acting on an item removes it; don't strand the reader on an empty last page.
+  useEffect(() => { if (page > pages - 1) setPage(pages - 1) }, [page, pages])
+  const current = Math.min(page, pages - 1)
+  const shown = items.slice(current * NEEDS_YOU_PAGE, (current + 1) * NEEDS_YOU_PAGE)
+  const first = current * NEEDS_YOU_PAGE + 1
+  const pager = items.length > NEEDS_YOU_PAGE ? (
+    <div className="flex items-center gap-1 text-xs text-muted-foreground" aria-label="Needs you pages">
+      <span className="mr-1" aria-live="polite">{first}–{first + shown.length - 1} of {items.length}</span>
+      <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Previous page" disabled={current === 0} onClick={() => setPage(current - 1)}><ChevronLeft className="h-4 w-4" /></Button>
+      <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Next page" disabled={current >= pages - 1} onClick={() => setPage(current + 1)}><ChevronRight className="h-4 w-4" /></Button>
+    </div>
+  ) : undefined
+  return (
+    <Section icon={Inbox} title="Needs you" count={items.length} action={pager}>
+      {items.length === 0 ? <Empty>Nothing needs you right now.</Empty> : (
+        <Card className="bg-card border-border py-0"><CardContent className="px-4"><ul className="divide-y divide-border">{shown.map((i) => <ItemRow key={i.key} item={i} />)}</ul></CardContent></Card>
+      )}
+    </Section>
+  )
+}
+
 export function MyWorkClient({ work, initialLens }: { work: MyWork; initialLens: Lens }) {
   const [lens, setLens] = useState<Lens>(initialLens)
   const [showAllWatching, setShowAllWatching] = useState(false)
@@ -186,17 +213,17 @@ export function MyWorkClient({ work, initialLens }: { work: MyWork; initialLens:
         </div>
       )}
 
-      <Section icon={Inbox} title="Needs you" count={needsYou.length}>
-        {needsYou.length === 0 ? <Empty>Nothing needs you right now.</Empty> : (
-          <Card className="bg-card border-border py-0"><CardContent className="px-4"><ul className="divide-y divide-border">{needsYou.map((i) => <ItemRow key={i.key} item={i} />)}</ul></CardContent></Card>
+      {/* The lens's panels on the left, what needs you beside them. Needs you comes first on narrow screens. */}
+      <div className={cn('grid gap-8', lens !== 'developer' && 'lg:grid-cols-2 lg:items-start')}>
+        <div className="lg:order-2"><NeedsYou key={lens} items={needsYou} /></div>
+        {lens !== 'developer' && (
+          <div className="lg:order-1">
+            <Section icon={Workflow} title={`${LENS_LABELS[lens]} view`}>
+              <LensPanels lens={lens} panels={work.panels} />
+            </Section>
+          </div>
         )}
-      </Section>
-
-      {lens !== 'developer' && (
-        <Section icon={Workflow} title={`${LENS_LABELS[lens]} view`}>
-          <LensPanels lens={lens} panels={work.panels} />
-        </Section>
-      )}
+      </div>
 
       <Section icon={Play} title="In flight">
         {taskGroups.length === 0 && plans.length === 0 && specs.length === 0 && <Empty>No open tasks, plans or draft specs of yours.</Empty>}
