@@ -882,7 +882,7 @@ async function seed() {
     await db.update(codePlans).set({ releaseId }).where(eq(codePlans.id, planId))
   }
 
-  const releaseStamps: [string, string, string, string | null][] = [
+  const releaseStamps: [string, string, string | null, string | null][] = [
     [platform24Id, authSvcId, 'v1.8.0', 'SAML + OAuth providers'],
     [platform24Id, webAppId,  'v2.4.0', null],
     [platform24Id, searchId,  'v1.2.0', 'relevance ranking'],
@@ -890,6 +890,8 @@ async function seed() {
     [mobile30Id,   androidId, 'v3.0.0', 'new architecture'],
     [platform25Id, webAppId,  'v2.5.0', null],
     [platform25Id, planEngineId, 'v1.5.0', 'AI generation'],
+    // Included but not yet stamped: shows up as an evidence gap in My Work.
+    [platform25Id, searchId,  null, 'presence indexing'],
   ]
   for (const [releaseId, assetId, version, notes] of releaseStamps) {
     const existing = await db.query.releaseAssets.findFirst({
@@ -1047,6 +1049,16 @@ async function seed() {
     await db.insert(productMembers).values({ productId, userId, responsibility, area }).onConflictDoNothing()
   }
   console.log(`  ensured ${responsibilityData.length} responsibilities`)
+
+  // A feature resolved weeks ago but never graduated into Android's record (an evidence gap).
+  const offline = await db.query.workItems.findFirst({ where: (w, { eq }) => eq(w.title, 'Offline plan viewing') })
+  if (!offline) {
+    await db.insert(workItems).values({
+      productId: mobileId, assetId: androidId, type: 'feature', status: 'resolved', severity: 'medium', title: 'Offline plan viewing',
+      description: 'Cache the last opened plans for reading without a connection.', reporterId: lisaId, ownerId: lisaId,
+      createdAt: new Date('2026-05-02'), updatedAt: new Date('2026-05-20'),
+    })
+  }
 
   // ── Reviews and discussion ─────────────────────────────────────────────────
   // Also through the services, so participants, states and audit rows match the app.
