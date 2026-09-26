@@ -78,6 +78,16 @@ describe('comment notifications', () => {
 })
 
 describe('responsibility-routed notifications', () => {
+  it('tells code owners when a spec is activated, and nobody about a details change', async () => {
+    const spec = await apiSpec()
+    await updateSpec(spec.id, { status: 'active' }, F.alice)
+    expect(await inbox(ERIN)).toContainEqual(['spec.activated', 'code_owner:API Service', 'Alice activated Token API'])
+    const before = (await listNotifications(ERIN)).length
+    await updateSpec(spec.id, { area: 'tokens' }, F.alice)
+    expect(await listNotifications(ERIN)).toHaveLength(before)
+    expect(await types(ERIN)).not.toContain('spec.revised')
+  })
+
   it('tells code owners and engineering managers about new work on their assets', async () => {
     await addProductMember({ productId: F.productShared, userId: F.alice, responsibility: 'eng_manager' }, { id: F.alice })
     await createWorkItem({ productId: F.productShared, assetId: F.assetApi, type: 'bug', title: 'Token leak', description: '', severity: 'high', tags: [] }, F.bob)

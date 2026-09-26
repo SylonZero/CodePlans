@@ -134,12 +134,29 @@ export function revisionEvent(before: Pick<Spec, 'status'>, after: Pick<Spec, 's
   return after.status === 'active' ? 'activated' : after.status === 'archived' ? 'archived' : 'status_changed'
 }
 
-// Compare-and-swap protects concurrent edits and keeps version/event snapshots consistent.
+/** What a reviewer reads and a delivery pins: only these create a new version. */
+function contentChanges(old: Spec, data: { title?: string; body?: string }) {
+  return (data.body !== undefined && data.body !== old.body) || (data.title !== undefined && data.title !== old.title)
+}
+
+/**
+ * Apply an update. Editing the title or body creates a new version with its
+ * full text kept; status, type, area and the import-review flag change in
+ * place, so activating or archiving a spec never produces a version whose
+ * text is identical to the last. Compare-and-swap on version and status
+ * protects concurrent edits and keeps version/event snapshots consistent.
+ */
 export async function reviseSpec(d: SpecDb, id: string, input: z.input<typeof specUpdateInput>, noteId?: string, actor?: ArtifactActor) {
   const data = specUpdateInput.parse(input)
   const old = await requireSpec(id, d)
   if (old.status === 'superseded') throw new Error('Superseded specs are read-only')
   if (data.expectedVersion !== undefined && old.version !== data.expectedVersion) throw new Error('Spec changed; reload before saving')
+  const contentChanged = contentChanges(old, data)
+  const detailsChanged = (data.specType !== undefined && data.specType !== old.specType)
+    || (data.area !== undefined && (data.area || null) !== (old.area ?? null))
+    || (data.needsReview !== undefined && data.needsReview !== old.needsReview)
+    || (data.status !== undefined && data.status !== old.status)
+  if (!contentChanged && !detailsChanged) return { spec: old, events: [], contentChanged: false, changed: false }
   const [row] = await d.update(specs).set({
     ...(data.title !== undefined ? { title: data.title } : {}),
     ...(data.specType !== undefined ? { specType: data.specType } : {}),
@@ -147,13 +164,20 @@ export async function reviseSpec(d: SpecDb, id: string, input: z.input<typeof sp
     ...(data.needsReview !== undefined ? { needsReview: data.needsReview } : {}),
     ...(data.body !== undefined ? { body: data.body } : {}),
     ...(data.status !== undefined ? { status: data.status } : {}),
-    ...editedBy(actor), version: old.version + 1, updatedAt: new Date(),
+    ...editedBy(actor), ...(contentChanged ? { version: old.version + 1 } : {}), updatedAt: new Date(),
   }).where(and(eq(specs.id, id), eq(specs.version, old.version), eq(specs.status, old.status))).returning()
   if (!row) throw new Error('Spec changed; reload before saving')
+  if (!contentChanged) return { spec: row, events: [], contentChanged: false, changed: true }
   await recordRevision(d, row, actor, data.changeSummary)
   const links = await d.select().from(specLinks).where(eq(specLinks.specId, id))
   const events = await emitSpecEvents(d, row, links, 'spec_updated', old.version, noteId)
-  return { spec: row, events }
+  return { spec: row, events, contentChanged: true, changed: true }
+}
+
+/** The activity-feed name for an update: a lifecycle move, a content revision, or a details change. */
+function updateEvent(old: Spec, spec: Spec, contentChanged: boolean) {
+  if (old.status !== spec.status) return revisionEvent(old, spec)
+  return contentChanged ? 'revised' : 'details_changed'
 }
 
 export async function updateSpec(id: string, input: z.input<typeof specUpdateInput>, userId: string, actorKind: 'user' | 'agent' = 'user') {
@@ -163,10 +187,19 @@ export async function updateSpec(id: string, input: z.input<typeof specUpdateInp
   if (input.status === 'active' && old.status !== 'active') {
     await assertActivationAllowed({ subjectType: 'spec', subjectId: id, transition: 'activate', actor })
   }
-  const spec = await db.transaction(async (tx) => (await reviseSpec(tx, id, input, undefined, actor)).spec)
-  await auditSpec(spec, revisionEvent(old, spec), actor, { fromVersion: old.version, toVersion: spec.version, fromStatus: old.status, status: spec.status })
-  await onSubjectRevised('spec', id, userId)
+  const { spec, contentChanged, changed } = await db.transaction((tx) => reviseSpec(tx, id, input, undefined, actor))
+  if (!changed) return spec
+  await auditSpec(spec, updateEvent(old, spec, contentChanged), actor, {
+    fromVersion: old.version, toVersion: spec.version, fromStatus: old.status, status: spec.status, contentChanged,
+  })
+  // Only new text can outdate an approval or ask reviewers to look again.
+  if (contentChanged) await onSubjectRevised('spec', id, userId)
   return spec
+}
+
+/** Change only a spec's lifecycle status. Never creates a version. */
+export async function setSpecStatus(id: string, status: 'draft' | 'in_review' | 'active' | 'archived', userId: string, expectedVersion?: number, actorKind: 'user' | 'agent' = 'user') {
+  return updateSpec(id, { status, expectedVersion }, userId, actorKind)
 }
 
 export async function linkSpecInTransaction(d: SpecDb, specId: string, targetType: SpecTargetType, targetId: string, relationshipType?: SpecRelationshipType) {
