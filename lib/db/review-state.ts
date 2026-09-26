@@ -2,7 +2,7 @@ import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm'
 import { db } from './index'
 import { codePlans, reviewParticipants, reviews, specRevisions, specs } from './schema'
 import type { ReviewState, ReviewSubjectType } from './schema.sqlite'
-import { createNotifications, type NotificationInput } from './notifications'
+import type { NotificationInput } from './notifications'
 
 /**
  * Review state that other writers must keep consistent: recomputing a
@@ -106,7 +106,10 @@ export async function onSubjectRevised(subjectType: ReviewSubjectType, subjectId
       }
     }
   }
-  if (notices.length) await createNotifications(notices)
+  if (notices.length) {
+    const { publish } = await import('./notification-delivery')
+    await publish(notices, { productId: rows[0].productId })
+  }
 }
 
 /** The most recent version an approval covered, even if the subject has moved on since. */

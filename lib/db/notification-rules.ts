@@ -1,10 +1,14 @@
-import { and, eq, inArray, or } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, or } from 'drizzle-orm'
 import { db } from './index'
 import {
-  assetOwners, assets, codePlanAssets, codePlans, comments, productMembers, products, releaseAssets, releases,
+  assetOwners, assets, codePlanAssets, codePlans, comments, organizationMembers, productMembers, products, releaseAssets, releases,
   reviewParticipants, reviews, specLinks, specs, tasks, users, workItems,
 } from './schema'
-import { createNotifications, type NotificationInput } from './notifications'
+import type { NotificationInput } from './notifications'
+import { publish } from './notification-delivery'
+import { EVENT_TYPE_LABELS } from '@/lib/notification-catalog'
+
+export { EVENT_TYPE_LABELS }
 
 /**
  * Who is told about an activity-stream event, and why. Recipients come from
@@ -36,32 +40,8 @@ type Draft = {
   url?: string
   /** Per-recipient event type override (mentions inside a comment event). */
   perRecipientType?: Map<string, string>
-}
-
-export const EVENT_TYPE_LABELS: Record<string, string> = {
-  'review.requested': 'Review requested',
-  'review.changes_requested': 'Changes requested',
-  'review.approved': 'Approved',
-  'review.commented': 'Review comment',
-  'review.updated': 'Needs another look',
-  'review.stale': 'Approval outdated',
-  'comment.mention': 'Mentioned',
-  'comment.reply': 'Reply',
-  'comment.created': 'Comment',
-  'spec.created': 'New spec',
-  'spec.revised': 'Spec revised',
-  'spec.activated': 'Spec active',
-  'spec.superseded': 'Spec superseded',
-  'work_item.created': 'New work item',
-  'work_item.assigned': 'Assigned to you',
-  'task.assigned': 'Assigned to you',
-  'plan.activated': 'Plan activated',
-  'plan.completed': 'Plan completed',
-  'plan.targets_asset': 'Plan targets your asset',
-  'release.shipped': 'Release shipped',
-  'capability.graduated': 'Capability graduated',
-  'asset.design_note': 'Design note',
-  'responsibility.assigned': 'Responsibility',
+  /** For the team's Slack channel when `title` is addressed to "you". */
+  broadcastTitle?: string
 }
 
 export function subjectUrl(subjectType: string, subjectId: string, extra?: { planId?: string; productSlug?: string }) {
@@ -152,7 +132,7 @@ async function reviewDraft(e: AuditEvent, who: string, title: string): Promise<D
   switch (e.event) {
     case 'review_requested': {
       const parts = await db.select().from(reviewParticipants).where(eq(reviewParticipants.reviewId, reviewId))
-      return { eventType: 'review.requested', title: `${who} asked you to review ${title}${v}`, summary: review.note ?? '',
+      return { eventType: 'review.requested', title: `${who} asked you to review ${title}${v}`, broadcastTitle: `${who} requested a review of ${title}${v}`, summary: review.note ?? '',
         recipients: parts.map((p) => ({ userId: p.userId, reason: p.reason === 'requested' ? 'reviewer' : p.reason })) }
     }
     case 'review_changes_requested':
@@ -215,12 +195,12 @@ async function draftFor(e: AuditEvent): Promise<Draft | null> {
     }
     case 'work_item:assigned': {
       const to = e.payload.ownerId as string | undefined
-      return to ? { eventType: 'work_item.assigned', title: `${who} made you owner of ${title}`, recipients: [{ userId: to, reason: 'owner' }] } : null
+      return to ? { eventType: 'work_item.assigned', title: `${who} made you owner of ${title}`, broadcastTitle: `${who} assigned an owner to ${title}`, recipients: [{ userId: to, reason: 'owner' }] } : null
     }
     case 'task:assigned': {
       const to = e.payload.assigneeId as string | undefined
       const task = await db.query.tasks.findFirst({ where: eq(tasks.id, e.entityId) })
-      return to && task ? { eventType: 'task.assigned', title: `${who} assigned you ${title}`, recipients: [{ userId: to, reason: 'assignee' }], url: subjectUrl('task', e.entityId, { planId: task.codePlanId }) } : null
+      return to && task ? { eventType: 'task.assigned', title: `${who} assigned you ${title}`, broadcastTitle: `${who} assigned ${title}`, recipients: [{ userId: to, reason: 'assignee' }], url: subjectUrl('task', e.entityId, { planId: task.codePlanId }) } : null
     }
     case 'code_plan:activated': case 'code_plan:completed': {
       const targets = (await db.select({ id: codePlanAssets.assetId }).from(codePlanAssets).where(eq(codePlanAssets.codePlanId, e.entityId))).map((r) => r.id)
@@ -230,7 +210,9 @@ async function draftFor(e: AuditEvent): Promise<Draft | null> {
     case 'code_plan:asset_added': {
       const assetId = e.payload.assetId as string | undefined
       const plan = await db.query.codePlans.findFirst({ where: eq(codePlans.id, e.entityId) })
-      return assetId && plan ? { eventType: 'plan.targets_asset', title: `${who} added your asset to ${plan.title}`, recipients: await codeOwnersOf([assetId]) } : null
+      const asset = assetId ? await db.query.assets.findFirst({ where: eq(assets.id, assetId) }) : null
+      return assetId && plan ? { eventType: 'plan.targets_asset', title: `${who} added your asset to ${plan.title}`,
+        broadcastTitle: `${who} added ${asset?.name ?? 'an asset'} to ${plan.title}`, recipients: await codeOwnersOf([assetId]) } : null
     }
     case 'release:shipped': {
       const included = (await db.select({ id: releaseAssets.assetId }).from(releaseAssets).where(eq(releaseAssets.releaseId, e.entityId))).map((r) => r.id)
@@ -248,7 +230,9 @@ async function draftFor(e: AuditEvent): Promise<Draft | null> {
       const to = e.payload.userId as string | undefined
       const product = await db.query.products.findFirst({ where: eq(products.id, e.entityId) })
       const label = String(e.payload.responsibility ?? '').replace('_', ' ')
-      return to && product ? { eventType: 'responsibility.assigned', title: `${who} made you ${label === 'eng manager' ? 'engineering manager' : label}${e.payload.area ? ` (${e.payload.area})` : ''} on ${product.name}`,
+      const role = `${label === 'eng manager' ? 'engineering manager' : label}${e.payload.area ? ` (${e.payload.area})` : ''}`
+      const member = to ? (await db.query.users.findFirst({ where: eq(users.id, to) }))?.name ?? 'someone' : ''
+      return to && product ? { eventType: 'responsibility.assigned', title: `${who} made you ${role} on ${product.name}`, broadcastTitle: `${who} made ${member} ${role} on ${product.name}`,
         recipients: [{ userId: to, reason: String(e.payload.responsibility) }], url: subjectUrl('product', product.id, { productSlug: product.slug }) } : null
     }
     default: return null
@@ -272,9 +256,34 @@ export async function notifyForEvent(e: AuditEvent) {
       subjectType, subjectId, reason, title: perRecipient?.get(userId) === 'comment.mention' ? draft.title.replace(/ (commented|replied) on /, ' mentioned you on ') : draft.title,
       summary: draft.summary, url, actorId: e.actorId, actorKind: e.actorKind,
     }))
-    return createNotifications(rows)
+    const { inApp } = await publish(rows, {
+      productId: e.productId, eventId: e.id, actorKind: e.actorKind,
+      broadcast: { eventType: draft.eventType, title: draft.broadcastTitle ?? draft.title, summary: draft.summary, url },
+    })
+    return inApp
   } catch (err) {
     console.error('[notifications] rule failed:', err)
+    return 0
+  }
+}
+
+/**
+ * A connected tool started failing. Org admins hear about it once, when the
+ * connection goes into error, not on every failed sync after that.
+ */
+export async function notifyIntegrationError(integration: { id: string; organizationId: string; name: string }, message: string) {
+  try {
+    const admins = await db.select({ userId: organizationMembers.userId }).from(organizationMembers)
+      .where(and(eq(organizationMembers.organizationId, integration.organizationId), inArray(organizationMembers.role, ['owner', 'admin']), isNotNull(organizationMembers.joinedAt)))
+    const title = `${integration.name} failed to sync`
+    const summary = message.length > 200 ? `${message.slice(0, 200)}…` : message
+    const url = '/integrations'
+    return (await publish(admins.map((a) => ({
+      userId: a.userId, eventType: 'integration.error', subjectType: 'integration', subjectId: integration.id,
+      reason: 'admin', title, summary, url, actorKind: 'connector',
+    })), { organizationId: integration.organizationId, broadcast: { eventType: 'integration.error', title, summary, url } })).inApp
+  } catch (err) {
+    console.error('[notifications] integration error notice failed:', err)
     return 0
   }
 }

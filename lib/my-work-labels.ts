@@ -7,7 +7,7 @@ export const LENS_LABELS: Record<Lens, string> = { developer: 'Developer', code_
 const REASON_TEXT: Record<string, string> = {
   architect: 'architect', code_owner: 'code owner', eng_manager: 'eng manager', requested: 'reviewer', reviewer: 'reviewer',
   mentioned: 'mentioned', thread: 'in thread', author: 'author', plan_owner: 'plan owner', owner: 'owner', reporter: 'reporter',
-  assignee: 'assignee', requester: 'requested review', approver: 'approved earlier', contributor: 'contributor',
+  assignee: 'assignee', requester: 'requested review', approver: 'approved earlier', contributor: 'contributor', admin: 'workspace admin',
 }
 
 /** "code_owner:API Gateway" → "code owner · API Gateway". */

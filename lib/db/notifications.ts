@@ -25,8 +25,17 @@ export type NotificationInput = {
 
 export type NotificationRow = typeof notifications.$inferSelect
 
-/** Insert notifications, skipping the actor and duplicates for the same event. Never throws. */
+/**
+ * Store in-app notifications as given. Most callers want publish() in
+ * notification-delivery.ts, which applies the workspace's rules and also
+ * queues email and Slack.
+ */
 export async function createNotifications(rows: NotificationInput[]) {
+  return (await createNotificationRows(rows)).length
+}
+
+/** Insert notifications, skipping the actor and duplicates for the same event. Never throws. */
+export async function createNotificationRows(rows: NotificationInput[]): Promise<{ id: string; userId: string; eventType: string }[]> {
   const seen = new Set<string>()
   const values = rows.filter((r) => {
     if (!r.userId || r.userId === r.actorId) return false
@@ -35,13 +44,13 @@ export async function createNotifications(rows: NotificationInput[]) {
     seen.add(key)
     return true
   }).map((r) => ({ ...r, summary: r.summary ?? '' }))
-  if (!values.length) return 0
+  if (!values.length) return []
   try {
-    const inserted = await db.insert(notifications).values(values).onConflictDoNothing().returning({ id: notifications.id })
-    return inserted.length
+    return await db.insert(notifications).values(values).onConflictDoNothing()
+      .returning({ id: notifications.id, userId: notifications.userId, eventType: notifications.eventType })
   } catch (err) {
     console.error('[notifications] insert failed:', err)
-    return 0
+    return []
   }
 }
 

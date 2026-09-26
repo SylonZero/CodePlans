@@ -14,7 +14,7 @@ import {
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
-import type { CommentSubjectType, CommentKind, CommentAnchor, ReviewSubjectType, ReviewState, ReviewReason, ReviewDecision, WorkflowLevel } from './schema.sqlite'
+import type { CommentSubjectType, CommentKind, CommentAnchor, ReviewSubjectType, ReviewState, ReviewReason, ReviewDecision, WorkflowLevel, NotificationChannelKind, NotificationChannelStatus, NotificationDeliveryStatus } from './schema.sqlite'
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -695,4 +695,81 @@ export const notifications = pgTable('notifications', {
   index('notifications_user_idx').on(t.userId, t.doneAt, t.createdAt),
   // Delivery is idempotent per event and person.
   uniqueIndex('notifications_event_user_idx').on(t.eventId, t.userId),
+])
+
+// Where email and Slack notifications go. One channel per kind per org; the
+// secret (API key / webhook URL) is encrypted like integration tokens, with an
+// env-var reference as the fallback for self-hosted setups.
+export const notificationChannels = pgTable('notification_channels', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  kind: text('kind').$type<NotificationChannelKind>().notNull(),
+  name: text('name').notNull(),
+  // { fromAddress, replyTo } for email; { channelLabel } for Slack.
+  config: jsonb('config').$type<Record<string, string>>().notNull().default({}),
+  secretEncrypted: text('secret_encrypted'),
+  authRef: text('auth_ref'),
+  status: text('status').$type<NotificationChannelStatus>().notNull().default('active'),
+  lastError: text('last_error'),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+}, (t) => [
+  uniqueIndex('notification_channels_org_kind_idx').on(t.organizationId, t.kind),
+])
+
+// Admin overrides of the event catalog's defaults. No row means catalog defaults.
+export const notificationRules = pgTable('notification_rules', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  eventType: text('event_type').notNull(),
+  enabled: boolean('enabled').notNull().default(true),
+  inApp: boolean('in_app').notNull().default(true),
+  email: boolean('email').notNull().default(false),
+  slack: boolean('slack').notNull().default(false),
+  // Whether events done by AI agents (via MCP) notify at all.
+  includeAgents: boolean('include_agents').notNull().default(true),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedById: uuid('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+}, (t) => [
+  uniqueIndex('notification_rules_org_event_idx').on(t.organizationId, t.eventType),
+])
+
+// A person's email opt-outs. eventType '*' covers every event. Preferences
+// only narrow what admins turned on; they never add a channel.
+export const notificationPreferences = pgTable('notification_preferences', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  eventType: text('event_type').notNull(),
+  email: boolean('email'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('notification_preferences_user_event_idx').on(t.userId, t.eventType),
+])
+
+// Outbox for email and Slack. One row per event, channel and target; sent
+// after the response and retried with backoff by /api/cron/notifications.
+export const notificationDeliveries = pgTable('notification_deliveries', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  // The sync_log event, or the notification row for events without one.
+  eventId: text('event_id').notNull(),
+  eventType: text('event_type').notNull(),
+  // A channel id, or 'env:email' for the RESEND_API_KEY fallback.
+  channelId: text('channel_id').notNull(),
+  channelKind: text('channel_kind').$type<NotificationChannelKind>().notNull(),
+  // The recipient's user id for email; 'channel' for Slack.
+  target: text('target').notNull(),
+  // Rendered when queued: { subject, html, text } or { text, blocks }.
+  payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
+  status: text('status').$type<NotificationDeliveryStatus>().notNull().default('pending'),
+  attempts: integer('attempts').notNull().default(0),
+  lastError: text('last_error'),
+  nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+  sentAt: timestamp('sent_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('notification_deliveries_event_channel_target_idx').on(t.eventId, t.channelId, t.target),
+  index('notification_deliveries_due_idx').on(t.status, t.nextAttemptAt),
+  index('notification_deliveries_org_idx').on(t.organizationId, t.createdAt),
 ])

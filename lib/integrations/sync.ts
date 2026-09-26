@@ -303,6 +303,7 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
         updatedAt: new Date(),
       })
       .where(eq(integrations.id, connectionId))
+    if (result.error) await noticeFailure(integration, result.error)
     return result
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
@@ -310,6 +311,14 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
       .update(integrations)
       .set({ lastError: message, status: 'error', updatedAt: new Date() })
       .where(eq(integrations.id, connectionId))
+    await noticeFailure(integration, message)
     return emptyResult(message)
   }
+}
+
+/** Tell admins when a healthy connection starts failing; repeat failures stay quiet. */
+async function noticeFailure(integration: typeof integrations.$inferSelect, message: string) {
+  if (integration.status === 'error') return
+  const { notifyIntegrationError } = await import('@/lib/db/notification-rules')
+  await notifyIntegrationError(integration, message)
 }

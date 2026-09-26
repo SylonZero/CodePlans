@@ -699,3 +699,84 @@ export const notifications = sqliteTable('notifications', {
   // Delivery is idempotent per event and person.
   uniqueIndex('notifications_event_user_idx').on(t.eventId, t.userId),
 ])
+
+export type NotificationChannelKind = 'email_resend' | 'slack_webhook'
+export type NotificationChannelStatus = 'active' | 'paused' | 'error'
+export type NotificationDeliveryStatus = 'pending' | 'sending' | 'sent' | 'failed' | 'skipped'
+
+// Where email and Slack notifications go. One channel per kind per org; the
+// secret (API key / webhook URL) is encrypted like integration tokens, with an
+// env-var reference as the fallback for self-hosted setups.
+export const notificationChannels = sqliteTable('notification_channels', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  kind: text('kind').$type<NotificationChannelKind>().notNull(),
+  name: text('name').notNull(),
+  // { fromAddress, replyTo } for email; { channelLabel } for Slack.
+  config: text('config', { mode: 'json' }).$type<Record<string, string>>().notNull().default({}),
+  secretEncrypted: text('secret_encrypted'),
+  authRef: text('auth_ref'),
+  status: text('status').$type<NotificationChannelStatus>().notNull().default('active'),
+  lastError: text('last_error'),
+  lastUsedAt: integer('last_used_at', { mode: 'timestamp_ms' }),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+}, (t) => [
+  uniqueIndex('notification_channels_org_kind_idx').on(t.organizationId, t.kind),
+])
+
+// Admin overrides of the event catalog's defaults. No row means catalog defaults.
+export const notificationRules = sqliteTable('notification_rules', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  eventType: text('event_type').notNull(),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  inApp: integer('in_app', { mode: 'boolean' }).notNull().default(true),
+  email: integer('email', { mode: 'boolean' }).notNull().default(false),
+  slack: integer('slack', { mode: 'boolean' }).notNull().default(false),
+  // Whether events done by AI agents (via MCP) notify at all.
+  includeAgents: integer('include_agents', { mode: 'boolean' }).notNull().default(true),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+  updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+}, (t) => [
+  uniqueIndex('notification_rules_org_event_idx').on(t.organizationId, t.eventType),
+])
+
+// A person's email opt-outs. eventType '*' covers every event. Preferences
+// only narrow what admins turned on; they never add a channel.
+export const notificationPreferences = sqliteTable('notification_preferences', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  eventType: text('event_type').notNull(),
+  email: integer('email', { mode: 'boolean' }),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('notification_preferences_user_event_idx').on(t.userId, t.eventType),
+])
+
+// Outbox for email and Slack. One row per event, channel and target; sent
+// after the response and retried with backoff by /api/cron/notifications.
+export const notificationDeliveries = sqliteTable('notification_deliveries', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  // The sync_log event, or the notification row for events without one.
+  eventId: text('event_id').notNull(),
+  eventType: text('event_type').notNull(),
+  // A channel id, or 'env:email' for the RESEND_API_KEY fallback.
+  channelId: text('channel_id').notNull(),
+  channelKind: text('channel_kind').$type<NotificationChannelKind>().notNull(),
+  // The recipient's user id for email; 'channel' for Slack.
+  target: text('target').notNull(),
+  // Rendered when queued: { subject, html, text } or { text, blocks }.
+  payload: text('payload', { mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
+  status: text('status').$type<NotificationDeliveryStatus>().notNull().default('pending'),
+  attempts: integer('attempts').notNull().default(0),
+  lastError: text('last_error'),
+  nextAttemptAt: integer('next_attempt_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+  sentAt: integer('sent_at', { mode: 'timestamp_ms' }),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('notification_deliveries_event_channel_target_idx').on(t.eventId, t.channelId, t.target),
+  index('notification_deliveries_due_idx').on(t.status, t.nextAttemptAt),
+  index('notification_deliveries_org_idx').on(t.organizationId, t.createdAt),
+])
