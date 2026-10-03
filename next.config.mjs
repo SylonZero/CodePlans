@@ -7,6 +7,14 @@ const allowedDevOrigins = process.env.ALLOWED_DEV_ORIGINS
   : []
 
 const nextConfig = {
+  // Self-contained server in .next/standalone for the Docker image (see
+  // Dockerfile). `next start` keeps working for non-container installs.
+  output: 'standalone',
+  // Migrations are read from disk at boot (lib/db/migrate.ts), so ship them
+  // with the traced server files.
+  outputFileTracingIncludes: {
+    '/*': ['./lib/db/migrations/**/*'],
+  },
   ...(allowedDevOrigins.length > 0 && { allowedDevOrigins }),
   typescript: {
     ignoreBuildErrors: true,

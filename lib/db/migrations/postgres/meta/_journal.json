@@ -218,6 +218,13 @@
       "when": 1790700000000,
       "tag": "0030_retire_import_triage",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1790800000000,
+      "tag": "0031_users_password_hash",
+      "breakpoints": true
     }
   ]
 }

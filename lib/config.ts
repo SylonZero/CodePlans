@@ -1,3 +1,5 @@
+import { resolveDbSsl } from './runtime-env'
+
 export type AuthProvider = 'supabase' | 'local'
 export type DbProvider = 'postgres' | 'sqlite'
 // saas: multi-tenant hosted, open registration, billing available.
@@ -8,19 +10,22 @@ export type HostMode = 'saas' | 'team'
 // closed: signup disabled entirely; users created by admin via seed / CLI.
 export type RegistrationMode = 'open' | 'invite' | 'closed'
 
-const hostMode = (process.env.HOST_MODE ?? 'saas') as HostMode
+// Unset values are resolved by lib/runtime-env.ts (imported above) before
+// this module reads them: self-hosted defaults unless Supabase is configured.
+const hostMode = (process.env.HOST_MODE ?? 'team') as HostMode
 
 export const config = {
   hostMode,
   auth: {
-    provider: (process.env.AUTH_PROVIDER ?? 'supabase') as AuthProvider,
+    provider: (process.env.AUTH_PROVIDER ?? 'local') as AuthProvider,
   },
   db: {
-    provider: (process.env.DB_PROVIDER ?? 'postgres') as DbProvider,
+    provider: (process.env.DB_PROVIDER ?? 'sqlite') as DbProvider,
     url: process.env.DATABASE_URL!,
-    // Set DB_SSL=false for local or non-SSL Postgres. Defaults to true for
-    // hosted providers (Supabase, Neon, Railway, etc.) that require SSL.
-    ssl: process.env.DB_SSL !== 'false',
+    // DB_SSL=true/false wins, then sslmode in the URL; otherwise TLS is off
+    // for private-network hosts (Railway/Fly internal DNS, Docker services)
+    // and on for hosted providers (Supabase, Neon, ...). See lib/runtime-env.ts.
+    ssl: resolveDbSsl(process.env.DATABASE_URL, process.env.DB_SSL),
   },
   billing: {
     // Billing is always off in team mode. In saas mode, BILLING_ENABLED controls it.
@@ -32,5 +37,5 @@ export const config = {
     enabled: !!process.env.ANTHROPIC_API_KEY && process.env.AI_ENABLED !== 'false',
     model: process.env.AI_MODEL ?? 'claude-opus-5',
   },
-  registration: (process.env.REGISTRATION ?? 'open') as RegistrationMode,
+  registration: (process.env.REGISTRATION ?? 'closed') as RegistrationMode,
 } as const

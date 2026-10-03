@@ -1,6 +1,11 @@
 // Runs once per server boot (Next.js instrumentation hook).
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
+    // Resolved settings, migrations (MIGRATE_ON_BOOT, on in production) and
+    // first-run owner setup. See lib/server-boot.ts.
+    const { bootServer } = await import('@/lib/server-boot')
+    await bootServer()
+
     const { ensureTeamWorkspace } = await import('@/lib/db/bootstrap')
     await ensureTeamWorkspace()
 

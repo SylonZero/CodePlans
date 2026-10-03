@@ -140,10 +140,10 @@ export async function getMyWork(userId: string, opts: { productId?: string } = {
   }
 
   // Triage: open, unowned, unplanned work on my assets or products I manage.
-  if (ownedAssetIds.length || emProducts.length) {
+  if ((ownedAssetIds.length || emProducts.length) && productIds.length) {
     const planned = new Set((await db.select({ id: workItemCodePlans.workItemId }).from(workItemCodePlans)).map((r) => r.id))
     const candidates = await db.select({ item: workItems, assetName: assets.name }).from(workItems).leftJoin(assets, eq(workItems.assetId, assets.id))
-      .where(and(inArray(workItems.productId, productIds.length ? productIds : ['__none__']), eq(workItems.status, 'open'), isNull(workItems.ownerId), eq(workItems.externalDeleted, false)))
+      .where(and(inArray(workItems.productId, productIds), eq(workItems.status, 'open'), isNull(workItems.ownerId), eq(workItems.externalDeleted, false)))
     for (const { item, assetName } of candidates) {
       if (planned.has(item.id)) continue
       const mine = item.assetId && ownedAssetIds.includes(item.assetId)

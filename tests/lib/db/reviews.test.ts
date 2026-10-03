@@ -180,6 +180,13 @@ describe('closing reviews', () => {
     expect(await listOpenReviews(DAVE, { awaitingUserId: DAVE })).toEqual([])
     expect(await listOpenReviews(F.carol)).toEqual([])
   })
+
+  it('lists nothing for an empty product scope (a new user with no products)', async () => {
+    const spec = await apiSpec()
+    await requestReview({ subjectType: 'spec', subjectId: spec.id, reviewers: [{ userId: F.bob, required: true }] }, { id: F.alice })
+    expect(await listOpenReviews(F.alice, { productIds: [] })).toEqual([])
+    expect(await listOpenReviews(F.alice, { productIds: [F.productShared] })).toHaveLength(1)
+  })
 })
 
 describe('graduation pins the approved version', () => {

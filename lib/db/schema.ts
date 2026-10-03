@@ -4,6 +4,7 @@
 // table names so queries work correctly. Minor TS errors in SQLite mode are suppressed
 // by next.config.mjs#typescript.ignoreBuildErrors.
 /* eslint-disable @typescript-eslint/no-require-imports */
+import '@/lib/runtime-env' // resolves DB_PROVIDER from DATABASE_URL when unset
 
 const _schema: typeof import('./schema.pg') =
   process.env.DB_PROVIDER === 'sqlite'

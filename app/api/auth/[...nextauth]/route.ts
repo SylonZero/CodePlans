@@ -2,9 +2,10 @@
 // Dynamic import prevents local.ts from loading (and requiring AUTH_SECRET)
 // in Supabase mode.
 import type { NextRequest } from 'next/server'
+import { config } from '@/lib/config'
 
 async function handler(request: NextRequest) {
-  if (process.env.AUTH_PROVIDER !== 'local') {
+  if (config.auth.provider !== 'local') {
     return new Response('Not found', { status: 404 })
   }
   const { handlers } = await import('@/lib/auth/local')
