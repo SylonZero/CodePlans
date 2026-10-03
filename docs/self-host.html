@@ -32,6 +32,7 @@
         <div class="config-card-header">SQLite — the default</div>
         <div class="config-row"><div class="config-val">choose</div><div class="config-desc">Leave <code>DATABASE_URL</code> unset and mount a volume at <code>/data</code>.</div></div>
         <div class="config-row"><div class="config-val">good for</div><div class="config-desc">One team, the cheapest setup. Runs as a single instance and backs up with volume snapshots.</div></div>
+        <div class="config-row"><div class="config-val">volume</div><div class="config-desc">Required: the database lives on the volume, not in the image, so it survives every deploy. Without one, CodePlans won't start on Railway, Fly.io or Render.</div></div>
       </div>
       <div class="config-card">
         <div class="config-card-header">Postgres</div>
@@ -207,6 +208,11 @@
             <td class="env-desc">Create the owner account on first boot instead of using <code>/setup</code>. Ignored once any account exists.</td>
           </tr>
           <tr>
+            <td class="env-var">ALLOW_EPHEMERAL_DB</td>
+            <td class="env-default">—</td>
+            <td class="env-desc">On Railway, Fly.io and Render, SQLite won't start unless its folder is on a volume, because each deploy would otherwise wipe it. <code>true</code> allows it for a throwaway trial.</td>
+          </tr>
+          <tr>
             <td class="env-var">MIGRATE_ON_BOOT</td>
             <td class="env-default">on in production</td>
             <td class="env-desc">Apply pending migrations at server start (behind a Postgres advisory lock). <code>false</code> to run <code>pnpm db:migrate</code> yourself.</td>
@@ -316,7 +322,7 @@
           <tr>
             <td class="layer">Testing</td>
             <td class="tech">Vitest</td>
-            <td class="note">437 tests covering data, authorization, reviews, notifications, MCP access, imports and Markdown; isolated temporary SQLite databases plus an opt-in real PostgreSQL migration and behavior verifier</td>
+            <td class="note">446 tests covering data, authorization, reviews, notifications, MCP access, imports and Markdown; isolated temporary SQLite databases plus an opt-in real PostgreSQL migration and behavior verifier</td>
           </tr>
         </tbody>
       </table>

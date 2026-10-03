@@ -3,6 +3,7 @@
 // when asked, and point a fresh instance at /setup.
 import { config } from '@/lib/config'
 import { platformName } from '@/lib/runtime-env'
+import { checkPersistentStorage } from '@/lib/storage-check'
 
 export function migrateOnBoot(env = process.env): boolean {
   if (env.MIGRATE_ON_BOOT) return env.MIGRATE_ON_BOOT !== 'false'
@@ -32,6 +33,11 @@ export async function bootServer() {
     console.error(`[boot] ${msg}`)
     if (process.env.NODE_ENV === 'production') process.exit(1)
   }
+  // SQLite on Railway/Fly/Render without a volume would be wiped on every deploy.
+  const storage = checkPersistentStorage()
+  if (!storage.ok) return fatal(storage.message)
+  if (storage.reason === 'ALLOW_EPHEMERAL_DB=true') console.warn('[boot] ALLOW_EPHEMERAL_DB=true: the SQLite database is not on a volume and is lost on every deploy.')
+
   if (!config.db.url) return fatal('DATABASE_URL is not set. Set it to a postgres:// URL, or leave DB_PROVIDER unset to use SQLite.')
   if (config.auth.provider === 'local' && !process.env.AUTH_SECRET) {
     return fatal('AUTH_SECRET is not set. Generate one with `openssl rand -base64 32` and set it as a secret.')

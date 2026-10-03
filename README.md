@@ -5,7 +5,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-SQLite_%7C_Postgres-C5F74F?logo=drizzle&logoColor=black)](https://orm.drizzle.team)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![Tests](https://img.shields.io/badge/Tests-437_passing-brightgreen?logo=vitest&logoColor=white)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-446_passing-brightgreen?logo=vitest&logoColor=white)](tests/)
 [![CI](https://github.com/SylonZero/CodePlans/actions/workflows/test.yml/badge.svg)](https://github.com/SylonZero/CodePlans/actions/workflows/test.yml)
 [![MCP tools](https://img.shields.io/badge/MCP-71_tools-8B5CF6)](docs/guides/ai-agents.md)
 [![Docs](https://img.shields.io/badge/Docs-GitHub_Pages-4ade80)](https://sylonzero.github.io/CodePlans)
@@ -135,7 +135,7 @@ See the [reviews guide](docs/guides/reviews-and-comments.md), [My Work guide](do
 | Database | SQLite (local / libsql) or PostgreSQL (cloud) |
 | Auth | Local (bcrypt + session cookie) or Supabase |
 | Charts | Recharts |
-| Testing | Vitest (437 tests) |
+| Testing | Vitest (446 tests) |
 
 ---
 
@@ -285,6 +285,7 @@ Then run `pnpm db:migrate` and `pnpm dev`.
 | `AUTH_URL` | detected on Railway, Fly.io, Render | Public URL of the server (e.g. `https://codeplans.yourteam.com`). Set it for custom domains and other hosts. Not needed for `localhost` dev. |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_NAME` | — | Create the owner account on first boot instead of using `/setup` |
 | `MIGRATE_ON_BOOT` | on in production | Apply pending migrations at server start; `false` to run `pnpm db:migrate` yourself |
+| `ALLOW_EPHEMERAL_DB` | — | On Railway, Fly.io and Render, SQLite refuses to start unless its folder is on a volume (otherwise every deploy wipes it). `true` allows it for a throwaway trial |
 | `BILLING_ENABLED` | `true` | Set `false` to hide billing UI (always off in `team` mode) |
 | `ALLOWED_DEV_ORIGINS` | — | Comma-separated hosts allowed to access Next.js dev resources (needed when running on a remote server) |
 | `RESEND_API_KEY` | — | Resend API key for transactional email and the fallback notification email channel. Without this, verification URLs are logged to the server console (dev only). Admins can also connect Resend in **Settings → Manage workspace notifications**. |
