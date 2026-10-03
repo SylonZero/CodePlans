@@ -56,7 +56,7 @@ export function SetupForm() {
           </div>
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         </CardContent>
-        <CardFooter>
+        <CardFooter className="pt-6">
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? 'Creating account…' : 'Create owner account'}
           </Button>
