@@ -19,6 +19,15 @@ lets you create the first account in the browser. There's no shell step.
 There's no way yet to move an instance from SQLite to Postgres. If you expect
 to need Postgres, start with it.
 
+**The database never lives in the image.** A new deploy builds a new image
+and starts a new container, but the SQLite file is on the volume, which stays
+across deploys. The new version runs any new migrations on the existing data.
+Without a volume, `/data` would be part of the container and would be thrown
+away on every deploy. So on Railway, Fly.io and Render, CodePlans refuses to
+start on SQLite unless the database folder is on a mounted volume, and its log
+says how to attach one. For a throwaway trial without a volume, set
+`ALLOW_EPHEMERAL_DB=true`. Expect to lose everything on each deploy.
+
 `DATABASE_URL` decides everything:
 
 | `DATABASE_URL` | Database |
@@ -169,6 +178,7 @@ what CodePlans works out.
 | `AUTH_URL` | from Railway, Fly or Render | Public URL; set it for custom domains |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME` | — | Create the owner on first boot |
 | `MIGRATE_ON_BOOT` | on in production | `false` to manage migrations yourself |
+| `ALLOW_EPHEMERAL_DB` | — | `true` lets SQLite run on Railway, Fly.io or Render without a volume (data is lost on every deploy) |
 | `DB_SSL` | from the URL and host | `true` / `false` to force Postgres TLS |
 | `DATABASE_AUTH_TOKEN` | — | For `libsql://` (Turso) URLs |
 | `HOST_MODE` | `team` | `saas` is for the multi-tenant hosted setup |
