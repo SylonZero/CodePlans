@@ -12,9 +12,9 @@
  */
 
 import { db } from './index'
-import { users, organizations, organizationMembers } from './schema'
+import { users } from './schema'
 import { eq } from 'drizzle-orm'
-import { authAdapter } from '@/lib/auth'
+import { createOwnerAccount } from './first-run'
 
 const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL ?? 'admin@example.com'
 const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD ?? 'Password1!'
@@ -35,47 +35,11 @@ async function seed() {
     process.exit(0)
   }
 
-  // ── Create admin user ──────────────────────────────────────────────────────
+  // ── Create admin user, workspace and membership ────────────────────────────
   console.log(`Creating admin user: ${ADMIN_EMAIL}`)
-  const adminId = await authAdapter.adminCreateUser(ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_NAME)
-
-  await db
-    .update(users)
-    .set({ role: 'owner', billingTier: 'free', featureFlags: {} })
-    .where(eq(users.id, adminId))
-
+  const adminId = await createOwnerAccount({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD, name: ADMIN_NAME, orgName: ORG_NAME })
   console.log(`  ✓ Admin user created (id: ${adminId})`)
-
-  // ── Create default organization ────────────────────────────────────────────
-  const orgSlug = ORG_NAME.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-
-  const [org] = await db
-    .insert(organizations)
-    .values({
-      name: ORG_NAME,
-      slug: orgSlug,
-      ownerId: adminId,
-      billingTier: 'free',
-      productLimit: 10,
-    })
-    .returning()
-
-  console.log(`  ✓ Workspace created: "${ORG_NAME}"`)
-
-  // ── Add admin as org owner ─────────────────────────────────────────────────
-  await db.insert(organizationMembers).values({
-    userId: adminId,
-    organizationId: org.id,
-    role: 'owner',
-    joinedAt: new Date(),
-  })
-
-  await db
-    .update(users)
-    .set({ organizationId: org.id })
-    .where(eq(users.id, adminId))
-
-  console.log(`  ✓ Admin added to workspace as owner`)
+  console.log(`  ✓ Workspace created: "${ORG_NAME}" with the admin as owner`)
 
   // ── Done ───────────────────────────────────────────────────────────────────
   console.log('\n✅ Bootstrap seed complete.\n')

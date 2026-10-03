@@ -309,9 +309,11 @@ export type ReviewListRow = ReviewView & { subjectTitle: string; productId: stri
 
 /** Open reviews in the given products, optionally only where the user is a participant who has not decided at the current version. */
 export async function listOpenReviews(viewerId: string, opts: { productIds?: string[]; awaitingUserId?: string; subjectType?: ReviewSubjectType } = {}): Promise<ReviewListRow[]> {
+  // No products → nothing to list (and no placeholder id: Postgres rejects non-uuid values).
+  if (opts.productIds && !opts.productIds.length) return []
   const rows = await db.select().from(reviews).where(and(
     inArray(reviews.state, OPEN_STATES),
-    opts.productIds ? inArray(reviews.productId, opts.productIds.length ? opts.productIds : ['__none__']) : undefined,
+    opts.productIds ? inArray(reviews.productId, opts.productIds) : undefined,
     opts.subjectType ? eq(reviews.subjectType, opts.subjectType) : undefined,
   )).orderBy(desc(reviews.requestedAt))
   const visible: typeof rows = []

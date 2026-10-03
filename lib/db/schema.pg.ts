@@ -54,6 +54,8 @@ export const users = pgTable('users', {
   role: userRoleEnum('role').notNull().default('viewer'),
   organizationId: uuid('organization_id'), // FK added below via relations
   featureFlags: jsonb('feature_flags').notNull().default({}),
+  // Local auth only (AUTH_PROVIDER=local); Supabase-managed users have none.
+  passwordHash: text('password_hash'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

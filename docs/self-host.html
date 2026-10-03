@@ -18,13 +18,56 @@
     </div>
   </div>
 </nav>
-<section class="page-hero"><div class="container"><div class="crumb"><a href="index.html">CodePlans</a> / Self-host</div><h1>Run it yourself</h1><p class="hero-sub">SQLite locally with nothing external, or Postgres and Supabase in production. Two settings decide how your instance behaves.</p><div class="links"><a href="https://github.com/SylonZero/CodePlans/blob/master/.env.example">.env.example</a><a href="https://github.com/SylonZero/CodePlans/blob/master/docs/app-spec.md">App spec</a></div></div></section>
+<section class="page-hero"><div class="container"><div class="crumb"><a href="index.html">CodePlans</a> / Self-host</div><h1>Run it yourself</h1><p class="hero-sub">One Docker image for Railway, Fly.io or your own host — SQLite on a volume or Postgres, picked from <code>DATABASE_URL</code>.</p><div class="links"><a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/deploying.md">Deployment guide</a><a href="https://github.com/SylonZero/CodePlans/blob/master/.env.example">.env.example</a><a href="https://github.com/SylonZero/CodePlans/blob/master/docs/app-spec.md">App spec</a></div></div></section>
 <main>
+<!-- ── Deploy ── -->
+<section class="section" id="deploy">
+  <div class="container">
+    <div class="section-label">Deploy</div>
+    <h2>Railway, Fly.io or any Docker host</h2>
+    <p class="section-sub">One image for either database. Migrations run when it starts, and you create the first account in the browser. There's no shell step.</p>
+
+    <div class="config-grid">
+      <div class="config-card">
+        <div class="config-card-header">SQLite — the default</div>
+        <div class="config-row"><div class="config-val">choose</div><div class="config-desc">Leave <code>DATABASE_URL</code> unset and mount a volume at <code>/data</code>.</div></div>
+        <div class="config-row"><div class="config-val">good for</div><div class="config-desc">One team, the cheapest setup. Runs as a single instance and backs up with volume snapshots.</div></div>
+      </div>
+      <div class="config-card">
+        <div class="config-card-header">Postgres</div>
+        <div class="config-row"><div class="config-val">choose</div><div class="config-desc">Set <code>DATABASE_URL=postgres://…</code>. Railway: <code>${{Postgres.DATABASE_URL}}</code>.</div></div>
+        <div class="config-row"><div class="config-val">good for</div><div class="config-desc">Managed backups, several instances, zero-downtime deploys. Set <code>AUTH_SECRET</code>.</div></div>
+      </div>
+    </div>
+
+    <div class="code-block" style="margin-top: 16px;">
+      <div><span class="comment"># Fly.io — SQLite on a volume (fly.toml is in the repo)</span></div>
+      <div><span class="cmd">fly launch</span> <span class="arg">--copy-config --no-deploy</span> && <span class="cmd">fly deploy</span></div>
+      <div><span class="cmd">fly logs</span>  <span class="comment"># copy the setup code, then open /setup</span></div>
+      <br>
+      <div><span class="comment"># Any Docker host</span></div>
+      <div><span class="cmd">docker build</span> <span class="arg">-t codeplans .</span></div>
+      <div><span class="cmd">docker run</span> <span class="arg">-p 3000:3000 -v codeplans-data:/data codeplans</span></div>
+    </div>
+
+    <div class="feature-row">
+      <div class="row-text">
+        <div class="section-label">First sign-in</div>
+        <h2>Claim the instance in the browser</h2>
+        <p>A fresh instance logs <code>[setup] … enter the setup code: XXXX-XXXX-XXXX</code>, and every page redirects to <code>/setup</code>. Enter the code to create the owner account and workspace. After that <code>/setup</code> is closed.</p>
+        <p>Only someone who can read the server log can claim it: the code comes from <code>AUTH_SECRET</code>. To skip the step, set <code>ADMIN_EMAIL</code> and <code>ADMIN_PASSWORD</code>.</p>
+        <p><a class="more" href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/deploying.md">Read the deployment guide →</a></p>
+      </div>
+      <div class="row-media"><figure class="shot plain" style="max-width: 400px; margin: 0 auto;"><a href="screenshots/setup.png" aria-label="Open full size: The setup page: setup code, name, email, password and workspace name"><img src="screenshots/setup.png" alt="The setup page: setup code, name, email, password and workspace name" width="928" height="1404" loading="lazy"></a></figure></div>
+    </div>
+  </div>
+</section>
+
 <!-- ── Quickstart ── -->
 <section class="section" id="quickstart">
   <div class="container">
-    <div class="section-label">Quickstart</div>
-    <h2>Up and running in minutes</h2>
+    <div class="section-label">From source</div>
+    <h2>Run it locally in minutes</h2>
     <p class="section-sub">Local SQLite mode requires no cloud account, no API keys, nothing external.</p>
 
     <div class="code-block">
@@ -56,8 +99,7 @@
     </div>
 
     <div class="callout">
-      <strong>Deploying to a server?</strong> Set <code>AUTH_URL=https://your-server-domain</code> (or <code>http://ip:port</code>) in <code>.env.local</code>.
-      Auth.js requires this in production to construct correct callback URLs — without it, login redirects will fail.
+      <strong>Running from source on a server?</strong> Prefer the Docker image above. For <code>pnpm build &amp;&amp; pnpm start</code>, set <code>AUTH_URL</code> to the public URL (Railway, Fly.io and Render domains are detected).
       If running the dev server on a remote machine, also set <code>ALLOWED_DEV_ORIGINS=your.server.ip</code>.
     </div>
   </div>
@@ -86,7 +128,7 @@
         <div class="config-card-header">REGISTRATION — who can create accounts</div>
         <div class="config-row">
           <div class="config-val">closed</div>
-          <div class="config-desc">/signup returns 404. Users are created by an admin via <code>pnpm db:seed</code>.</div>
+          <div class="config-desc">/signup returns 404. The owner is created at <code>/setup</code> on first run; admins invite everyone else from the Team page.</div>
         </div>
         <div class="config-row">
           <div class="config-val">invite</div>
@@ -112,52 +154,62 @@
           <tr>
             <td class="env-var">PORT</td>
             <td class="env-default">3000</td>
-            <td class="env-desc">Port the dev server binds to.</td>
+            <td class="env-desc">Port the server binds to. Railway sets it for you.</td>
           </tr>
           <tr>
             <td class="env-var">HOST_MODE</td>
-            <td class="env-default">saas</td>
-            <td class="env-desc"><code>team</code> (private self-hosted) or <code>saas</code> (multi-tenant hosted).</td>
+            <td class="env-default">team</td>
+            <td class="env-desc"><code>team</code> (private self-hosted) or <code>saas</code> (multi-tenant hosted; the default when Supabase is configured).</td>
           </tr>
           <tr>
             <td class="env-var">REGISTRATION</td>
-            <td class="env-default">open</td>
-            <td class="env-desc"><code>closed</code>, <code>invite</code>, or <code>open</code> — controls who can create accounts.</td>
+            <td class="env-default">closed (team)</td>
+            <td class="env-desc"><code>closed</code>, <code>invite</code>, or <code>open</code> — controls who can create accounts. Defaults to <code>open</code> in saas mode.</td>
           </tr>
           <tr>
             <td class="env-var">AUTH_PROVIDER</td>
             <td class="env-default">local</td>
-            <td class="env-desc"><code>local</code> (bcrypt + session cookie) or <code>supabase</code>.</td>
-          </tr>
-          <tr>
-            <td class="env-var">DB_PROVIDER</td>
-            <td class="env-default">sqlite</td>
-            <td class="env-desc"><code>sqlite</code> or <code>postgres</code>.</td>
+            <td class="env-desc"><code>local</code> (bcrypt + session cookie, on SQLite or Postgres) or <code>supabase</code>.</td>
           </tr>
           <tr>
             <td class="env-var">DATABASE_URL</td>
-            <td class="env-default">:memory:</td>
-            <td class="env-desc">SQLite: <code>file:data/codeplans.db</code> or <code>:memory:</code>. Postgres: full connection string.</td>
+            <td class="env-default">SQLite in DATA_DIR</td>
+            <td class="env-desc"><code>postgres://…</code> selects Postgres; <code>file:…</code>, <code>libsql://…</code> or <code>:memory:</code> select SQLite. Unset: <code>$DATA_DIR/codeplans.db</code>.</td>
+          </tr>
+          <tr>
+            <td class="env-var">DB_PROVIDER</td>
+            <td class="env-default">from the URL</td>
+            <td class="env-desc"><code>sqlite</code> or <code>postgres</code>; only needed to override the URL-based choice.</td>
+          </tr>
+          <tr>
+            <td class="env-var">DATA_DIR</td>
+            <td class="env-default">/data (image)</td>
+            <td class="env-desc">Where the default SQLite file lives (<code>data</code> outside Docker).</td>
           </tr>
           <tr>
             <td class="env-var">DB_SSL</td>
-            <td class="env-default">true</td>
-            <td class="env-desc">Set <code>false</code> for local or non-SSL Postgres (e.g. Railway, local Docker).</td>
+            <td class="env-default">from the URL and host</td>
+            <td class="env-desc">Postgres TLS is off for private hosts (<code>*.railway.internal</code>, <code>*.flycast</code>, localhost) and on otherwise. <code>sslmode=</code> or <code>true</code>/<code>false</code> overrides.</td>
           </tr>
           <tr>
             <td class="env-var">AUTH_SECRET</td>
-            <td class="env-default">—</td>
-            <td class="env-desc">Secret for local auth session signing. Min 32 chars. Generate: <code>openssl rand -base64 32</code>.</td>
+            <td class="env-default">generated (SQLite)</td>
+            <td class="env-desc">Session signing and token encryption key, min 32 chars: <code>openssl rand -base64 32</code>. <span class="env-required">Required for Postgres</span></td>
           </tr>
           <tr>
             <td class="env-var">AUTH_URL</td>
+            <td class="env-default">detected</td>
+            <td class="env-desc">Public URL of the server. Detected on Railway, Fly.io and Render; set it for custom domains and other hosts. Not needed for <code>localhost</code> dev.</td>
+          </tr>
+          <tr>
+            <td class="env-var">ADMIN_EMAIL / ADMIN_PASSWORD</td>
             <td class="env-default">—</td>
-            <td class="env-desc">
-              <span class="env-required">Required in production</span><br>
-              Full URL of the server (e.g. <code>https://codeplans.yourteam.com</code> or <code>http://ip:3000</code>).
-              Auth.js uses this to construct callback URLs and validate login redirects.
-              Not needed for <code>localhost</code> dev.
-            </td>
+            <td class="env-desc">Create the owner account on first boot instead of using <code>/setup</code>. Ignored once any account exists.</td>
+          </tr>
+          <tr>
+            <td class="env-var">MIGRATE_ON_BOOT</td>
+            <td class="env-default">on in production</td>
+            <td class="env-desc">Apply pending migrations at server start (behind a Postgres advisory lock). <code>false</code> to run <code>pnpm db:migrate</code> yourself.</td>
           </tr>
           <tr>
             <td class="env-var">BILLING_ENABLED</td>
@@ -264,7 +316,7 @@
           <tr>
             <td class="layer">Testing</td>
             <td class="tech">Vitest</td>
-            <td class="note">416 tests covering data, authorization, reviews, notifications, MCP access, imports and Markdown; isolated temporary SQLite databases plus an opt-in real PostgreSQL migration and behavior verifier</td>
+            <td class="note">437 tests covering data, authorization, reviews, notifications, MCP access, imports and Markdown; isolated temporary SQLite databases plus an opt-in real PostgreSQL migration and behavior verifier</td>
           </tr>
         </tbody>
       </table>

@@ -1,0 +1,61 @@
+// Server start-up, run once from instrumentation.ts: log the resolved
+// deployment settings, apply pending migrations, create the owner from env
+// when asked, and point a fresh instance at /setup.
+import { config } from '@/lib/config'
+import { platformName } from '@/lib/runtime-env'
+
+export function migrateOnBoot(env = process.env): boolean {
+  if (env.MIGRATE_ON_BOOT) return env.MIGRATE_ON_BOOT !== 'false'
+  return env.NODE_ENV === 'production'
+}
+
+function describeDatabase(): string {
+  if (config.db.provider === 'postgres') {
+    try {
+      const u = new URL(config.db.url)
+      return `postgres ${u.hostname}${u.port ? `:${u.port}` : ''}${u.pathname} (ssl ${config.db.ssl ? 'on' : 'off'})`
+    } catch {
+      return 'postgres (unparseable DATABASE_URL)'
+    }
+  }
+  return `sqlite ${config.db.url}`
+}
+
+export async function bootServer() {
+  const platform = platformName(process.env)
+  console.log(`[boot] CodePlans · ${config.hostMode} mode · ${config.auth.provider} auth · registration ${config.registration}`
+    + `${platform ? ` · ${platform}` : ''}`)
+  console.log(`[boot] database: ${describeDatabase()}`)
+  if (process.env.AUTH_URL) console.log(`[boot] public URL: ${process.env.AUTH_URL}`)
+
+  const fatal = (msg: string) => {
+    console.error(`[boot] ${msg}`)
+    if (process.env.NODE_ENV === 'production') process.exit(1)
+  }
+  if (!config.db.url) return fatal('DATABASE_URL is not set. Set it to a postgres:// URL, or leave DB_PROVIDER unset to use SQLite.')
+  if (config.auth.provider === 'local' && !process.env.AUTH_SECRET) {
+    return fatal('AUTH_SECRET is not set. Generate one with `openssl rand -base64 32` and set it as a secret.')
+  }
+
+  if (migrateOnBoot()) {
+    try {
+      const { migrateDatabase } = await import('@/lib/db/migrate')
+      const r = await migrateDatabase()
+      console.log(`[boot] migrations: ${r.applied ? `applied ${r.applied}, ` : ''}${r.total} total, schema up to date`)
+    } catch (err) {
+      return fatal(`migration failed; not starting: ${err instanceof Error ? err.message : err}`)
+    }
+  }
+
+  try {
+    const { ensureOwnerFromEnv, needsSetup, setupCode } = await import('@/lib/db/first-run')
+    await ensureOwnerFromEnv()
+    if (await needsSetup()) {
+      const base = process.env.AUTH_URL?.replace(/\/$/, '') ?? `http://localhost:${process.env.PORT ?? 3000}`
+      console.log(`[setup] No accounts yet. Open ${base}/setup and enter the setup code: ${setupCode()}`)
+    }
+  } catch (err) {
+    // An unmigrated database (MIGRATE_ON_BOOT=false) lands here; don't crash.
+    console.error('[setup] first-run check failed:', err instanceof Error ? err.message : err)
+  }
+}

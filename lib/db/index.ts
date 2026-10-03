@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 import { config } from '@/lib/config'
+import { sqliteFilePath } from '@/lib/runtime-env'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import type * as PgSchema from './schema.pg'
 
@@ -14,10 +15,18 @@ function createDb(): PostgresJsDatabase<typeof PgSchema> {
     // libsql requires a file: scheme for local paths; normalise bare paths
     const rawUrl = config.db.url
     const url =
-      rawUrl === ':memory:' || rawUrl.startsWith('file:') || rawUrl.startsWith('http')
+      rawUrl === ':memory:' || /^(file|libsql|https?|wss?):/i.test(rawUrl)
         ? rawUrl
         : `file:${rawUrl}`
-    const client = createClient({ url })
+    // libsql doesn't create missing directories (e.g. a freshly mounted volume).
+    const file = sqliteFilePath(url)
+    if (file) {
+      const { mkdirSync } = require('node:fs') as typeof import('node:fs')
+      const { dirname } = require('node:path') as typeof import('node:path')
+      mkdirSync(dirname(file), { recursive: true })
+    }
+    // DATABASE_AUTH_TOKEN is only needed for a hosted libsql server (Turso).
+    const client = createClient({ url, authToken: process.env.DATABASE_AUTH_TOKEN || undefined })
     // WAL allows concurrent readers alongside a writer; busy_timeout retries
     // instead of immediately throwing SQLITE_BUSY when a write lock is held.
     client.execute('PRAGMA journal_mode=WAL')

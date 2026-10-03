@@ -5,11 +5,11 @@ import bcrypt from 'bcryptjs'
 import { NextResponse, type NextRequest } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { db as _db } from '@/lib/db'
-import { users } from '@/lib/db/schema.sqlite'
+import { users } from '@/lib/db/schema'
 import type { AuthAdapter } from './types'
 
-// local.ts is only loaded in SQLite mode. Cast db to any to avoid pg/sqlite
-// type conflicts — all runtime operations use the correct libsql Drizzle instance.
+// Local auth runs on either database (users comes from the schema barrel, so it
+// matches the active driver). Cast db to any to avoid pg/sqlite type conflicts.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = _db as any
 
@@ -67,6 +67,7 @@ export const {
 
 function isAuthRoute(pathname: string) {
   return pathname.startsWith('/login') || pathname.startsWith('/signup') || pathname.startsWith('/accept-invite')
+    || pathname.startsWith('/setup')
 }
 
 export const localAdapter: AuthAdapter = {
@@ -118,13 +119,9 @@ export const localAdapter: AuthAdapter = {
     const { pathname } = request.nextUrl
     const isAuthR = isAuthRoute(pathname)
 
-    // Cookie name matches Auth.js v5 default convention
-    const cookieName =
-      process.env.NODE_ENV === 'production'
-        ? '__Secure-authjs.session-token'
-        : 'authjs.session-token'
-
-    const hasSession = request.cookies.has(cookieName)
+    // Auth.js v5 names the cookie by whether the public URL is https, not by
+    // NODE_ENV — accept either so plain-http deployments don't loop on /login.
+    const hasSession = request.cookies.has('__Secure-authjs.session-token') || request.cookies.has('authjs.session-token')
 
     if (!hasSession && !isAuthR) {
       const url = request.nextUrl.clone()

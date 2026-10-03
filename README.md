@@ -5,10 +5,11 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-SQLite_%7C_Postgres-C5F74F?logo=drizzle&logoColor=black)](https://orm.drizzle.team)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![Tests](https://img.shields.io/badge/Tests-416_passing-brightgreen?logo=vitest&logoColor=white)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-437_passing-brightgreen?logo=vitest&logoColor=white)](tests/)
 [![CI](https://github.com/SylonZero/CodePlans/actions/workflows/test.yml/badge.svg)](https://github.com/SylonZero/CodePlans/actions/workflows/test.yml)
 [![MCP tools](https://img.shields.io/badge/MCP-71_tools-8B5CF6)](docs/guides/ai-agents.md)
 [![Docs](https://img.shields.io/badge/Docs-GitHub_Pages-4ade80)](https://sylonzero.github.io/CodePlans)
+[![Deploy](https://img.shields.io/badge/Deploy-Railway_%7C_Fly.io_%7C_Docker-0B0D0E?logo=docker&logoColor=white)](docs/guides/deploying.md)
 
 **Coordinate and track changes across your software architecture.**
 
@@ -134,7 +135,7 @@ See the [reviews guide](docs/guides/reviews-and-comments.md), [My Work guide](do
 | Database | SQLite (local / libsql) or PostgreSQL (cloud) |
 | Auth | Local (bcrypt + session cookie) or Supabase |
 | Charts | Recharts |
-| Testing | Vitest (416 tests) |
+| Testing | Vitest (437 tests) |
 
 ---
 
@@ -153,7 +154,7 @@ CodePlans has two independent configuration axes that control how an instance be
 
 | Value | Description |
 |---|---|
-| `closed` | `/signup` returns 404. Users are created by an admin via `pnpm db:seed` or a future admin CLI. |
+| `closed` | `/signup` returns 404. The owner is created at `/setup` on first run (or from `ADMIN_EMAIL`, or `pnpm db:seed`); admins invite everyone else from the **Team** page. |
 | `invite` | `/signup` shows an invite-only message. (Token-based invite flow is planned.) |
 | `open` | Anyone who can reach the server can sign up. |
 
@@ -185,12 +186,37 @@ app loads at startup, never as forked or hidden code in this repo. See the
 
 ## Getting Started
 
+### Deploy to the cloud (Railway, Fly.io, Docker)
+
+The repo ships a Dockerfile, `railway.json` and `fly.toml`. The image chooses
+the database from `DATABASE_URL` and runs migrations when it starts. You
+create the first account in the browser at `/setup`, using a code printed in
+the server log, so there's no shell step.
+
+| | SQLite (default) | Postgres |
+|---|---|---|
+| Choose it by | leaving `DATABASE_URL` unset and mounting a volume at `/data` | setting `DATABASE_URL=postgres://…` |
+| Good for | one team, cheapest setup, one instance | managed backups, several instances, zero-downtime deploys |
+
+```bash
+# Fly.io, SQLite on a volume
+fly launch --copy-config --no-deploy && fly deploy && fly logs   # then open /setup
+
+# Any Docker host
+docker build -t codeplans . && docker run -p 3000:3000 -v codeplans-data:/data codeplans
+```
+
+On Railway, deploy the repo, attach a volume at `/data` or add a Postgres
+database with `DATABASE_URL=${{Postgres.DATABASE_URL}}`, and generate a domain.
+The [deployment guide](docs/guides/deploying.md) has step-by-step instructions
+for each platform, the first sign-in flow, upgrades and every setting.
+
 ### Prerequisites
 
 - Node.js 20+
 - pnpm (`npm install -g pnpm`)
 
-### Self-hosted team (SQLite, no cloud required)
+### Run from source (SQLite, no cloud required)
 
 ```bash
 # 1. Clone the repo
@@ -223,7 +249,7 @@ Change your password in **Settings → Security** after first login.
 
 > **Want realistic demo data?** Run `pnpm db:seed-demo` after `pnpm db:seed` to populate the workspace with products, assets, plans, and tasks. All demo accounts use password `Password1!` — see [Demo accounts](#demo-accounts) below.
 
-> **Deploying to a server?** Set `AUTH_URL=https://your-server-domain` (or `http://ip:port`) in `.env.local`. Auth.js requires this in production to construct correct callback URLs — without it, login redirects will fail.  
+> **Running this on a server?** Prefer the [Docker image](docs/guides/deploying.md). For `pnpm build && pnpm start`, set `AUTH_URL=https://your-server-domain` (or `http://ip:port`). Auth.js uses it to build callback URLs, and Railway, Fly and Render domains are detected automatically.  
 > If running the dev server on a remote machine, also set `ALLOWED_DEV_ORIGINS=your.server.ip`.
 
 ### Cloud (Supabase + Postgres) mode
@@ -246,16 +272,19 @@ Then run `pnpm db:migrate` and `pnpm dev`.
 
 | Variable | Default | Description |
 |---|---|---|
-| `PORT` | `3000` | Port the dev server binds to |
-| `HOST_MODE` | `saas` | `team` (private self-hosted) or `saas` (multi-tenant hosted) |
-| `REGISTRATION` | `open` | `closed`, `invite`, or `open` — controls who can create accounts |
-| `AUTH_PROVIDER` | `local` | `local` (bcrypt + session cookie) or `supabase` |
-| `DB_PROVIDER` | `sqlite` | `sqlite` or `postgres` |
-| `DATABASE_URL` | `:memory:` | SQLite: `file:data/codeplans.db` or `:memory:`. Postgres: full connection string |
-| `DB_SSL` | `true` | Set `false` for local or non-SSL Postgres |
-| `AUTH_SECRET` | — | Secret for local auth session signing (min 32 chars) |
+| `PORT` | `3000` | Port the server binds to |
+| `HOST_MODE` | `team` (`saas` if Supabase is configured) | `team` (private self-hosted) or `saas` (multi-tenant hosted) |
+| `REGISTRATION` | `closed` in team mode, else `open` | `closed`, `invite`, or `open` — controls who can create accounts |
+| `AUTH_PROVIDER` | `local` (`supabase` if Supabase is configured) | `local` (bcrypt + session cookie, on SQLite or Postgres) or `supabase` |
+| `DB_PROVIDER` | from `DATABASE_URL` | `sqlite` or `postgres`; only needed to override the URL-based choice |
+| `DATABASE_URL` | SQLite at `$DATA_DIR/codeplans.db` | `postgres://…` selects Postgres; `file:…`, `libsql://…` or `:memory:` select SQLite |
+| `DATA_DIR` | `data` (`/data` in the image) | Where the default SQLite file lives |
+| `DB_SSL` | from the URL and host | Postgres TLS: off for private hosts (`*.railway.internal`, `*.flycast`, localhost), on otherwise; `sslmode=` or `true`/`false` overrides |
+| `AUTH_SECRET` | generated on the volume for SQLite | Session signing and token encryption key (min 32 chars). **Required for Postgres** |
 | *(integration tokens)* | — | Paste tokens directly on connections (stored AES-256-GCM-encrypted with a key derived from `AUTH_SECRET`), or reference a server env var by name for secrets-in-deployment postures |
-| `AUTH_URL` | — | **Required in production.** Full URL of the server (e.g. `https://codeplans.yourteam.com`). Auth.js uses this to construct callback URLs and validate login redirects. Not needed for `localhost` dev. |
+| `AUTH_URL` | detected on Railway, Fly.io, Render | Public URL of the server (e.g. `https://codeplans.yourteam.com`). Set it for custom domains and other hosts. Not needed for `localhost` dev. |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_NAME` | — | Create the owner account on first boot instead of using `/setup` |
+| `MIGRATE_ON_BOOT` | on in production | Apply pending migrations at server start; `false` to run `pnpm db:migrate` yourself |
 | `BILLING_ENABLED` | `true` | Set `false` to hide billing UI (always off in `team` mode) |
 | `ALLOWED_DEV_ORIGINS` | — | Comma-separated hosts allowed to access Next.js dev resources (needed when running on a remote server) |
 | `RESEND_API_KEY` | — | Resend API key for transactional email and the fallback notification email channel. Without this, verification URLs are logged to the server console (dev only). Admins can also connect Resend in **Settings → Manage workspace notifications**. |
