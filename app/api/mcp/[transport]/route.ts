@@ -1,6 +1,7 @@
 import { createSpec, updateSpec, supersedeSpec, linkSpec, unlinkSpec, getSpec, listSpecs, listSpecRevisions, getSpecRevision, specInput, specUpdateInput, specUpdateFields, specTargetType, specRelationshipType } from '@/lib/db/specs'
 import { createMcpHandler, withMcpAuth } from 'mcp-handler'
 import { z } from 'zod'
+import type { DeclineReason, TriageState } from '@/lib/db/schema.sqlite'
 import { verifyApiKey } from '@/lib/mcp/auth'
 import {
   canDeleteCodePlan, canDeleteRelease, canDeleteWorkItem, canDeleteTask, canDeleteAsset, canDeleteProduct,
@@ -59,6 +60,16 @@ import {
 } from '@/lib/db/mutations'
 import { getAssetOptions, getAssetDetail } from '@/lib/db/queries'
 import { resolveAssigneeEmail } from '@/lib/mcp/users'
+import { paginate, compactWorkItem, compactSpec, DEFAULT_LIMIT, MAX_LIMIT } from '@/lib/mcp/list-shape'
+import { TRIAGE_STATES, DECLINE_REASONS, IntakeError, importExternalWorkItems, triageWorkItem } from '@/lib/db/intake'
+
+const triageStateSchema = z.enum(TRIAGE_STATES as [TriageState, ...TriageState[]])
+const declineReasonSchema = z.enum(DECLINE_REASONS as [DeclineReason, ...DeclineReason[]])
+const externalRefSchema = {
+  externalKey: z.string().optional().describe('Where an outside report lives, unique per product, e.g. "owner/repo#123" or "forum:thread-88". Makes the item external and untriaged.'),
+  externalUrl: z.string().url().optional(),
+  externalState: z.string().optional().describe('Upstream state as the source reports it, e.g. "open" or "closed"'),
+}
 
 /** Guard: the key's user must be able to see the product. */
 async function assertProductAccess(userId: string, productId: string) {
@@ -85,6 +96,16 @@ function requireWrite(extra: ToolExtra) {
 async function requireWriteTo(extra: ToolExtra, ...targets: WriteTarget[]) {
   requireWrite(extra)
   await assertCanWrite(uid(extra), ...targets)
+}
+
+/** Run an intake operation, returning rule violations as { error } rather than throwing. */
+async function intake(fn: () => Promise<unknown>) {
+  try {
+    return json(await fn())
+  } catch (err) {
+    if (err instanceof IntakeError) return json({ error: err.message })
+    throw err
+  }
 }
 
 function json(data: unknown) {
@@ -186,9 +207,15 @@ const handler = createMcpHandler(
       const { listOpenReviews } = await import('@/lib/db/reviews')
       return json(await listOpenReviews(userId, { productIds: productId ? [productId] : undefined, subjectType, awaitingUserId: awaitingMe ? userId : undefined }))
     })
-    server.tool('list_specs', 'List visible specs, optionally filtered by product, exact target association, or open specType taxonomy. targetType and targetId must be supplied together.', {
+    server.tool('list_specs', 'List visible specs, optionally filtered by product, exact target association, or open specType taxonomy. targetType and targetId must be supplied together. Returns { items, total, nextCursor }: compact rows without the body by default (fetch one with get_spec), or full rows with links via fields: "full". Pass nextCursor back as cursor for the next page.', {
       productId: z.string().optional(), targetType: specTargetType.optional(), targetId: z.string().optional(), specType: z.string().optional(),
-    }, async (filters, extra) => json(await listSpecs(uid(extra), filters)))
+      fields: z.enum(['compact', 'full']).default('compact'),
+      limit: z.number().int().min(1).max(MAX_LIMIT).default(DEFAULT_LIMIT),
+      cursor: z.string().optional(),
+    }, async ({ fields, limit, cursor, ...filters }, extra) => {
+      const page = paginate(await listSpecs(uid(extra), filters), { limit, cursor })
+      return json(fields === 'full' ? page : { ...page, items: page.items.map(compactSpec) })
+    })
 
     // ── Read tools ─────────────────────────────────────────────────────────
     server.tool(
@@ -212,14 +239,24 @@ const handler = createMcpHandler(
 
     server.tool(
       'list_work_items',
-      'List work items (features, bugs, UX issues, tech debt) with optional filters.',
+      'List work items (features, bugs, UX issues, tech debt), newest activity first, with optional filters. Returns { items, total, nextCursor }. Rows are compact by default (id, title, type, severity, status, asset, area, tags, origin, triage state, external key); pass fields: "full" for descriptions and linked plans. Pass nextCursor back as cursor for the next page.',
       {
         productId: z.string().optional(),
         type: z.enum(['feature', 'bug', 'enhancement', 'ux', 'tech_debt']).optional(),
         status: z.enum(['open', 'planned', 'in_progress', 'resolved', 'wont_do']).optional(),
+        severity: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+        origin: z.enum(['internal', 'external']).optional().describe('external = from an outside report (see import_work_items)'),
+        triageState: triageStateSchema.optional(),
+        tag: z.string().optional().describe('Only items carrying this exact tag'),
         planId: z.string().optional(),
+        fields: z.enum(['compact', 'full']).default('compact'),
+        limit: z.number().int().min(1).max(MAX_LIMIT).default(DEFAULT_LIMIT),
+        cursor: z.string().optional(),
       },
-      async (filters, extra) => json(await getWorkItems(uid(extra), filters)),
+      async ({ fields, limit, cursor, ...filters }, extra) => {
+        const page = paginate(await getWorkItems(uid(extra), filters), { limit, cursor })
+        return json(fields === 'full' ? page : { ...page, items: page.items.map(compactWorkItem) })
+      },
     )
 
     server.tool(
@@ -684,8 +721,10 @@ const handler = createMcpHandler(
 
     server.tool(
       'update_work_item',
-      'Edit a work item (native fields only on mirrored items: asset, area, severity).',
+      'Edit a work item (native fields only on mirrored items: asset, area, severity). externalKey attaches or replaces an outside-report reference; removeExternalRef: true removes it and its triage decision.',
       {
+        ...externalRefSchema,
+        removeExternalRef: z.boolean().optional(),
         id: z.string(),
         title: z.string().optional(),
         description: z.string().optional(),
@@ -697,13 +736,16 @@ const handler = createMcpHandler(
         ownerEmail: z.string().nullable().optional(),
         tags: z.array(z.string()).optional(),
       },
-      async ({ id, ownerEmail, ...data }, extra) => {
+      async ({ id, ownerEmail, externalKey, externalUrl, externalState, removeExternalRef, ...data }, extra) => {
         await requireWriteTo(extra, { workItemId: id }, ...(data.assetId ? [{ assetId: data.assetId }] : []))
         const ownerId =
           ownerEmail === undefined ? undefined
           : ownerEmail === null ? null
           : await resolveAssigneeEmail(uid(extra), ownerEmail)
-        return json((await updateWorkItem(id, { ...data, ...(ownerId !== undefined ? { ownerId } : {}) }, { id: uid(extra), kind: 'agent' })) ?? { error: 'Work item not found' })
+        const external = removeExternalRef ? null : externalKey ? { key: externalKey, url: externalUrl, state: externalState } : undefined
+        return intake(async () => (await updateWorkItem(id, {
+          ...data, ...(ownerId !== undefined ? { ownerId } : {}), ...(external !== undefined ? { external } : {}),
+        }, { id: uid(extra), kind: 'agent' })) ?? { error: 'Work item not found' })
       },
     )
 
@@ -720,8 +762,9 @@ const handler = createMcpHandler(
     // ── Write tools ────────────────────────────────────────────────────────
     server.tool(
       'create_work_item',
-      'File a work item (e.g. tech debt discovered while coding). Severity defaults to medium.',
+      'File a work item (e.g. tech debt discovered while coding). Severity defaults to medium. For an outside report (a GitHub issue you can only read, a forum post, a support ticket) pass externalKey/externalUrl: the item is marked external and untriaged. To bring in many reports at once, use import_work_items.',
       {
+        ...externalRefSchema,
         productId: z.string(),
         title: z.string(),
         description: z.string().default(''),
@@ -732,10 +775,75 @@ const handler = createMcpHandler(
         ownerEmail: z.string().optional(),
         tags: z.array(z.string()).default([]),
       },
-      async ({ ownerEmail, ...args }, extra) => {
+      async ({ ownerEmail, externalKey, externalUrl, externalState, ...args }, extra) => {
         await requireWriteTo(extra, { productId: args.productId }, ...(args.assetId ? [{ assetId: args.assetId }] : []))
         const ownerId = ownerEmail ? await resolveAssigneeEmail(uid(extra), ownerEmail) : undefined
-        return json(await createWorkItem({ ...args, ownerId }, uid(extra), 'agent'))
+        const external = externalKey ? { key: externalKey, url: externalUrl, state: externalState } : undefined
+        return intake(() => createWorkItem({ ...args, ownerId, external }, uid(extra), 'agent'))
+      },
+    )
+
+    server.tool(
+      'import_work_items',
+      'Bring outside reports (GitHub issues you can only read, forum posts, emails, support tickets) into a product as external work items, up to 500 per call. Upserts by externalKey, unique per product, so re-running is safe: new keys become items, known keys only refresh upstream facts (state, labels, author, url) and never the title, team edits or an existing triage decision. Each item starts untriaged unless you pass triage, so skipped reports can be recorded as declined with a reason instead of being dropped. Returns created/updated/unchanged counts and the ids. For public GitHub repos, import_github_issues fetches them for you.',
+      {
+        productId: z.string(),
+        items: z.array(z.object({
+          externalKey: z.string().describe('Stable key, e.g. "antirez/ds4#805"'),
+          externalUrl: z.string().url().optional(),
+          title: z.string(),
+          description: z.string().optional().describe('A short excerpt or agent summary; the full text stays at the source'),
+          type: z.enum(['feature', 'bug', 'enhancement', 'ux', 'tech_debt']).optional().describe('Defaults to a guess from labels, else feature'),
+          severity: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+          assetId: z.string().optional(),
+          area: z.string().optional(),
+          tags: z.array(z.string()).optional(),
+          externalState: z.string().optional(),
+          externalAuthor: z.string().optional(),
+          externalCreatedAt: z.string().optional(),
+          labels: z.array(z.string()).optional().describe('Upstream labels, kept as reported'),
+          triage: z.object({ state: triageStateSchema, declineReason: declineReasonSchema.optional(), note: z.string().optional() }).optional(),
+        })).min(1).max(500),
+      },
+      async ({ productId, items }, extra) => {
+        await requireWriteTo(extra, { productId })
+        return intake(() => importExternalWorkItems(productId, items.map((i) => ({
+          key: i.externalKey, url: i.externalUrl, title: i.title, description: i.description, type: i.type, severity: i.severity,
+          assetId: i.assetId, area: i.area, tags: i.tags, state: i.externalState, author: i.externalAuthor, createdAt: i.externalCreatedAt,
+          labels: i.labels, triage: i.triage,
+        })), { id: uid(extra), kind: 'agent' }))
+      },
+    )
+
+    server.tool(
+      'import_github_issues',
+      'Import a public GitHub repository\'s issues as external, untriaged work items: read-only, no collaborator rights needed, nothing is ever written to GitHub. Keys are "owner/repo#n", so re-running only refreshes upstream state and labels (and adds new issues). Pull requests are skipped; descriptions are capped excerpts linking to the full issue. Then use list_work_items(origin: "external", triageState: "untriaged") and triage_work_item. Anonymous GitHub access allows 60 requests an hour; the server can set GITHUB_PUBLIC_TOKEN for more.',
+      {
+        productId: z.string(),
+        repo: z.string().describe('owner/name or a github.com URL'),
+        state: z.enum(['open', 'closed', 'all']).default('open'),
+        since: z.string().optional().describe('ISO timestamp: only issues updated since then'),
+        limit: z.number().int().min(1).max(1000).default(300),
+        assetId: z.string().optional().describe('Assign every new item to this asset'),
+      },
+      async ({ productId, repo, state, since, limit, assetId }, extra) => {
+        await requireWriteTo(extra, { productId }, ...(assetId ? [{ assetId }] : []))
+        return intake(async () => {
+          const { fetchPublicIssues } = await import('@/lib/integrations/github-public')
+          const fetched = await fetchPublicIssues(repo, { state, since, limit })
+          const result = await importExternalWorkItems(productId, fetched.items.map((i) => ({ ...i, assetId })), { id: uid(extra), kind: 'agent' })
+          return { repo: fetched.repo, fetched: fetched.items.length, ...result, githubRateRemaining: fetched.rateRemaining }
+        })
+      },
+    )
+
+    server.tool(
+      'triage_work_item',
+      'Record the team\'s decision on an external work item: accepted (it is real work), needs_info, untriaged (undo), or declined. Declining needs a declineReason (already_shipped, question, question_answered, duplicate, out_of_scope, cannot_reproduce, show_and_tell, spam) and a note saying why, and sets status to wont_do; moving a declined item to another state reopens it. Never changes anything upstream.',
+      { id: z.string(), state: triageStateSchema, declineReason: declineReasonSchema.optional(), note: z.string().optional() },
+      async ({ id, ...input }, extra) => {
+        await requireWriteTo(extra, { workItemId: id })
+        return intake(async () => (await triageWorkItem(id, input, { id: uid(extra), kind: 'agent' })) ?? { error: 'Work item not found' })
       },
     )
 

@@ -690,6 +690,11 @@ export type WorkItemFilters = {
   type?: WorkItemType
   status?: WorkItemStatus
   planId?: string
+  severity?: WorkItemSeverity
+  origin?: 'internal' | 'external'
+  triageState?: 'untriaged' | 'accepted' | 'declined' | 'needs_info'
+  /** Items carrying this tag (exact match). */
+  tag?: string
 }
 
 export type WorkItemWithContext = WorkItem & {
@@ -720,6 +725,14 @@ type WorkItemRow = {
   externalKey: string | null
   externalUrl: string | null
   externalDeleted: boolean
+  externalData: unknown
+  origin: string
+  triageState: string | null
+  declineReason: string | null
+  triageNote: string | null
+  triagedAt: Date | null
+  triagedByKind: string | null
+  triagedByName: string | null
   createdAt: Date
   updatedAt: Date
   createdById: string | null
@@ -755,6 +768,15 @@ function mapWorkItemRow(
     externalKey: r.externalKey ?? undefined,
     externalUrl: r.externalUrl ?? undefined,
     externalDeleted: !!r.externalDeleted || undefined,
+    origin: r.origin === 'external' ? 'external' : 'internal',
+    triageState: (r.triageState ?? undefined) as WorkItem['triageState'],
+    declineReason: r.declineReason ?? undefined,
+    triageNote: r.triageNote ?? undefined,
+    triagedAt: r.triagedAt ? new Date(r.triagedAt).toISOString() : undefined,
+    triagedByKind: r.triagedByKind ?? undefined,
+    triagedByName: r.triagedByName ?? undefined,
+    externalState: ((r.externalData ?? {}) as { state?: string }).state ?? undefined,
+    externalAuthor: ((r.externalData ?? {}) as { author?: string }).author ?? undefined,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
     createdById: r.createdById,
@@ -798,6 +820,9 @@ export async function getWorkItems(userId: string, filters: WorkItemFilters = {}
   if (filters.assetId) conditions.push(eq(workItems.assetId, filters.assetId))
   if (filters.type) conditions.push(eq(workItems.type, filters.type))
   if (filters.status) conditions.push(eq(workItems.status, filters.status))
+  if (filters.severity) conditions.push(eq(workItems.severity, filters.severity))
+  if (filters.origin) conditions.push(eq(workItems.origin, filters.origin))
+  if (filters.triageState) conditions.push(eq(workItems.triageState, filters.triageState))
   if (filters.planId) {
     conditions.push(
       inArray(
@@ -825,8 +850,10 @@ export async function getWorkItems(userId: string, filters: WorkItemFilters = {}
     .where(and(...conditions))
     .orderBy(desc(workItems.updatedAt))
 
-  const plansMap = await linkedPlansByItem(rows.map((r) => r.id))
-  return rows.map((r) => mapWorkItemRow(r, plansMap.get(r.id) ?? []))
+  // Tags are an array column (pg text[] / sqlite json), so filter in memory.
+  const matched = filters.tag ? rows.filter((r) => r.tags.includes(filters.tag!)) : rows
+  const plansMap = await linkedPlansByItem(matched.map((r) => r.id))
+  return matched.map((r) => mapWorkItemRow(r, plansMap.get(r.id) ?? []))
 }
 
 export async function getWorkItem(id: string, userId: string): Promise<WorkItemWithContext | null> {
@@ -870,6 +897,14 @@ function workItemColumns() {
     externalKey: workItems.externalKey,
     externalUrl: workItems.externalUrl,
     externalDeleted: workItems.externalDeleted,
+    externalData: workItems.externalData,
+    origin: workItems.origin,
+    triageState: workItems.triageState,
+    declineReason: workItems.declineReason,
+    triageNote: workItems.triageNote,
+    triagedAt: workItems.triagedAt,
+    triagedByKind: workItems.triagedByKind,
+    triagedByName: sql<string | null>`(select ${users.name} from ${users} where ${users.id} = ${workItems.triagedById})`,
     createdAt: workItems.createdAt,
     updatedAt: workItems.updatedAt,
     createdById: workItems.createdById,
