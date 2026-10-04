@@ -99,6 +99,20 @@ export const gitlabConnector: Connector = {
     return items
   },
 
+  // Full id listing for the daily deleted-upstream check (capped at 5000; null beyond).
+  async listAllIds(auth, config) {
+    const ids = new Set<string>()
+    for (let page = 1; page <= 50; page++) {
+      const params = new URLSearchParams({ state: 'all', per_page: '100', page: String(page) })
+      const res = await glFetch(auth, `${apiBase(config)}/projects/${projectPath(config)}/issues?${params}`)
+      if (res.status === 404) throw new Error(`GitLab project not found: ${config.repo}`)
+      const batch = (await res.json()) as GitLabIssue[]
+      for (const issue of batch) ids.add(String(issue.iid))
+      if (batch.length < 100) return ids
+    }
+    return null
+  },
+
   async listScopes(auth, config): Promise<ExternalScope[]> {
     const res = await glFetch(
       auth,

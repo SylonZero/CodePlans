@@ -225,6 +225,13 @@
       "when": 1790800000000,
       "tag": "0031_users_password_hash",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1790900000000,
+      "tag": "0032_integration_reconcile",
+      "breakpoints": true
     }
   ]
 }

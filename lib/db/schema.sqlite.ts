@@ -104,6 +104,8 @@ export const integrations = sqliteTable('integrations', {
   config: text('config', { mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
   status: text('status').$type<IntegrationStatus>().notNull().default('active'),
   lastSyncAt: integer('last_sync_at', { mode: 'timestamp' }),
+  // Last full check for items deleted or moved out of scope upstream (sync.ts reconcile).
+  lastReconciledAt: integer('last_reconciled_at', { mode: 'timestamp' }),
   lastError: text('last_error'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),

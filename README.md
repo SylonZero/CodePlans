@@ -5,7 +5,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-SQLite_%7C_Postgres-C5F74F?logo=drizzle&logoColor=black)](https://orm.drizzle.team)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![Tests](https://img.shields.io/badge/Tests-446_passing-brightgreen?logo=vitest&logoColor=white)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-460_passing-brightgreen?logo=vitest&logoColor=white)](tests/)
 [![CI](https://github.com/SylonZero/CodePlans/actions/workflows/test.yml/badge.svg)](https://github.com/SylonZero/CodePlans/actions/workflows/test.yml)
 [![MCP tools](https://img.shields.io/badge/MCP-71_tools-8B5CF6)](docs/guides/ai-agents.md)
 [![Docs](https://img.shields.io/badge/Docs-GitHub_Pages-4ade80)](https://sylonzero.github.io/CodePlans)
@@ -135,7 +135,7 @@ See the [reviews guide](docs/guides/reviews-and-comments.md), [My Work guide](do
 | Database | SQLite (local / libsql) or PostgreSQL (cloud) |
 | Auth | Local (bcrypt + session cookie) or Supabase |
 | Charts | Recharts |
-| Testing | Vitest (446 tests) |
+| Testing | Vitest (460 tests) |
 
 ---
 

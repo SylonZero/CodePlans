@@ -92,6 +92,23 @@ export const githubConnector: Connector = {
     return items
   },
 
+  // Full id listing for the daily deleted-upstream check. Deleted and
+  // transferred issues drop out of the repo's listing. Capped at 5000 issues;
+  // beyond that we can't be sure the list is complete, so return null.
+  async listAllIds(auth, config) {
+    if (!config.repo) throw new Error('GitHub connection is missing config.repo (owner/name)')
+    const ids = new Set<string>()
+    for (let page = 1; page <= 50; page++) {
+      const params = new URLSearchParams({ state: 'all', per_page: '100', page: String(page) })
+      const res = await fetch(`${API_BASE}/repos/${config.repo}/issues?${params}`, { headers: ghHeaders(auth) })
+      if (!res.ok) throw new Error(`GitHub API ${res.status}: ${(await res.text()).slice(0, 200)}`)
+      const batch = (await res.json()) as GitHubIssue[]
+      for (const issue of batch) if (!issue.pull_request) ids.add(String(issue.number))
+      if (batch.length < 100) return ids
+    }
+    return null
+  },
+
   async listScopes(auth, config): Promise<ExternalScope[]> {
     if (!config.repo) throw new Error('GitHub connection is missing config.repo (owner/name)')
     const res = await fetch(

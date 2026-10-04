@@ -73,6 +73,12 @@ export const asanaConnector: Connector = {
     return listProjectTasks(auth, config.repo!, since)
   },
 
+  // Full id listing for the daily deleted-upstream check; tasks removed from the project drop out.
+  async listAllIds(auth, config) {
+    const items = await listProjectTasks(auth, config.repo!)
+    return new Set(items.map((i) => i.externalId))
+  },
+
   // Epic-like scope: sections in the project.
   async listScopes(auth, config): Promise<ExternalScope[]> {
     const res = await fetch(`${API}/projects/${config.repo}/sections?limit=100`, { headers: headers(auth) })

@@ -245,6 +245,12 @@ function WorkItemEditor({
               {item.source}{item.externalKey ? ` · ${item.externalKey}` : ''}
             </Badge>
           )}
+          {item.externalDeleted && (
+            <Badge variant="outline" className="border-amber-500/50 text-xs text-amber-600 dark:text-amber-400"
+              title="Deleted, transferred or moved out of the connected scope. Sync no longer updates it.">
+              Gone from {item.source}
+            </Badge>
+          )}
         </div>
         <SheetTitle className="sr-only">{item.title}</SheetTitle>
         <SheetDescription asChild>

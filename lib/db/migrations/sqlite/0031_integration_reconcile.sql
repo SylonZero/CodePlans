@@ -1,0 +1,1 @@
+ALTER TABLE `integrations` ADD `last_reconciled_at` integer;
