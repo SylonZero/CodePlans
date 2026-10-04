@@ -25,6 +25,11 @@ export type TaskStatus = 'not_started' | 'in_progress' | 'done'
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical'
 export type WorkItemType = 'feature' | 'bug' | 'enhancement' | 'ux' | 'tech_debt'
 export type WorkItemStatus = 'open' | 'planned' | 'in_progress' | 'resolved' | 'wont_do'
+
+// External intake (spec: External Intake & Triage, phase 1). Internal items have no triage state.
+export type WorkItemOrigin = 'internal' | 'external'
+export type TriageState = 'untriaged' | 'accepted' | 'declined' | 'needs_info'
+export type DeclineReason = 'already_shipped' | 'question' | 'question_answered' | 'duplicate' | 'out_of_scope' | 'cannot_reproduce' | 'show_and_tell' | 'spam'
 export type WorkItemSeverity = 'low' | 'medium' | 'high' | 'critical'
 export type PrStatus = 'none' | 'draft' | 'open' | 'merged' | 'closed'
 // Provider list is intentionally text (not enum) — new connectors must not need a migration.
@@ -404,10 +409,19 @@ export const workItems = sqliteTable('work_items', {
   externalData: text('external_data', { mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
   externalDeleted: integer('external_deleted', { mode: 'boolean' }).notNull().default(false),
   syncedAt: integer('synced_at', { mode: 'timestamp' }),
+  // External intake: where the item came from and the team's triage decision.
+  origin: text('origin').$type<WorkItemOrigin>().notNull().default('internal'),
+  triageState: text('triage_state').$type<TriageState>(),
+  declineReason: text('decline_reason').$type<DeclineReason>(),
+  triageNote: text('triage_note'),
+  triagedById: text('triaged_by_id').references(() => users.id, { onDelete: 'set null' }),
+  triagedByKind: text('triaged_by_kind'),
+  triagedAt: integer('triaged_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 }, (t) => [
   uniqueIndex('work_items_connection_external_idx').on(t.connectionId, t.externalId),
+  index('work_items_product_external_key_idx').on(t.productId, t.externalKey),
   index('work_items_product_idx').on(t.productId),
   index('work_items_asset_idx').on(t.assetId),
 ])

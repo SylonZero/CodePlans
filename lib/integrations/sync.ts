@@ -6,25 +6,7 @@ import { eq, and, isNotNull, isNull, inArray } from 'drizzle-orm'
 import type { WorkItemStatus, WorkItemType, TaskStatus } from '@/lib/types'
 import type { Connector, ExternalItem, IntegrationConfig, SyncResult } from './types'
 import { getConnector } from './registry'
-
-const DEFAULT_TYPE_LABEL_MAP: Record<string, WorkItemType> = {
-  bug: 'bug',
-  enhancement: 'enhancement',
-  ux: 'ux',
-  design: 'ux',
-  'tech-debt': 'tech_debt',
-  'tech debt': 'tech_debt',
-  debt: 'tech_debt',
-  feature: 'feature',
-}
-
-function inferType(labels: string[], typeLabelMap: Record<string, WorkItemType>): WorkItemType {
-  for (const label of labels) {
-    const mapped = typeLabelMap[label.toLowerCase()]
-    if (mapped) return mapped
-  }
-  return 'feature'
-}
+import { DEFAULT_TYPE_LABEL_MAP, inferType } from './type-labels'
 
 function mapStatus(
   state: string,
