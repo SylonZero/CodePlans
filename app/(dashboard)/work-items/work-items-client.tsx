@@ -10,6 +10,8 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { TRIAGE_LABELS } from '@/lib/intake-labels'
+import { triageStyles } from './triage-block'
 import { Filter, Plus, Circle, Play, CheckCircle2, Wrench, ExternalLink, List, Layers } from 'lucide-react'
 import type { WorkItemStatus, WorkItemType } from '@/lib/types'
 import type { WorkItemWithContext, AssetDebtInfo } from '@/lib/db/queries'
@@ -57,6 +59,8 @@ export function WorkItemsClient({
   const [assetFilter, setAssetFilter] = useState<string>('all')
   const [areaFilter, setAreaFilter] = useState<string>('all')
   const [mineOnly, setMineOnly] = useState(false)
+  // 'all' | 'internal' | 'external' | 'external:<triage state>'
+  const [sourceFilter, setSourceFilter] = useState<string>('all')
   const [view, setView] = useState<'list' | 'debt'>('list')
   const [page, setPage] = useState(0)
   const [createOpen, setCreateOpen] = useState(false)
@@ -109,8 +113,15 @@ export function WorkItemsClient({
       if (item.area) return false
     } else if (areaFilter !== 'all' && item.area !== areaFilter) return false
     if (mineOnly && item.ownerId !== currentUserId) return false
+    if (sourceFilter === 'internal' && item.origin !== 'internal') return false
+    if (sourceFilter.startsWith('external')) {
+      if (item.origin !== 'external') return false
+      const wanted = sourceFilter.split(':')[1]
+      if (wanted && item.triageState !== wanted) return false
+    }
     return true
   })
+  const hasExternal = items.some((i) => i.origin === 'external')
   const pageItems = filteredItems.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   const openStatuses: WorkItemStatus[] = ['open', 'planned', 'in_progress']
@@ -244,6 +255,21 @@ export function WorkItemsClient({
               )}
             </SelectContent>
           </Select>
+          {hasExternal && (
+            <Select value={sourceFilter} onValueChange={(v) => { setSourceFilter(v); setPage(0) }}>
+              <SelectTrigger className="w-[170px]" aria-label="Source and triage">
+                <SelectValue placeholder="All sources" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All sources</SelectItem>
+                <SelectItem value="internal">Internal</SelectItem>
+                <SelectItem value="external">External reports</SelectItem>
+                {(['untriaged', 'accepted', 'needs_info', 'declined'] as const).map((t) => (
+                  <SelectItem key={t} value={`external:${t}`}>External · {TRIAGE_LABELS[t]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <div className="flex border border-border rounded-md">
             <Button variant={view === 'list' ? 'secondary' : 'ghost'} size="icon" className="h-9 w-9 rounded-r-none" title="List view" onClick={() => setView('list')}>
               <List className="h-4 w-4" />
@@ -277,6 +303,11 @@ export function WorkItemsClient({
                   <div>
                     <p className={cn('font-medium flex items-center gap-1.5', item.status === 'wont_do' && 'line-through text-muted-foreground')}>
                       <span className="truncate min-w-0" title={item.title}>{item.title}</span>
+                      {item.origin === 'external' && item.triageState && item.triageState !== 'accepted' && (
+                        <Badge variant="outline" className={cn('h-5 shrink-0 px-1.5 text-[10px] font-normal', triageStyles[item.triageState])}>
+                          {TRIAGE_LABELS[item.triageState]}
+                        </Badge>
+                      )}
                       {item.source !== 'native' && (
                         <span title={item.externalDeleted ? `Gone from ${item.source}: deleted or moved out of the connected scope` : `Mirrored from ${item.source}`} className="shrink-0">
                           <ExternalLink className={cn('h-3 w-3', item.externalDeleted ? 'text-amber-500' : 'text-muted-foreground')} />

@@ -111,3 +111,11 @@ describe('external reference on create/update (W7)', () => {
     expect(removed).toMatchObject({ origin: 'internal', externalKey: null, triageState: null })
   })
 })
+
+describe('tracker-mirrored items', () => {
+  it('records the decision but leaves the tracker-owned status', async () => {
+    await d.insert(workItems).values({ id: 'mirrored-1', productId: F.productShared, type: 'bug', title: 'From GitHub', status: 'open', source: 'github', origin: 'external', triageState: 'untriaged' })
+    const r = await triageWorkItem('mirrored-1', { state: 'declined', declineReason: 'question', note: 'Support question' }, agent)
+    expect(r).toMatchObject({ triageState: 'declined', status: 'open' })
+  })
+})

@@ -101,9 +101,14 @@ function validateTriage(input: TriageInput) {
   }
 }
 
-/** Status follows the decision: declining closes the item as won't-do; un-declining reopens it. */
-function triageColumns(input: TriageInput, currentStatus: string, actor?: ArtifactActor) {
+/**
+ * Status follows the decision: declining closes the item as won't-do;
+ * un-declining reopens it. Items mirrored from a connected tracker keep their
+ * status (the tracker owns it), so only the decision is recorded.
+ */
+function triageColumns(input: TriageInput, currentStatus: string, actor?: ArtifactActor, mirrored = false) {
   const declined = input.state === 'declined'
+  const status = mirrored ? {} : declined ? { status: 'wont_do' as const } : currentStatus === 'wont_do' ? { status: 'open' as const } : {}
   return {
     triageState: input.state,
     declineReason: declined ? input.declineReason! : null,
@@ -111,7 +116,7 @@ function triageColumns(input: TriageInput, currentStatus: string, actor?: Artifa
     triagedById: actor?.id ?? null,
     triagedByKind: actor?.kind ?? null,
     triagedAt: new Date(),
-    ...(declined ? { status: 'wont_do' as const } : currentStatus === 'wont_do' ? { status: 'open' as const } : {}),
+    ...status,
   }
 }
 
@@ -123,7 +128,7 @@ export async function triageWorkItem(id: string, input: TriageInput, actor?: Art
   if (existing.origin !== 'external') throw new IntakeError('Only items from an external report have a triage decision. Set an external reference first.')
   const [item] = await db
     .update(workItems)
-    .set({ ...triageColumns(input, existing.status, actor), ...editedBy(actor), updatedAt: new Date() })
+    .set({ ...triageColumns(input, existing.status, actor, existing.source !== 'native'), ...editedBy(actor), updatedAt: new Date() })
     .where(eq(workItems.id, id))
     .returning()
   await logAudit({
@@ -203,8 +208,7 @@ export async function importExternalWorkItems(productId: string, input: ImportIt
         externalKey: key,
         externalUrl: item.url ?? null,
         externalData: dataFor(item),
-        triageState: 'untriaged',
-        ...(item.triage ? triageColumns(item.triage, 'open', actor) : {}),
+        ...(item.triage ? triageColumns(item.triage, 'open', actor) : { triageState: 'untriaged' as const }),
         ...createdBy(actor),
       }).returning()
       await logAudit({ entityType: 'work_item', entityId: row.id, event: 'created', actor, payload: { title: row.title, type: row.type, externalKey: key } })

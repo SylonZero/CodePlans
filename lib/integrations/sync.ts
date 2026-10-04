@@ -137,6 +137,9 @@ export async function runSync(integration: IntegrationRow, connector: Connector)
           source: integration.provider,
           connectionId: integration.id,
           externalId: item.externalId,
+          // Tracker issues arrive as reports awaiting the team's triage decision.
+          origin: 'external',
+          triageState: 'untriaged',
           ...mirrored,
         })
         .returning()
