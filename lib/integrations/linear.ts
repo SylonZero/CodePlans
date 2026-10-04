@@ -52,18 +52,18 @@ const ISSUE_FIELDS = `
   labels { nodes { name } }
   assignee { name email }`
 
-async function listIssues(auth: ConnectorAuth, filter: Record<string, unknown>): Promise<ExternalItem[]> {
+async function listIssues(auth: ConnectorAuth, filter: Record<string, unknown>, includeArchived = false): Promise<ExternalItem[]> {
   const items: ExternalItem[] = []
   let after: string | null = null
   do {
     const data: {
       issues: { nodes: LinearIssue[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } }
-    } = await gql(auth, `query($filter: IssueFilter, $after: String) {
-      issues(filter: $filter, first: 100, after: $after, includeArchived: false) {
+    } = await gql(auth, `query($filter: IssueFilter, $after: String, $includeArchived: Boolean) {
+      issues(filter: $filter, first: 100, after: $after, includeArchived: $includeArchived) {
         nodes { ${ISSUE_FIELDS} }
         pageInfo { hasNextPage endCursor }
       }
-    }`, { filter, after })
+    }`, { filter, after, includeArchived })
     for (const i of data.issues.nodes) items.push(mapLinearIssue(i))
     after = data.issues.pageInfo.hasNextPage ? data.issues.pageInfo.endCursor : null
   } while (after)
@@ -85,6 +85,13 @@ export const linearConnector: Connector = {
     const filter: Record<string, unknown> = { team: { key: { eq: config.repo } } }
     if (since) filter.updatedAt = { gt: since.toISOString() }
     return listIssues(auth, filter)
+  },
+
+  // Full id listing for the daily deleted-upstream check. Archived issues count
+  // as present: Linear archives completed issues automatically.
+  async listAllIds(auth, config) {
+    const items = await listIssues(auth, { team: { key: { eq: config.repo } } }, true)
+    return new Set(items.map((i) => i.externalId))
   },
 
   // Epic-like scope: Linear projects the team participates in.

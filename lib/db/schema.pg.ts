@@ -102,6 +102,8 @@ export const integrations = pgTable('integrations', {
   config: jsonb('config').notNull().default({}),
   status: text('status').notNull().default('active'), // 'active' | 'paused' | 'error'
   lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),
+  // Last full check for items deleted or moved out of scope upstream (sync.ts reconcile).
+  lastReconciledAt: timestamp('last_reconciled_at', { withTimezone: true }),
   lastError: text('last_error'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

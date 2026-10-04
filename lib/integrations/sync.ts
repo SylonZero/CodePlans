@@ -2,7 +2,7 @@ import { db } from '@/lib/db'
 import { productIdFor } from '@/lib/db/authz'
 import { editedBy } from '@/lib/db/attribution'
 import { integrations, workItems, codePlans, codePlanAssets, tasks, syncLog } from '@/lib/db/schema'
-import { eq, and, isNotNull } from 'drizzle-orm'
+import { eq, and, isNotNull, isNull, inArray } from 'drizzle-orm'
 import type { WorkItemStatus, WorkItemType, TaskStatus } from '@/lib/types'
 import type { Connector, ExternalItem, IntegrationConfig, SyncResult } from './types'
 import { getConnector } from './registry'
@@ -34,6 +34,19 @@ function mapStatus(
 }
 
 type IntegrationRow = typeof integrations.$inferSelect
+
+/**
+ * The provider-side scope an item came from ("owner/repo", a Jira project
+ * key, ...), recorded on every mirrored row. GitHub and GitLab ids are issue
+ * numbers, unique only within one repo, so the row has to say which repo.
+ */
+export function scopeLabel(config: IntegrationConfig): string | null {
+  if (!config.repo) return null
+  return config.baseUrl ? `${config.baseUrl.replace(/\/$/, '')}/${config.repo}` : config.repo
+}
+
+/** How often the deleted-upstream check runs per connection. */
+const RECONCILE_EVERY_MS = 24 * 60 * 60 * 1000
 
 function emptyResult(error?: string): SyncResult {
   return { created: 0, updated: 0, unchanged: 0, tasksCreated: 0, tasksUpdated: 0, prsUpdated: 0, error }
@@ -73,6 +86,7 @@ export async function runSync(integration: IntegrationRow, connector: Connector)
 
   const since = integration.lastSyncAt ?? undefined
   const externalItems = await connector.listItems({ token }, config, since)
+  const scope = scopeLabel(config)
 
   let created = 0
   const imported: { id: string; title: string }[] = []
@@ -80,12 +94,27 @@ export async function runSync(integration: IntegrationRow, connector: Connector)
   let unchanged = 0
 
   for (const item of externalItems) {
-    const existing = await db.query.workItems.findFirst({
+    let existing = await db.query.workItems.findFirst({
       where: and(
         eq(workItems.connectionId, integration.id),
         eq(workItems.externalId, item.externalId),
       ),
     })
+    // Reconnecting after a connection was deleted: its items lost their
+    // connection_id (set null) but kept source and URL. Adopt them instead of
+    // creating duplicates.
+    let adopted = false
+    if (!existing) {
+      existing = await db.query.workItems.findFirst({
+        where: and(
+          isNull(workItems.connectionId),
+          eq(workItems.source, integration.provider),
+          eq(workItems.externalUrl, item.externalUrl),
+          eq(workItems.productId, config.productId),
+        ),
+      })
+      adopted = !!existing
+    }
 
     const mirrored = {
       title: item.title,
@@ -98,23 +127,25 @@ export async function runSync(integration: IntegrationRow, connector: Connector)
         state: item.state,
         assigneeName: item.assigneeName ?? null,
         providerUpdatedAt: item.updatedAt,
+        scope,
       },
+      externalDeleted: false,
       syncedAt: new Date(),
     }
 
     if (existing) {
       const providerUpdatedAt = (existing.externalData as Record<string, unknown>)?.providerUpdatedAt
-      if (providerUpdatedAt === item.updatedAt) {
+      if (!adopted && providerUpdatedAt === item.updatedAt && !existing.externalDeleted) {
         unchanged += 1
         continue
       }
       // Only mirrored fields — never assetId/area/severity/parent (native annotations).
       await db
         .update(workItems)
-        .set({ ...mirrored, ...editedBy(), updatedAt: new Date() })
+        .set({ ...mirrored, ...(adopted ? { connectionId: integration.id, externalId: item.externalId } : {}), ...editedBy(), updatedAt: new Date() })
         .where(eq(workItems.id, existing.id))
       updated += 1
-      await logSyncEvent(integration, existing.id, 'updated', item)
+      await logSyncEvent(integration, existing.id, adopted ? 'relinked' : 'updated', item)
     } else {
       const [row] = await db
         .insert(workItems)
@@ -133,6 +164,7 @@ export async function runSync(integration: IntegrationRow, connector: Connector)
     }
   }
 
+  const reconciled = await reconcileDeleted(integration, connector, { token }, config)
   const taskStats = await syncPlanTasks(integration, connector, { token }, config)
   const prsUpdated = await syncPrStatuses(integration, connector, { token }, config)
 
@@ -141,7 +173,61 @@ export async function runSync(integration: IntegrationRow, connector: Connector)
     await notifySyncImports(integration, config.productId, imported)
   }
 
-  return { created, updated, unchanged, ...taskStats, prsUpdated }
+  return { created, updated, unchanged, ...taskStats, prsUpdated, ...reconciled }
+}
+
+/**
+ * Daily deleted-upstream check. Incremental syncs never see an item that was
+ * deleted or moved out of scope (GitHub transfers, Jira moves), so once a day
+ * we list every id in scope and flag mirrored work items that are missing
+ * (external_deleted = true), or clear the flag on items that came back.
+ * Skipped when the connector can't list completely, and when the listing is
+ * empty although items exist (more likely lost access than a wiped repo).
+ */
+export async function reconcileDeleted(
+  integration: IntegrationRow,
+  connector: Connector,
+  auth: { token: string },
+  config: IntegrationConfig,
+  now = new Date(),
+): Promise<{ markedDeleted?: number; restored?: number }> {
+  if (!connector.listAllIds) return {}
+  const last = integration.lastReconciledAt
+  if (last && now.getTime() - new Date(last).getTime() < RECONCILE_EVERY_MS) return {}
+
+  let ids: Set<string> | null
+  try {
+    ids = await connector.listAllIds(auth, config)
+  } catch (err) {
+    console.error(`[sync] deleted-upstream check failed for ${integration.name}:`, err)
+    return {}
+  }
+  if (!ids) {
+    console.warn(`[sync] ${integration.name}: too many items to check for deletions; skipped`)
+    return {}
+  }
+
+  const rows = await db
+    .select({ id: workItems.id, externalId: workItems.externalId, externalDeleted: workItems.externalDeleted, title: workItems.title, externalKey: workItems.externalKey })
+    .from(workItems)
+    .where(and(eq(workItems.connectionId, integration.id), isNotNull(workItems.externalId)))
+  if (ids.size === 0 && rows.length > 0) {
+    console.warn(`[sync] ${integration.name}: provider listed no items but ${rows.length} are mirrored; not marking them deleted`)
+    return {}
+  }
+
+  const gone = rows.filter((r) => !ids.has(r.externalId!) && !r.externalDeleted)
+  const back = rows.filter((r) => ids.has(r.externalId!) && r.externalDeleted)
+  if (gone.length) {
+    await db.update(workItems).set({ externalDeleted: true, syncedAt: now, updatedAt: now }).where(inArray(workItems.id, gone.map((r) => r.id)))
+  }
+  if (back.length) {
+    await db.update(workItems).set({ externalDeleted: false, syncedAt: now, updatedAt: now }).where(inArray(workItems.id, back.map((r) => r.id)))
+  }
+  for (const r of gone) await logSyncEvent(integration, r.id, 'external_deleted', { title: r.title, externalKey: r.externalKey ?? undefined })
+  for (const r of back) await logSyncEvent(integration, r.id, 'external_restored', { title: r.title, externalKey: r.externalKey ?? undefined })
+  await db.update(integrations).set({ lastReconciledAt: now }).where(eq(integrations.id, integration.id))
+  return { markedDeleted: gone.length, restored: back.length }
 }
 
 /**
@@ -167,9 +253,22 @@ async function syncPlanTasks(
   for (const plan of linkedPlans) {
     const items = await connector.listScopeItems(auth, config, plan.externalId!)
     for (const item of items) {
-      const existing = await db.query.tasks.findFirst({
+      let existing = await db.query.tasks.findFirst({
         where: and(eq(tasks.connectionId, integration.id), eq(tasks.externalId, item.externalId)),
       })
+      // Same reconnect case as work items, limited to this plan.
+      let adopted = false
+      if (!existing) {
+        existing = await db.query.tasks.findFirst({
+          where: and(
+            isNull(tasks.connectionId),
+            eq(tasks.codePlanId, plan.id),
+            eq(tasks.source, integration.provider),
+            eq(tasks.externalUrl, item.externalUrl),
+          ),
+        })
+        adopted = !!existing
+      }
 
       const mirrored = {
         title: item.title,
@@ -182,17 +281,18 @@ async function syncPlanTasks(
           state: item.state,
           assigneeName: item.assigneeName ?? null,
           providerUpdatedAt: item.updatedAt,
+          scope: scopeLabel(config),
         },
         syncedAt: new Date(),
       }
 
       if (existing) {
         const providerUpdatedAt = (existing.externalData as Record<string, unknown>)?.providerUpdatedAt
-        if (providerUpdatedAt === item.updatedAt) continue
+        if (!adopted && providerUpdatedAt === item.updatedAt) continue
         // Mirrored fields only — assignee/effort/asset/priority stay native.
         await db
           .update(tasks)
-          .set({ ...mirrored, updatedAt: new Date() })
+          .set({ ...mirrored, ...(adopted ? { connectionId: integration.id, externalId: item.externalId } : {}), updatedAt: new Date() })
           .where(eq(tasks.id, existing.id))
         tasksUpdated += 1
       } else {
@@ -274,7 +374,7 @@ async function syncPrStatuses(
   return updated
 }
 
-async function logSyncEvent(integration: IntegrationRow, workItemId: string, event: string, item: ExternalItem) {
+async function logSyncEvent(integration: IntegrationRow, workItemId: string, event: string, item: Pick<ExternalItem, 'title' | 'externalKey'>) {
   try {
     await db.insert(syncLog).values({
       organizationId: integration.organizationId,

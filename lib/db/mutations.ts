@@ -787,9 +787,42 @@ type UpdateIntegrationData = {
   config?: Record<string, unknown>
 }
 
+/** Thrown when an edit would point a connection that already mirrors items at a different repo/project. */
+export class IntegrationScopeChangeError extends Error {}
+
+/**
+ * Mirrored items are matched by (connection, external id), and GitHub/GitLab
+ * ids are issue numbers — unique only within one repo. Re-pointing a
+ * connection that already has items would let the new repo's #142 overwrite
+ * the old repo's #142, so the scope is fixed once anything is mirrored.
+ */
+async function assertScopeUnchanged(existing: typeof integrations.$inferSelect, next: Record<string, unknown>) {
+  const before = (existing.config ?? {}) as Record<string, unknown>
+  const norm = (v: unknown) => (typeof v === 'string' ? v.trim().replace(/\/$/, '').toLowerCase() : '')
+  if (norm(before.repo) === norm(next.repo) && norm(before.baseUrl) === norm(next.baseUrl)) return
+  const [wi, tk, pl] = await Promise.all([
+    db.select({ id: workItems.id }).from(workItems).where(eq(workItems.connectionId, existing.id)).limit(1),
+    db.select({ id: tasks.id }).from(tasks).where(eq(tasks.connectionId, existing.id)).limit(1),
+    db.select({ id: codePlans.id }).from(codePlans).where(eq(codePlans.connectionId, existing.id)).limit(1),
+  ])
+  if (!wi.length && !tk.length && !pl.length) return
+  throw new IntegrationScopeChangeError(
+    `This connection already mirrors items from ${String(before.repo ?? 'its current scope')}. Changing it to ${String(next.repo ?? 'another scope')} `
+    + 'would mix items from two sources. Add a new connection for it instead, and delete this one if you no longer need it.',
+  )
+}
+
 export async function updateIntegration(id: string, data: UpdateIntegrationData, actor?: ArtifactActor) {
   const { token, ...columns } = data
   const patch: Record<string, unknown> = { ...columns }
+  if (data.config) {
+    const existing = await db.query.integrations.findFirst({ where: eq(integrations.id, id) })
+    if (existing) {
+      await assertScopeUnchanged(existing, data.config)
+      // Merge, so settings the edit form doesn't show (statusMap, typeLabelMap) survive.
+      patch.config = { ...((existing.config ?? {}) as Record<string, unknown>), ...data.config }
+    }
+  }
   if (token) {
     const { encryptToken } = await import('@/lib/integrations/secrets')
     patch.tokenEncrypted = encryptToken(token)

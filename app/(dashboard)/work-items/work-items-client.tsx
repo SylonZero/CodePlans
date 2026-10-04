@@ -278,8 +278,8 @@ export function WorkItemsClient({
                     <p className={cn('font-medium flex items-center gap-1.5', item.status === 'wont_do' && 'line-through text-muted-foreground')}>
                       <span className="truncate min-w-0" title={item.title}>{item.title}</span>
                       {item.source !== 'native' && (
-                        <span title={`Mirrored from ${item.source}`} className="shrink-0">
-                          <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                        <span title={item.externalDeleted ? `Gone from ${item.source}: deleted or moved out of the connected scope` : `Mirrored from ${item.source}`} className="shrink-0">
+                          <ExternalLink className={cn('h-3 w-3', item.externalDeleted ? 'text-amber-500' : 'text-muted-foreground')} />
                         </span>
                       )}
                     </p>

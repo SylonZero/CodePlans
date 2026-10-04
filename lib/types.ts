@@ -248,6 +248,8 @@ export interface WorkItem extends Attribution {
   source: ItemSource
   externalKey?: string
   externalUrl?: string
+  /** Mirrored item no longer exists (or left the connection's scope) upstream. */
+  externalDeleted?: boolean
   createdAt: string
   updatedAt: string
 }

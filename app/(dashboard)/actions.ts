@@ -15,6 +15,7 @@ import { users, organizationMembers, organizations, emailVerificationTokens, int
 import { eq, and, gt } from 'drizzle-orm'
 import {
   updateIntegration,
+  IntegrationScopeChangeError,
   createProduct,
   updateProduct,
   archiveProduct,
@@ -817,13 +818,18 @@ export async function updateIntegrationAction(id: string, formData: FormData) {
   if (!productId) return { error: 'Select a target product for mirrored items.' }
   await assertCanWrite(authUser.id, { productId })
 
-  await updateIntegration(id, {
-    name,
-    // token undefined keeps the stored credential; authRef only set when provided
-    token,
-    ...(authRef !== undefined ? { authRef } : {}),
-    config: { repo, baseUrl, productId },
-  }, await currentEditor())
+  try {
+    await updateIntegration(id, {
+      name,
+      // token undefined keeps the stored credential; authRef only set when provided
+      token,
+      ...(authRef !== undefined ? { authRef } : {}),
+      config: { repo, baseUrl, productId },
+    }, await currentEditor())
+  } catch (err) {
+    if (err instanceof IntegrationScopeChangeError) return { error: err.message }
+    throw err
+  }
   revalidatePath('/integrations')
   return { ok: true as const }
 }

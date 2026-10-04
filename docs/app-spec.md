@@ -174,7 +174,30 @@ and never overwrites later native content on reruns. See the
 | `sync_log` | Item-level events (native mutations + sync runs); drives the activity feed |
 | `api_keys` | MCP access: per-user hashed `cpk_` tokens (`keyHash` sha256, `keyPrefix` for display, `scope` read/write, soft revoke) |
 
-Provenance columns (`source` default `native`, `connectionId`, `externalId/Key/Url`, `externalData`, `externalDeleted`, `syncedAt`) exist on `work_items`, `code_plans`, `tasks`, and `releases`, with a unique index on `(connection_id, external_id)`. `assets` gained `repo_path` for monorepo folders and a freeform `notes` markdown doc. The `code_plans.target_asset_ids` / `assignee_ids` arrays were **dropped in v0.3.0** (join tables are authoritative). `code_plan_assignees` was **dropped in v0.3.22** — plan assignees are derived from `tasks.assigneeId`. Asset owners (routing/visibility, not an ACL) live in `asset_owners` (v0.3.24).
+Provenance columns (`source` default `native`, `connectionId`, `externalId/Key/Url`, `externalData`, `externalDeleted`, `syncedAt`) exist on `work_items`, `code_plans`, `tasks`, and `releases`, with a unique index on `(connection_id, external_id)`.
+
+How sync keeps provenance straight:
+
+- **Scope on every row.** GitHub and GitLab ids are issue numbers, unique only
+  within one repo. Every mirrored work item and task records
+  `externalData.scope` (`owner/repo`, prefixed with the host for self-hosted
+  GitLab). A connection's repo/project can't be changed once it mirrors
+  anything: `updateIntegration` throws `IntegrationScopeChangeError`, so the
+  user adds a new connection instead. Edits merge into `config`, keeping
+  `statusMap`/`typeLabelMap`.
+- **Reconnects adopt orphans.** Deleting a connection sets `connection_id` to
+  null on its items. When a later sync finds no row for
+  `(connection, external id)`, it adopts an orphan with the same `source` and
+  `external_url` in the target product (tasks: in the same plan), logging
+  `relinked`, instead of inserting a duplicate.
+- **Deleted upstream.** Incremental syncs can't see deletions, so once a day
+  per connection (`integrations.last_reconciled_at`) sync calls the
+  connector's `listAllIds`. Missing items get `external_deleted = true`
+  (`external_deleted` in `sync_log`); items that reappear are cleared
+  (`external_restored`). The check is skipped when the listing can't be
+  complete (GitHub/GitLab over 5,000 issues), fails, or is empty while items
+  exist. Linear's listing includes archived issues, because Linear archives
+  completed ones automatically. `assets` gained `repo_path` for monorepo folders and a freeform `notes` markdown doc. The `code_plans.target_asset_ids` / `assignee_ids` arrays were **dropped in v0.3.0** (join tables are authoritative). `code_plan_assignees` was **dropped in v0.3.22** — plan assignees are derived from `tasks.assigneeId`. Asset owners (routing/visibility, not an ACL) live in `asset_owners` (v0.3.24).
 
 #### v0.4.x tables (see releases-and-asset-history-spec §5 for full field tables)
 

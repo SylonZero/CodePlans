@@ -719,6 +719,7 @@ type WorkItemRow = {
   source: string // ItemSource — plain text column in pg mode
   externalKey: string | null
   externalUrl: string | null
+  externalDeleted: boolean
   createdAt: Date
   updatedAt: Date
   createdById: string | null
@@ -753,6 +754,7 @@ function mapWorkItemRow(
     source: r.source as ItemSource,
     externalKey: r.externalKey ?? undefined,
     externalUrl: r.externalUrl ?? undefined,
+    externalDeleted: !!r.externalDeleted || undefined,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
     createdById: r.createdById,
@@ -867,6 +869,7 @@ function workItemColumns() {
     source: workItems.source,
     externalKey: workItems.externalKey,
     externalUrl: workItems.externalUrl,
+    externalDeleted: workItems.externalDeleted,
     createdAt: workItems.createdAt,
     updatedAt: workItems.updatedAt,
     createdById: workItems.createdById,

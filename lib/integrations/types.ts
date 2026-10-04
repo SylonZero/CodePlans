@@ -61,6 +61,13 @@ export interface Connector {
   defaultStatusMap: Record<string, WorkItemStatus>
   /** Incremental pull of items in the connection's scope. */
   listItems(auth: ConnectorAuth, config: IntegrationConfig, since?: Date): Promise<ExternalItem[]>
+  /**
+   * Every item id currently in the connection's scope, used to mark mirrored
+   * items deleted (or moved out of scope) upstream. Return null when the
+   * listing can't be complete (e.g. a pagination cap): absence is then not
+   * evidence of deletion and the check is skipped.
+   */
+  listAllIds?(auth: ConnectorAuth, config: IntegrationConfig): Promise<Set<string> | null>
   /** Epic-like scopes a plan can be linked to (GitHub: milestones). */
   listScopes?(auth: ConnectorAuth, config: IntegrationConfig): Promise<ExternalScope[]>
   /** Items inside one scope — mirrored as a linked plan's tasks. */
@@ -97,5 +104,8 @@ export type SyncResult = {
   tasksCreated: number
   tasksUpdated: number
   prsUpdated: number
+  /** Items marked deleted / restored by the daily reconcile (absent when it didn't run). */
+  markedDeleted?: number
+  restored?: number
   error?: string
 }

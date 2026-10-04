@@ -96,6 +96,12 @@ export const jiraConnector: Connector = {
     return searchIssues(auth, config, jql)
   },
 
+  // Full id listing for the daily deleted-upstream check; moved issues leave the project.
+  async listAllIds(auth, config) {
+    const items = await searchIssues(auth, config, `project = "${config.repo}"`)
+    return new Set(items.map((i) => i.externalId))
+  },
+
   // Epic-like scope: Jira epics in the project.
   async listScopes(auth, config): Promise<ExternalScope[]> {
     const base = site(config)
