@@ -260,7 +260,7 @@ function WorkItemEditor({
               {item.productName}
               <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
-            {item.externalUrl && (
+            {item.externalUrl && isMirrored && (
               <a href={item.externalUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 hover:text-accent transition-colors w-fit">
                 View in {item.source}
                 <ExternalLink className="h-3.5 w-3.5" />

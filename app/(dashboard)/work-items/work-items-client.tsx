@@ -209,7 +209,7 @@ export function WorkItemsClient({
           </TabsList>
         </Tabs>
         {currentUserId && (
-          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+          <label className="flex items-center gap-2 text-sm cursor-pointer select-none whitespace-nowrap">
             <Switch checked={mineOnly} onCheckedChange={(v) => { setMineOnly(v); setPage(0) }} />
             <span className="text-muted-foreground">Owned by me</span>
           </label>
@@ -301,8 +301,8 @@ export function WorkItemsClient({
               <TableRow key={item.id} className="cursor-pointer" onClick={() => openPanel(item)}>
                 <TableCell className="max-w-[240px]">
                   <div>
-                    <p className={cn('font-medium flex items-center gap-1.5', item.status === 'wont_do' && 'line-through text-muted-foreground')}>
-                      <span className="truncate min-w-0" title={item.title}>{item.title}</span>
+                    <p className="font-medium flex items-center gap-1.5">
+                      <span className={cn('truncate min-w-0', item.status === 'wont_do' && 'line-through text-muted-foreground')} title={item.title}>{item.title}</span>
                       {item.origin === 'external' && item.triageState && item.triageState !== 'accepted' && (
                         <Badge variant="outline" className={cn('h-5 shrink-0 px-1.5 text-[10px] font-normal', triageStyles[item.triageState])}>
                           {TRIAGE_LABELS[item.triageState]}
