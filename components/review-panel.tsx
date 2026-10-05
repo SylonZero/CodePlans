@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Check, CircleDashed, ClipboardCheck, MessageSquare, X, XCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { timeAgo } from '@/components/comments-panel'
+import { MarkdownContent } from '@/components/markdown-content'
 import { addReviewersAction, decideReviewAction, removeReviewerAction, requestReviewAction, withdrawReviewAction } from '@/app/(dashboard)/collab-actions'
 import type { ReviewSummary, ReviewView, ParticipantView } from '@/lib/db/reviews'
 import type { ReviewReason, ReviewState } from '@/lib/db/schema.sqlite'
@@ -76,7 +77,7 @@ function CurrentReview({ review, summary, currentUserId, path }: { review: Revie
       {summary.currentVersion !== review.subjectVersion ? ` · now at v${summary.currentVersion}` : ''}
       {review.dueAt ? ` · due ${review.dueAt}` : ''}
     </p>
-    {review.note && <p className="rounded-md bg-muted/50 px-3 py-2 text-sm">{review.note}</p>}
+    {review.note && <MarkdownContent compact className="rounded-md bg-muted/50 px-3 py-2">{review.note}</MarkdownContent>}
     <ul className="divide-y rounded-md border">
       {review.participants.map((p) => <li key={p.userId} className="flex flex-wrap items-center gap-2 px-3 py-2 text-sm">
         <span className="font-medium">{p.name}</span>

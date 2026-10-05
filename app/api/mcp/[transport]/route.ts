@@ -164,7 +164,7 @@ const handler = createMcpHandler(
       const { listComments } = await import('@/lib/db/comments')
       return json(await listComments(subjectType, subjectId, uid(extra)))
     })
-    server.tool('add_comment', 'Comment on a spec, plan, work item, release or asset, or reply to a thread (parentId). Use kind question/suggestion when it fits, anchor.quote to point at exact spec text, and mentionEmails to notify workspace members. Comments are marked as agent-authored.', {
+    server.tool('add_comment', 'Comment on a spec, plan, work item, release or asset, or reply to a thread (parentId). Use kind question/suggestion when it fits, anchor.quote to point at exact spec text, and mentionEmails to notify workspace members. The body is rendered as GitHub-flavoured markdown (headings, lists, bold, code, tables; no raw HTML). Comments are marked as agent-authored.', {
       subjectType: z.enum(['spec', 'code_plan', 'work_item', 'release', 'asset']), subjectId: z.string(),
       body: z.string().min(1).max(10_000), parentId: z.string().optional(), kind: z.enum(['comment', 'question', 'suggestion']).optional(),
       anchor: z.object({ quote: z.string().min(1).max(1000) }).optional(), mentionEmails: z.array(z.string()).max(20).optional(),
@@ -183,7 +183,7 @@ const handler = createMcpHandler(
       const { resolveComment } = await import('@/lib/db/comments')
       return json(await resolveComment(id, resolved, { id: uid(extra), kind: 'agent' }))
     })
-    server.tool('request_review', "Open a review on a spec or plan's current version. Without reviewerEmails, reviewers are suggested from responsibilities (area architects and code owners for specs; target code owners and engineering managers for plans); a guided workflow always adds them. Agents can request reviews and comment, but only people can approve.", {
+    server.tool('request_review', "Open a review on a spec or plan's current version. Without reviewerEmails, reviewers are suggested from responsibilities (area architects and code owners for specs; target code owners and engineering managers for plans); a guided workflow always adds them. Agents can request reviews and comment, but only people can approve. The note is rendered as markdown.", {
       subjectType: z.enum(['spec', 'code_plan']), subjectId: z.string(),
       reviewerEmails: z.array(z.string()).max(20).optional(), note: z.string().max(2000).optional(), dueAt: z.string().optional(),
     }, async ({ reviewerEmails, ...data }, extra) => {

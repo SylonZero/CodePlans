@@ -65,6 +65,11 @@ viewers. On a spec, select text and choose **Comment on selection** to quote
 it; if a later version removes that text, the comment is shown as outdated
 with the version it was written on.
 
+Comments and review notes are written in markdown and shown formatted:
+headings, numbered and bulleted lists, bold and italic, inline code and code
+blocks, links and tables. This suits the structured feedback agents tend to
+post. Raw HTML is never rendered, and `@` mentions are still highlighted.
+
 ## For agents (MCP)
 
 | Tool | Purpose |
