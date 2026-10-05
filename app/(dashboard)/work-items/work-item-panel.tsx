@@ -35,6 +35,7 @@ import { RichTextField } from '@/components/rich-text-field'
 import type { WorkItemStatus } from '@/lib/types'
 import type { WorkItemWithContext } from '@/lib/db/queries'
 import { cn } from '@/lib/utils'
+import { TriageBlock } from './triage-block'
 import {
   createWorkItemAction,
   updateWorkItemAction,
@@ -259,7 +260,7 @@ function WorkItemEditor({
               {item.productName}
               <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
-            {item.externalUrl && (
+            {item.externalUrl && isMirrored && (
               <a href={item.externalUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 hover:text-accent transition-colors w-fit">
                 View in {item.source}
                 <ExternalLink className="h-3.5 w-3.5" />
@@ -268,6 +269,10 @@ function WorkItemEditor({
           </span>
         </SheetDescription>
       </SheetHeader>
+
+      {item.origin === 'external' && (
+        <TriageBlock key={`triage-${item.id}`} item={item} onStatusChange={setStatus} />
+      )}
 
       <form ref={formRef} onBlur={() => commit()} onSubmit={(e) => e.preventDefault()} className="space-y-4 px-4">
         <Input name="title" defaultValue={item.title} disabled={isMirrored} className="font-medium" aria-label="Title" />

@@ -24,7 +24,7 @@ claude mcp add --transport http codeplans http://localhost:3000/api/mcp/mcp \
 Works identically against a local SQLite instance or a hosted deployment —
 the server lives inside the Next.js app.
 
-## The tool catalog (71 tools)
+## The tool catalog (74 tools)
 
 **Read** (any key):
 
@@ -45,6 +45,7 @@ the server lives inside the Next.js app.
 |---|---|
 | Model the graph | `create_product` · `update_product` · `create_asset` · `update_asset` · `move_asset` · `add_asset_dependency` · `remove_asset_dependency` |
 | Demand | `create_work_item` · `update_work_item` · `update_work_item_status` · `link_work_item_to_plan` · `unlink_work_item_from_plan` |
+| Outside reports | `import_work_items` · `import_github_issues` · `triage_work_item` |
 | Plans | `create_code_plan` · `update_code_plan` · `activate_plan` · `complete_plan` · `add_plan_asset` · `remove_plan_asset` · `update_plan_asset` |
 | Tasks | `create_task` · `update_task` · `update_task_status` |
 | Releases | `create_release` · `update_release` · `attach_plan_to_release` · `detach_plan_from_release` · `set_release_asset` · `ship_release` |
@@ -55,7 +56,6 @@ the server lives inside the Next.js app.
 | Responsibilities | `assign_responsibility` · `remove_responsibility` |
 | Notifications | `mark_notifications_done` |
 | Archive & delete | `archive_product` · `restore_product` · `archive_asset` · `restore_asset` · `delete_code_plan` · `delete_work_item` · `delete_task` · `delete_release` |
-| Specs | `create_spec` · `update_spec` · `supersede_spec` · `link_spec` · `unlink_spec` |
 
 Guardrails are enforced at the tool layer, not just the UI: mirrored items
 reject writes to tracker-owned fields, shipped releases reject mutation,
@@ -69,6 +69,45 @@ change*), the layer taxonomy (`edge / frontend / backend / domain / data /
 infra / shared`), and a refining recipe (assign layers with `update_asset`,
 relocate mis-homed assets with `move_asset` — work items follow, history is
 preserved).
+
+**Lists are compact and paged** — `list_work_items` and `list_specs` return
+`{ items, total, nextCursor }`. Rows are compact by default (no work item
+descriptions, no spec bodies); pass `fields: "full"` when you need them, and
+pass `nextCursor` back as `cursor` for the next page (default 50 rows, at most
+200). `list_work_items` also filters by `severity`, `tag`, `origin` and
+`triageState`.
+
+## Bringing in outside reports
+
+Issues on a repository you can only read, forum posts, emails and support
+tickets are *reports*: evidence that something may be wrong, not yet a
+decision to do anything. They come in as **external work items** carrying a
+key (`owner/repo#123`, `forum:thread-88`), a link, the upstream state and
+author, and a **triage state**: `untriaged`, `accepted`, `needs_info` or
+`declined`.
+
+- `import_github_issues(productId, repo)` reads a public GitHub repository,
+  with no collaborator rights needed, and never writes to GitHub. The server can
+  set `GITHUB_PUBLIC_TOKEN` to raise GitHub's anonymous rate limit.
+- `import_work_items(productId, items)` takes reports you've gathered yourself
+  (up to 500 per call). Pass a `triage` decision with each item if you've
+  already judged it, so skipped reports are kept as `declined` with a reason
+  instead of being dropped.
+- Both are keyed by the external key, so re-running only refreshes upstream
+  facts (state, labels, author, link). They never touch the title, the team's
+  edits or a decision already made.
+- `triage_work_item(id, state, declineReason?, note?)` records a decision.
+  Declining needs a reason (`already_shipped`, `question`,
+  `question_answered`, `duplicate`, `out_of_scope`, `cannot_reproduce`,
+  `show_and_tell`, `spam`) and a note, and sets the status to `wont_do`.
+  Moving a declined item to another state reopens it.
+- Work through the queue with
+  `list_work_items(origin: "external", triageState: "untriaged")`.
+
+Issues synced through a connected tracker (Integrations) arrive the same way,
+as untriaged reports. Their status stays owned by the tracker, so a decision
+on them is recorded without changing it. `create_work_item` and
+`update_work_item` also take `externalKey`/`externalUrl` for a single report.
 
 ## Recommended agent workflows
 

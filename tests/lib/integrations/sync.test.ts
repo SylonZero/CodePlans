@@ -82,6 +82,7 @@ describe('runSync', () => {
     expect(bug.type).toBe('bug') // inferred from the "bug" label
     expect(bug.status).toBe('open')
     expect(bug.externalKey).toBe('#1')
+    expect(bug).toMatchObject({ origin: 'external', triageState: 'untriaged' }) // arrives as a report to triage
 
     const enhancement = rows.find((r: any) => r.externalId === '2')
     expect(enhancement.type).toBe('enhancement')

@@ -5,6 +5,7 @@ import { logAudit } from './audit'
 import { bumpPlanRevision, decisionIsCurrent, lastApprovedVersion, onSubjectRevised, subjectVersion } from './review-state'
 import { assertActivationAllowed } from './workflow'
 import { productIdFor } from './authz'
+import { externalRefColumns, IntakeError, type ExternalRef } from './intake'
 import {
   products,
   assets,
@@ -565,13 +566,17 @@ type CreateWorkItemData = {
   severity: WorkItemSeverity
   ownerId?: string | null
   tags: string[]
+  /** Where an outside report lives; makes the item external and untriaged (lib/db/intake.ts). */
+  external?: ExternalRef
 }
 
 export async function createWorkItem(data: CreateWorkItemData, userId: string, actorKind: 'user' | 'agent' = 'user') {
   const actor = { id: userId, kind: actorKind }
+  const { external, ...fields } = data
+  const ref = external ? await externalRefColumns(data.productId, external) : {}
   const [item] = await db
     .insert(workItems)
-    .values({ ...data, ...createdBy(actor), reporterId: userId })
+    .values({ ...fields, ...ref, ...createdBy(actor), reporterId: userId })
     .returning()
   await logAudit({ entityType: 'work_item', entityId: item.id, event: 'created', actor, payload: { title: item.title, type: item.type } })
   if (item.ownerId) await logAudit({ entityType: 'work_item', entityId: item.id, event: 'assigned', actor, payload: { title: item.title, ownerId: item.ownerId } })
@@ -579,10 +584,12 @@ export async function createWorkItem(data: CreateWorkItemData, userId: string, a
 }
 
 type UpdateWorkItemData = Partial<
-  Omit<CreateWorkItemData, 'productId' | 'assetId' | 'area'> & {
+  Omit<CreateWorkItemData, 'productId' | 'assetId' | 'area' | 'external'> & {
     status: WorkItemStatus
     assetId: string | null
     area: string | null
+    /** Attach or replace the external reference; null removes it and the triage decision. */
+    external: ExternalRef | null
   }
 >
 
@@ -592,14 +599,22 @@ export async function updateWorkItem(id: string, data: UpdateWorkItemData, actor
 
   // Mirrored items: the external tracker owns title/description/status/type/tags.
   // Only the native annotation fields may be edited locally.
-  const patch: UpdateWorkItemData =
+  const { external, ...rest } = data
+  const patch: Omit<UpdateWorkItemData, 'external'> =
     existing.source !== 'native'
       ? { assetId: data.assetId, area: data.area, severity: data.severity, ownerId: data.ownerId }
-      : data
+      : rest
+  if (external !== undefined && existing.source !== 'native') {
+    throw new IntakeError('This item is mirrored from a connected tracker; its external reference comes from sync.')
+  }
+  const ref = external === undefined ? {}
+    : external === null
+      ? { origin: 'internal' as const, externalKey: null, externalUrl: null, externalData: {}, triageState: null, declineReason: null, triageNote: null, triagedById: null, triagedByKind: null, triagedAt: null }
+      : await externalRefColumns(existing.productId, external, existing)
 
   const [item] = await db
     .update(workItems)
-    .set({ ...patch, ...editedBy(actor), updatedAt: new Date() })
+    .set({ ...patch, ...ref, ...editedBy(actor), updatedAt: new Date() })
     .where(eq(workItems.id, id))
     .returning()
   if (item && patch.assetId !== undefined) await refreshSpecAssetLinks('work_item', id)

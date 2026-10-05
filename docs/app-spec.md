@@ -176,6 +176,29 @@ and never overwrites later native content on reruns. See the
 
 Provenance columns (`source` default `native`, `connectionId`, `externalId/Key/Url`, `externalData`, `externalDeleted`, `syncedAt`) exist on `work_items`, `code_plans`, `tasks`, and `releases`, with a unique index on `(connection_id, external_id)`.
 
+External intake (phase 1 of the *External Intake & Triage* spec): `work_items`
+carries `origin` (`internal` | `external`), `triage_state` (`untriaged` |
+`accepted` | `needs_info` | `declined`; null for internal items),
+`decline_reason`, `triage_note`, and `triaged_by_id/kind/at`. External items
+without a connection stay `source = native` (the team owns their fields). Their
+`external_key` is unique per product among connection-less items, which makes
+`import_work_items` / `import_github_issues` idempotent: re-imports refresh
+only `external_data` (state, labels, author, created date) and the URL.
+Declining requires a reason and a note and sets `wont_do` on native items;
+mirrored items keep their tracker-owned status. Logic lives in
+`lib/db/intake.ts`.
+
+The intake migration (sqlite `0032`, pg `0033`) turned already-imported items
+into reports:
+- tracker-synced items, and items with an external key, became external;
+- items linked to a plan or spec while active, or already planned, in
+  progress or resolved, became `accepted`;
+- `wont_do` items became `declined`;
+- the rest became `untriaged`.
+
+Each migration decision has a note and `triaged_by_kind = system`. New syncs
+create untriaged reports.
+
 How sync keeps provenance straight:
 
 - **Scope on every row.** GitHub and GitLab ids are issue numbers, unique only

@@ -250,6 +250,17 @@ export interface WorkItem extends Attribution {
   externalUrl?: string
   /** Mirrored item no longer exists (or left the connection's scope) upstream. */
   externalDeleted?: boolean
+  /** External intake (lib/db/intake.ts): internal items have no triage state. */
+  origin: 'internal' | 'external'
+  triageState?: 'untriaged' | 'accepted' | 'declined' | 'needs_info'
+  declineReason?: string
+  triageNote?: string
+  triagedAt?: string
+  triagedByKind?: string
+  triagedByName?: string
+  /** Upstream state and author as last imported (e.g. "open"/"closed", "@reporter"). */
+  externalState?: string
+  externalAuthor?: string
   createdAt: string
   updatedAt: string
 }

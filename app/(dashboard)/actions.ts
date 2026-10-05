@@ -13,6 +13,8 @@ import { authAdapter } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { users, organizationMembers, organizations, emailVerificationTokens, integrations, products } from '@/lib/db/schema'
 import { eq, and, gt } from 'drizzle-orm'
+import { triageWorkItem, IntakeError } from '@/lib/db/intake'
+import type { DeclineReason, TriageState } from '@/lib/db/schema.sqlite'
 import {
   updateIntegration,
   IntegrationScopeChangeError,
@@ -713,6 +715,20 @@ export async function updateWorkItemAction(id: string, formData: FormData) {
 
   revalidatePath('/work-items')
   return { id }
+}
+
+/** Record a triage decision on an external work item (lib/db/intake.ts). */
+export async function triageWorkItemAction(id: string, input: { state: TriageState; declineReason?: DeclineReason | null; note?: string | null }) {
+  await requireWriter({ workItemId: id })
+  try {
+    const item = await triageWorkItem(id, input, await currentEditor())
+    if (!item) return { error: 'Work item not found.' }
+    revalidatePath('/work-items')
+    return { ok: true as const, status: item.status, triageState: item.triageState }
+  } catch (err) {
+    if (err instanceof IntakeError) return { error: err.message }
+    throw err
+  }
 }
 
 export async function updateWorkItemStatusAction(id: string, status: WorkItemStatus) {

@@ -28,7 +28,7 @@ describe('native spec MCP tools', () => {
     await expect(call('update_spec', { id: spec.id, body: 'Changed' }, F.alice, false)).rejects.toThrow('read-only')
     await expect(call('link_spec', { specId: spec.id, targetType: 'asset', targetId: F.assetApi }, F.alice, false)).rejects.toThrow('read-only')
     await expect(call('get_spec', { id: spec.id }, F.carol)).rejects.toThrow('accessible')
-    expect(unpack(await call('list_specs', {}, F.carol))).toEqual([])
+    expect(unpack(await call('list_specs', {}, F.carol))).toMatchObject({ items: [], total: 0, nextCursor: null })
     expect(unpack(await call('get_spec', { id: spec.id }, F.alice, false))).toMatchObject({ body: 'Body' })
   })
   it('guards graduation access and records separate note revisions', async () => {

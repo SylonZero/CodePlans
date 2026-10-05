@@ -32,6 +32,11 @@ export const taskStatusEnum = pgEnum('task_status', ['not_started', 'in_progress
 export const taskPriorityEnum = pgEnum('task_priority', ['low', 'medium', 'high', 'critical'])
 export const workItemTypeEnum = pgEnum('work_item_type', ['feature', 'bug', 'enhancement', 'ux', 'tech_debt'])
 export const workItemStatusEnum = pgEnum('work_item_status', ['open', 'planned', 'in_progress', 'resolved', 'wont_do'])
+
+// External intake (spec: External Intake & Triage, phase 1). Internal items have no triage state.
+export type WorkItemOrigin = 'internal' | 'external'
+export type TriageState = 'untriaged' | 'accepted' | 'declined' | 'needs_info'
+export type DeclineReason = 'already_shipped' | 'question' | 'question_answered' | 'duplicate' | 'out_of_scope' | 'cannot_reproduce' | 'show_and_tell' | 'spam'
 export const workItemSeverityEnum = pgEnum('work_item_severity', ['low', 'medium', 'high', 'critical'])
 export const prStatusEnum = pgEnum('pr_status', ['none', 'draft', 'open', 'merged', 'closed'])
 export const releaseStatusEnum = pgEnum('release_status', ['planned', 'in_progress', 'shipped', 'abandoned'])
@@ -403,10 +408,19 @@ export const workItems = pgTable('work_items', {
   externalData: jsonb('external_data').notNull().default({}),
   externalDeleted: boolean('external_deleted').notNull().default(false),
   syncedAt: timestamp('synced_at', { withTimezone: true }),
+  // External intake: where the item came from and the team's triage decision.
+  origin: text('origin').$type<WorkItemOrigin>().notNull().default('internal'),
+  triageState: text('triage_state').$type<TriageState>(),
+  declineReason: text('decline_reason').$type<DeclineReason>(),
+  triageNote: text('triage_note'),
+  triagedById: uuid('triaged_by_id').references(() => users.id, { onDelete: 'set null' }),
+  triagedByKind: text('triaged_by_kind'),
+  triagedAt: timestamp('triaged_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   uniqueIndex('work_items_connection_external_idx').on(t.connectionId, t.externalId),
+  index('work_items_product_external_key_idx').on(t.productId, t.externalKey),
   index('work_items_product_idx').on(t.productId),
   index('work_items_asset_idx').on(t.assetId),
 ])
