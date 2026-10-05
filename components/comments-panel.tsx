@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Bot, CheckCircle2, MessageSquare, Quote, RotateCcw, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { MarkdownContent } from '@/components/markdown-content'
 import { addCommentAction, deleteCommentAction, editCommentAction, resolveCommentAction } from '@/app/(dashboard)/collab-actions'
 import type { CommentThread, CommentView } from '@/lib/db/comments'
 import type { CommentAnchor, CommentKind, CommentSubjectType } from '@/lib/db/schema.sqlite'
@@ -40,15 +41,6 @@ export function timeAgo(iso: string) {
 }
 
 /** Plain-text body with @mentions of known people highlighted. */
-function Body({ text, mentions }: { text: string; mentions: Person[] }) {
-  if (!mentions.length) return <>{text}</>
-  const names = mentions.map((m) => m.name).sort((a, b) => b.length - a.length).map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-  const parts = text.split(new RegExp(`(@(?:${names.join('|')}))`, 'g'))
-  return <>{parts.map((p, i) => p.startsWith('@') && mentions.some((m) => `@${m.name}` === p)
-    ? <span key={i} className="rounded bg-accent/15 px-0.5 font-medium text-accent">{p}</span>
-    : <span key={i}>{p}</span>)}</>
-}
-
 /**
  * Textarea with @mention autocomplete. Mentions are tracked by id and kept only
  * while their "@Name" text is still present when the comment is sent.
@@ -127,7 +119,8 @@ function Composer({ audience, placeholder, submitLabel, onSubmit, autoFocus, wit
         {(Object.keys(KIND_LABELS) as CommentKind[]).map((k) => <button key={k} type="button" role="radio" aria-checked={kind === k} onClick={() => setKind(k)}
           className={cn('rounded-md px-2 py-1 text-xs', kind === k ? 'bg-secondary text-secondary-foreground' : 'text-muted-foreground hover:text-foreground')}>{KIND_LABELS[k]}</button>)}
       </div> : <span className="text-xs text-muted-foreground">Type @ to mention someone</span>}
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2">
+        <span className="hidden text-xs text-muted-foreground sm:inline">Markdown supported</span>
         {onCancel && <Button type="button" size="sm" variant="ghost" onClick={onCancel}>Cancel</Button>}
         <Button type="button" size="sm" disabled={pending || !text.trim()} onClick={submit}>{pending ? 'Sending…' : submitLabel}</Button>
       </div>
@@ -169,7 +162,7 @@ function CommentItem({ c, currentUserId, currentVersion, path, isReply }: {
         <textarea aria-label="Edit comment" value={draft} onChange={(e) => setDraft(e.target.value)} rows={3} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
         <div className="flex gap-2"><Button size="sm" disabled={pending || !draft.trim()} onClick={() => act(() => editCommentAction(c.id, draft, path))}>Save</Button><Button size="sm" variant="ghost" onClick={() => setEditing(false)}>Cancel</Button></div>
       </div>
-      : <p className="whitespace-pre-wrap text-sm"><Body text={c.body} mentions={c.mentions} /></p>}
+      : <MarkdownContent compact mentions={c.mentions.map((m) => m.name)}>{c.body}</MarkdownContent>}
     {mine && !editing && <div className="flex gap-3 text-xs text-muted-foreground">
       <button type="button" className="hover:text-foreground" onClick={() => { setDraft(c.body); setEditing(true) }}>Edit</button>
       <button type="button" className="hover:text-destructive" disabled={pending} onClick={() => act(() => deleteCommentAction(c.id, path))}>Delete</button>
