@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { RichTextEditor } from '@/components/rich-text-editor'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createSpecAction, listSpecsAction, linkSpecAction, unlinkSpecAction, updateSpecAction, supersedeSpecAction } from '@/app/(dashboard)/specs/actions'
 import type { Spec, SpecLink, SpecTargetType, SpecRelationshipType } from '@/lib/db/specs'
 
@@ -77,70 +79,144 @@ export function NativeSpecsPanel({ productId, targetType, targetId }: { productI
   </section>
 }
 
+type EditorSection = 'revise' | 'details' | 'supersede'
+
 /**
- * Editing a spec, in two parts. Revising the title or text creates the next
- * version (and can replace the spec outright); type and area save in place. Lifecycle moves live in the action bar at the top of the page.
+ * The spec editor: a panel that slides in from the right when the action bar
+ * asks for it. Content (title and text) saves as the next version, or replaces
+ * the spec outright; Details (type and area) save in place on this version.
+ * Lifecycle moves live in the action bar at the top of the page.
  */
 export function SpecEditor({ spec }: { spec: Spec }) {
+  const [open, setOpen] = useState(false)
+  const [tab, setTab] = useState<'content' | 'details'>('content')
+  const [intent, setIntent] = useState<'revise' | 'supersede'>('revise')
   const [body, setBody] = useState(spec.body)
   const [title, setTitle] = useState(spec.title)
   const [specType, setSpecType] = useState(spec.specType)
   const [area, setArea] = useState(spec.area ?? '')
   const [changeSummary, setChangeSummary] = useState('')
-  const [open, setOpen] = useState<{ revise: boolean; details: boolean }>({ revise: false, details: false })
+  const [confirmingClose, setConfirmingClose] = useState(false)
+  const [saved, setSaved] = useState('')
   const [error, setError] = useState('')
   const [pending, start] = useTransition()
   const router = useRouter()
+
+  const contentChanged = body !== spec.body || title.trim() !== spec.title
+  const detailsChanged = specType.trim() !== spec.specType || (area.trim() || null) !== (spec.area ?? null)
+  const dirty = contentChanged || detailsChanged
+
   useEffect(() => {
     function onOpen(e: Event) {
-      const section = (e as CustomEvent<'revise' | 'details' | 'supersede'>).detail
-      const key = section === 'details' ? 'details' : 'revise'
-      setOpen((o) => ({ ...o, [key]: true }))
-      requestAnimationFrame(() => document.getElementById(section === 'supersede' ? 'spec-supersede' : `spec-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+      const section = (e as CustomEvent<EditorSection>).detail
+      setTab(section === 'details' ? 'details' : 'content')
+      setIntent(section === 'supersede' ? 'supersede' : 'revise')
+      setError('')
+      setSaved('')
+      setOpen(true)
     }
     window.addEventListener('spec-editor:open', onOpen)
     return () => window.removeEventListener('spec-editor:open', onOpen)
   }, [])
+  // Leaving the page with unsaved edits in the panel asks first.
+  useEffect(() => {
+    if (!open || !dirty) return
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault() }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [open, dirty])
+
   if (spec.status === 'superseded') return null
-  const contentChanged = body !== spec.body || title.trim() !== spec.title
-  const detailsChanged = specType.trim() !== spec.specType || (area.trim() || null) !== (spec.area ?? null)
+
+  function discard() {
+    setBody(spec.body); setTitle(spec.title); setSpecType(spec.specType); setArea(spec.area ?? ''); setChangeSummary('')
+    setConfirmingClose(false); setError(''); setOpen(false)
+  }
+  function requestClose(next: boolean) {
+    if (next) return setOpen(true)
+    if (dirty && !pending) return setConfirmingClose(true)
+    discard()
+  }
   function run(fn: () => Promise<void>) { start(async () => {
-    setError('')
+    setError(''); setSaved('')
     try { await fn() } catch (e) { setError(e instanceof Error ? e.message : 'Could not save') }
   }) }
+  // A new version remounts this component (it's keyed by version), which closes the panel.
   const saveContent = () => run(async () => {
     await updateSpecAction(spec.id, { body, title, expectedVersion: spec.version, changeSummary: changeSummary.trim() || undefined })
     router.refresh()
   })
   const saveDetails = () => run(async () => {
     await updateSpecAction(spec.id, { specType, area: area.trim() || null, expectedVersion: spec.version })
+    setSaved('Details saved.')
     router.refresh()
   })
   const supersede = () => run(async () => { const next = await supersedeSpecAction(spec.id, body, title); router.push(`/specs/${next.id}`) })
-  return <div className="space-y-3">
-    <details id="spec-revise" className="rounded-lg border p-4" open={open.revise} onToggle={(e) => { const isOpen = (e.currentTarget as HTMLDetailsElement).open; setOpen((o) => o.revise === isOpen ? o : { ...o, revise: isOpen }) }}>
-      <summary className="cursor-pointer font-medium">Revise content</summary>
-      <div className="mt-4 space-y-4">
-        <p className="text-sm text-muted-foreground">Saving a change to the title or text creates v{spec.version + 1} and keeps v{spec.version} in the history. Reviewers who approved v{spec.version} will be asked to look again.</p>
-        <label className="block text-sm">Title<Input aria-label="Spec title" value={title} onChange={(e) => setTitle(e.target.value)} /></label>
-        <RichTextEditor value={spec.body} onChange={setBody} size="tall" />
-        <Input aria-label="Change summary" placeholder="What changed in this version? (optional)" value={changeSummary} onChange={(e) => setChangeSummary(e.target.value)} maxLength={500} />
-        <Button disabled={pending || !title.trim() || !contentChanged} onClick={saveContent}>Save as v{spec.version + 1}</Button>
-        <div id="spec-supersede" className="space-y-2 border-t pt-4">
-          <p className="text-sm text-muted-foreground">Changed the approach? Replace this spec with a new draft using the text above. Existing delivery receipts stay with this spec.</p>
-          <Button variant="outline" disabled={pending || !title.trim()} onClick={supersede}>Supersede with new spec</Button>
+
+  return <Sheet open={open} onOpenChange={requestClose}>
+    <SheetContent aria-label="Edit spec" className="w-full gap-0 p-0 sm:max-w-4xl"
+      onInteractOutside={(e) => { if (dirty) { e.preventDefault(); setConfirmingClose(true) } }}>
+      <SheetHeader className="border-b pr-12">
+        <SheetTitle>Edit spec</SheetTitle>
+        <SheetDescription>
+          {tab === 'details'
+            ? `Type and area are saved on v${spec.version} without creating a new version.`
+            : intent === 'supersede'
+              ? 'Replace this spec with a new draft using the text below. Existing delivery receipts stay with this spec.'
+              : `Saving creates v${spec.version + 1} and keeps v${spec.version} in the history. Reviewers who approved v${spec.version} will be asked to look again.`}
+        </SheetDescription>
+      </SheetHeader>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as 'content' | 'details')} className="min-h-0 flex-1 gap-0">
+        <div className="border-b px-4 py-2">
+          <TabsList>
+            <TabsTrigger value="content">Content{contentChanged && <span aria-label="unsaved" className="ml-1.5 h-1.5 w-1.5 rounded-full bg-primary" />}</TabsTrigger>
+            <TabsTrigger value="details">Details{detailsChanged && <span aria-label="unsaved" className="ml-1.5 h-1.5 w-1.5 rounded-full bg-primary" />}</TabsTrigger>
+          </TabsList>
         </div>
+        <TabsContent value="content" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+          <Input aria-label="Spec title" value={title} onChange={(e) => setTitle(e.target.value)} className="h-10 text-base font-semibold" placeholder="Title" />
+          <RichTextEditor value={body} onChange={setBody} size="fill" className="flex-1" autoFocus />
+          <p className="text-xs text-muted-foreground">Pasted markdown is converted to formatting. Use Markdown in the toolbar to edit the source directly.</p>
+        </TabsContent>
+        <TabsContent value="details" className="flex-1 space-y-4 overflow-y-auto p-4">
+          <label className="block space-y-1.5 text-sm font-medium">Type<Input aria-label="Spec type" value={specType} onChange={(e) => setSpecType(e.target.value)} /></label>
+          <label className="block space-y-1.5 text-sm font-medium">Area<Input aria-label="Spec area" placeholder="Area (optional)" value={area} onChange={(e) => setArea(e.target.value)} /></label>
+        </TabsContent>
+      </Tabs>
+      <div className="space-y-3 border-t bg-muted/30 p-4">
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+        {saved && !error && <p role="status" className="text-sm text-muted-foreground">{saved}</p>}
+        {confirmingClose ? (
+          <div role="alertdialog" aria-label="Discard changes" className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-sm">You have unsaved changes. Discard them?</span>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => setConfirmingClose(false)}>Keep editing</Button>
+              <Button size="sm" variant="destructive" onClick={discard}>Discard</Button>
+            </div>
+          </div>
+        ) : tab === 'details' ? (
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => requestClose(false)}>Close</Button>
+            <Button disabled={pending || !specType.trim() || !detailsChanged} onClick={saveDetails}>Save details</Button>
+          </div>
+        ) : intent === 'supersede' ? (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <Button variant="link" className="h-auto justify-start p-0 text-sm" onClick={() => setIntent('revise')}>Save as a new version instead</Button>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => requestClose(false)}>Cancel</Button>
+              <Button disabled={pending || !title.trim()} onClick={supersede}>Supersede with new spec</Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Input aria-label="Change summary" placeholder="What changed in this version? (optional)" value={changeSummary} onChange={(e) => setChangeSummary(e.target.value)} maxLength={500} className="sm:flex-1" />
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" title="Replace this spec with a new one when the approach changes" onClick={() => setIntent('supersede')}>Supersede…</Button>
+              <Button disabled={pending || !title.trim() || !contentChanged} onClick={saveContent}>Save as v{spec.version + 1}</Button>
+            </div>
+          </div>
+        )}
       </div>
-    </details>
-    <details id="spec-details" className="rounded-lg border p-4" open={open.details} onToggle={(e) => { const isOpen = (e.currentTarget as HTMLDetailsElement).open; setOpen((o) => o.details === isOpen ? o : { ...o, details: isOpen }) }}>
-      <summary className="cursor-pointer font-medium">Details</summary>
-      <div className="mt-4 space-y-4">
-        <p className="text-sm text-muted-foreground">Type and area are saved on v{spec.version} without creating a new version.</p>
-        <label className="block text-sm">Type<Input aria-label="Spec type" value={specType} onChange={(e) => setSpecType(e.target.value)} /></label>
-        <label className="block text-sm">Area<Input aria-label="Spec area" placeholder="Area (optional)" value={area} onChange={(e) => setArea(e.target.value)} /></label>
-        <Button variant="outline" disabled={pending || !specType.trim() || !detailsChanged} onClick={saveDetails}>Save details</Button>
-      </div>
-    </details>
-    {error && <p role="alert" className="text-destructive">{error}</p>}
-  </div>
+    </SheetContent>
+  </Sheet>
 }

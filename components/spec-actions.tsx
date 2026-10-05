@@ -104,7 +104,7 @@ export function SpecActionBar({ state }: { state: SpecActionState }) {
             )}
             {s.status === 'archived'
               ? <Button size="sm" disabled={pending} onClick={() => move('draft')}><ArchiveRestore className="mr-1.5 h-4 w-4" />Restore to draft</Button>
-              : <Button size="sm" variant="outline" onClick={() => openSpecEditor('revise')}><PenLine className="mr-1.5 h-4 w-4" />Revise content</Button>}
+              : <Button size="sm" variant="outline" onClick={() => openSpecEditor('revise')}><PenLine className="mr-1.5 h-4 w-4" />Edit</Button>}
             {s.status === 'active' && (
               <>
                 <Button size="sm" variant="ghost" disabled={pending} onClick={() => move('archived')}><Archive className="mr-1.5 h-4 w-4" />Archive</Button>
