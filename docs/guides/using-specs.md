@@ -47,16 +47,40 @@ state and your permissions:
 
 | Status | Actions |
 |---|---|
-| Draft | Request review · Activate · Revise content |
-| In review | Activate (asks first under a guided workflow while unapproved; becomes **Activate v*n*** once approved) · Revise content |
-| Active | Revise content · Archive · Supersede |
+| Draft | Request review · Activate · Edit |
+| In review | Activate (asks first under a guided workflow while unapproved; becomes **Activate v*n*** once approved) · Edit |
+| Active | Edit · Archive · Supersede |
 | Archived | Restore to draft |
 
-None of these create a version except **Revise content**, which opens the
-editor: saving a changed title or text creates the next version and asks
-earlier approvers to look again. **Details** (type and area) save on the
-current version. Viewers see the status and explanation without
-actions, and can still comment.
+None of these create a version except saving content in the editor.
+**Edit** slides the editor in from the right, with two tabs:
+
+- **Content**: the title and text. Saving a changed title or text creates the
+  next version (with an optional change summary) and asks earlier approvers to
+  look again. **Supersede…** (also on the bar for active specs) replaces the
+  spec with a new draft built from the same text instead.
+- **Details**: type and area, saved on the current version.
+
+Closing the panel with unsaved changes asks before discarding them. Viewers
+see the status and explanation without actions, and can still comment.
+
+### Writing in the editor
+
+The editor stores markdown, the same text agents read and write over MCP. The
+toolbar covers headings, bold, italic, strikethrough, inline code, links,
+bullet, numbered and task lists, quotes, code blocks, Mermaid diagrams, tables
+(with row and column controls while the cursor is in one) and dividers. The
+usual shortcuts work too (Ctrl/⌘+B, I, E, Z, and Shift+8/7/9 for lists).
+
+Pasting markdown, say from a README, a chat or a code editor, converts it to
+formatting. Plain prose pastes as is, and formatted content copied from a web
+page or document keeps its formatting. To work on the source directly, switch
+to **Markdown** in the toolbar and back again. Saved markdown escapes only
+characters that would otherwise change the formatting, so
+`snake_case_names` and `AT&T` stay as written.
+
+The same editor is used wherever long text is written: plans, assets, work
+items and new specs.
 
 ## Delivery and history
 

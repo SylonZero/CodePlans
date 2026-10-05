@@ -84,7 +84,7 @@ export default async function SpecPage({ params, searchParams }: {
     {!viewing && !showDiff && spec.status !== 'superseded' && <ReviewPanel summary={review} currentUserId={user.id} path={path} noun="spec" />}
     {!viewing && !showDiff && <AnchoredCommentsPanel subjectType="spec" subjectId={id} threads={threads} currentUserId={user.id} canModerate={canEdit}
       currentVersion={spec.version} path={path} audience={audience.map((u) => ({ id: u.id, name: u.name }))} />}
-    {!viewing && !showDiff && canEdit && <SpecEditor key={`${spec.id}:${spec.version}:${spec.updatedAt.toString()}`} spec={spec} />}
+    {!viewing && !showDiff && canEdit && <SpecEditor key={`${spec.id}:${spec.version}`} spec={spec} />}
     <SpecHistory specId={id} revisions={revisions} currentVersion={spec.version} viewing={shown?.version} />
     <section className="space-y-2"><h2 className="font-semibold">Linked assets, plans and work items</h2><ul>{spec.links.map((l) => <li key={l.id}><Link className="text-sm underline" href={l.targetType === 'asset' ? `/assets/${l.targetId}` : l.targetType === 'code_plan' ? `/plans/${l.targetId}` : `/work-items?item=${l.targetId}`}>{targetNames.get(l.targetId) ?? l.targetType.replace('_', ' ')}</Link> <span className="text-xs text-muted-foreground">{l.targetType.replace('_', ' ')}{l.relationshipType ? ` · ${l.relationshipType}` : ''}</span></li>)}</ul>{spec.links.length === 0 && <p className="text-sm text-muted-foreground">Not linked yet.</p>}</section>
   </div></AnchorProvider>
