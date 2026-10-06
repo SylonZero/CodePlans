@@ -11,8 +11,8 @@ import { ApiKeysPanel, type ApiKeyRow } from './api-keys-panel'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { User, Bell, Shield, Sparkles, Key, KeyRound, Upload } from 'lucide-react'
-import type { UserRole, BillingTier } from '@/lib/types'
+import { User, Bell, Shield, Key, KeyRound, Upload } from 'lucide-react'
+import type { UserRole } from '@/lib/types'
 import { updateProfileAction, changePasswordAction, requestEmailChangeAction, cancelEmailChangeAction } from '../actions'
 import { setEmailPreferenceAction, setMutedAction } from './notifications/actions'
 import Link from 'next/link'
@@ -24,14 +24,11 @@ interface Props {
     name: string
     email: string
     role: UserRole
-    featureFlags: { alpha?: boolean; beta?: boolean; aiAssistance?: boolean }
   }
   org: {
     name: string
     memberCount: number
-    billingTier: BillingTier
   }
-  billingEnabled?: boolean
   pendingEmailChange?: { newEmail: string; expiresAt: string } | null
   emailJustVerified?: boolean
   apiKeys?: ApiKeyRow[]
@@ -142,7 +139,7 @@ function EmailPreferences({ emailPrefs }: { emailPrefs: EmailPrefs }) {
   )
 }
 
-function ProfileTab({ user, org, billingEnabled, pendingEmailChange, emailJustVerified }: Props) {
+function ProfileTab({ user, org, pendingEmailChange, emailJustVerified }: Props) {
   const [name, setName] = useState(user.name)
   const [newEmail, setNewEmail] = useState('')
   const [isPending, startTransition] = useTransition()
@@ -317,15 +314,6 @@ function ProfileTab({ user, org, billingEnabled, pendingEmailChange, emailJustVe
             </div>
             <Badge variant="secondary" className="capitalize">{user.role}</Badge>
           </div>
-          {billingEnabled && (
-            <div className="flex items-center justify-between pt-4 border-t border-border">
-              <div>
-                <p className="text-sm font-medium">Billing Tier</p>
-                <p className="text-sm text-muted-foreground capitalize">{org.billingTier} Plan</p>
-              </div>
-              <Button variant="outline" size="sm" disabled>Manage Billing</Button>
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>
@@ -414,9 +402,9 @@ function SecurityTab() {
   )
 }
 
-const TABS = ['profile', 'notifications', 'features', 'security', 'api-keys']
+const TABS = ['profile', 'notifications', 'security', 'api-keys']
 
-export function SettingsClient({ user, org, billingEnabled = true, pendingEmailChange, emailJustVerified, apiKeys = [], emailPrefs, mutes = [], initialTab }: Props) {
+export function SettingsClient({ user, org, pendingEmailChange, emailJustVerified, apiKeys = [], emailPrefs, mutes = [], initialTab }: Props) {
   return (
     <div className="space-y-8">
       <div>
@@ -433,10 +421,6 @@ export function SettingsClient({ user, org, billingEnabled = true, pendingEmailC
           <TabsTrigger value="notifications" className="gap-2">
             <Bell className="h-4 w-4" />
             Notifications
-          </TabsTrigger>
-          <TabsTrigger value="features" className="gap-2">
-            <Sparkles className="h-4 w-4" />
-            Features
           </TabsTrigger>
           <TabsTrigger value="security" className="gap-2">
             <Shield className="h-4 w-4" />
@@ -456,7 +440,6 @@ export function SettingsClient({ user, org, billingEnabled = true, pendingEmailC
           <ProfileTab
             user={user}
             org={org}
-            billingEnabled={billingEnabled}
             pendingEmailChange={pendingEmailChange}
             emailJustVerified={emailJustVerified}
           />
@@ -465,50 +448,6 @@ export function SettingsClient({ user, org, billingEnabled = true, pendingEmailC
         <TabsContent value="notifications" className="space-y-6">
           {emailPrefs && <EmailPreferences emailPrefs={emailPrefs} />}
           <MutedList mutes={mutes} />
-        </TabsContent>
-
-        {/* Features — local UI state only */}
-        <TabsContent value="features" className="space-y-6">
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle>Feature Flags</CardTitle>
-              <CardDescription>Opt in to beta features and experimental functionality</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium">AI Assistance</p>
-                    <Badge variant="secondary" className="text-xs bg-chart-1/20 text-chart-1">Beta</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">Use AI to estimate effort and analyze tech debt</p>
-                </div>
-                <Switch defaultChecked={user.featureFlags.aiAssistance} />
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium">Beta Features</p>
-                    <Badge variant="secondary" className="text-xs bg-chart-2/20 text-chart-2">Public Beta</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">Access new features before general release</p>
-                </div>
-                <Switch defaultChecked={user.featureFlags.beta} />
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between opacity-50">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium">Alpha Features</p>
-                    <Badge variant="secondary" className="text-xs">Invite Only</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">Early access to experimental features</p>
-                </div>
-                <Switch disabled />
-              </div>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         <TabsContent value="security">

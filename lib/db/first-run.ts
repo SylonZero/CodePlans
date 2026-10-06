@@ -6,7 +6,6 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { db } from './index'
 import { users, organizations, organizationMembers } from './schema'
-import { config } from '@/lib/config'
 import { authAdapter } from '@/lib/auth'
 
 export async function hasUsers(): Promise<boolean> {
@@ -14,9 +13,9 @@ export async function hasUsers(): Promise<boolean> {
   return !!row
 }
 
-/** Local auth with an empty users table: the instance hasn't been claimed yet. */
+/** An empty users table: the instance hasn't been claimed yet. */
 export async function needsSetup(): Promise<boolean> {
-  return config.auth.provider === 'local' && !(await hasUsers())
+  return !(await hasUsers())
 }
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no 0/O/1/I
@@ -42,7 +41,7 @@ export type OwnerInput = { email: string; password: string; name: string; orgNam
 /** Creates the instance owner and their workspace. Returns the user id. */
 export async function createOwnerAccount({ email, password, name, orgName }: OwnerInput): Promise<string> {
   const userId = await authAdapter.adminCreateUser(email, password, name)
-  await db.update(users).set({ role: 'owner', billingTier: 'free', featureFlags: {} }).where(eq(users.id, userId))
+  await db.update(users).set({ role: 'owner' }).where(eq(users.id, userId))
 
   const existing = await db.query.organizationMembers.findFirst({ where: eq(organizationMembers.userId, userId) })
   if (existing) return userId
@@ -50,8 +49,7 @@ export async function createOwnerAccount({ email, password, name, orgName }: Own
   const workspace = orgName || process.env.SEED_ORG_NAME || 'My Workspace'
   const slug = workspace.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'workspace'
   const [org] = await db.insert(organizations).values({
-    name: workspace, slug, ownerId: userId, billingTier: 'free',
-    productLimit: config.hostMode === 'team' ? 100 : 10,
+    name: workspace, slug, ownerId: userId,
   }).returning()
   await db.insert(organizationMembers).values({ userId, organizationId: org.id, role: 'owner', joinedAt: new Date() })
   await db.update(users).set({ organizationId: org.id }).where(eq(users.id, userId))

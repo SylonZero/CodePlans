@@ -4,8 +4,7 @@ import { runtimeDefaults, resolveDbSsl, sqliteFilePath, isPostgresUrl } from '@/
 describe('runtimeDefaults', () => {
   it('gives an empty environment the self-hosted SQLite defaults', () => {
     expect(runtimeDefaults({})).toEqual({
-      AUTH_PROVIDER: 'local', HOST_MODE: 'team', REGISTRATION: 'closed',
-      DB_PROVIDER: 'sqlite', DATABASE_URL: 'file:data/codeplans.db',
+      REGISTRATION: 'invite', DB_PROVIDER: 'sqlite', DATABASE_URL: 'file:data/codeplans.db',
     })
   })
 
@@ -25,17 +24,13 @@ describe('runtimeDefaults', () => {
   })
 
   it('never overrides explicit settings', () => {
-    const env = { DB_PROVIDER: 'postgres', HOST_MODE: 'saas', AUTH_PROVIDER: 'local', REGISTRATION: 'open', AUTH_URL: 'https://x.dev', DATABASE_URL: 'file:a.db' }
+    const env = { DB_PROVIDER: 'postgres', REGISTRATION: 'open', AUTH_URL: 'https://x.dev', DATABASE_URL: 'file:a.db' }
     expect(runtimeDefaults(env)).toEqual({})
   })
 
-  it('keeps hosted defaults when Supabase is configured', () => {
-    const out = runtimeDefaults({ NEXT_PUBLIC_SUPABASE_URL: 'https://p.supabase.co', DATABASE_URL: 'postgres://x@db.supabase.co/postgres' })
-    expect(out).toMatchObject({ AUTH_PROVIDER: 'supabase', HOST_MODE: 'saas', REGISTRATION: 'open', DB_PROVIDER: 'postgres' })
-  })
-
-  it('keeps registration open for an explicit saas host', () => {
-    expect(runtimeDefaults({ HOST_MODE: 'saas' }).REGISTRATION).toBe('open')
+  it('ignores retired Supabase and host-mode settings', () => {
+    const out = runtimeDefaults({ NEXT_PUBLIC_SUPABASE_URL: 'https://p.supabase.co', HOST_MODE: 'saas' })
+    expect(out).toEqual({ REGISTRATION: 'invite', DB_PROVIDER: 'sqlite', DATABASE_URL: 'file:data/codeplans.db' })
   })
 
   it('derives the public URL from Railway, Fly.io and Render', () => {

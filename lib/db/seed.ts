@@ -4,7 +4,7 @@
  * Run with: pnpm db:seed
  *
  * Safe to re-run: skips creation if the admin account already exists.
- * Works in both postgres (Supabase) and sqlite (local) modes.
+ * Works on both SQLite and Postgres.
  *
  * Default credentials:
  *   Email:    admin@example.com

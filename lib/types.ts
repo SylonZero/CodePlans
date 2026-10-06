@@ -1,7 +1,6 @@
 // Codeplans.ai - Type Definitions
 
 export type UserRole = 'owner' | 'admin' | 'editor' | 'viewer'
-export type BillingTier = 'free' | 'pro' | 'team' | 'enterprise'
 export type AssetType = 'app' | 'service' | 'library' | 'datastore' | 'platform'
 export type CodePlanStatus = 'draft' | 'active' | 'completed' | 'cancelled'
 export type CodePlanType = 'refactor' | 'feature' | 'improvement' | 'bugfix'
@@ -25,14 +24,8 @@ export interface User {
   email: string
   name: string
   avatarUrl?: string
-  billingTier: BillingTier
   role: UserRole
   organizationId?: string
-  featureFlags: {
-    alpha?: boolean
-    beta?: boolean
-    aiAssistance?: boolean
-  }
   createdAt: string
 }
 
@@ -41,9 +34,7 @@ export interface Organization {
   name: string
   slug: string
   ownerId: string
-  billingTier: BillingTier
   memberCount: number
-  productLimit: number
   createdAt: string
 }
 

@@ -15,7 +15,7 @@ export default function SignupPage() {
         <CardHeader>
           <CardTitle>Invite only</CardTitle>
           <CardDescription>
-            This instance is invite-only. Contact your administrator to request access.
+            This workspace is invite-only. Ask a workspace admin to invite you from the Team page.
           </CardDescription>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground text-center">

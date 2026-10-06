@@ -20,24 +20,17 @@ export function isPostgresUrl(url: string | undefined): boolean {
  * Values to fill in for unset variables. Pure: reads `env`, returns only the
  * keys it would add (never overrides one that is set).
  *
- * - Supabase variables present → hosted defaults (saas, supabase auth).
- *   Otherwise → self-hosted defaults (team, local auth, closed registration).
  * - The database follows DATABASE_URL: postgres:// → Postgres, anything else
  *   (file:, libsql://, :memory:) → SQLite, unset → SQLite under DATA_DIR.
+ * - Registration defaults to invite: people join through Team page invites.
  * - The public URL comes from the platform (Railway, Fly.io, Render).
  */
 export function runtimeDefaults(env: Env): Record<string, string> {
   const out: Record<string, string> = {}
   const get = (k: string) => env[k] || out[k] || undefined
 
-  const supabase = env.AUTH_PROVIDER ? env.AUTH_PROVIDER === 'supabase' : !!env.NEXT_PUBLIC_SUPABASE_URL
-  if (!env.AUTH_PROVIDER) out.AUTH_PROVIDER = supabase ? 'supabase' : 'local'
-  if (!env.HOST_MODE) out.HOST_MODE = supabase ? 'saas' : 'team'
-  if (!env.REGISTRATION) out.REGISTRATION = get('HOST_MODE') === 'team' ? 'closed' : 'open'
-
-  if (!env.DB_PROVIDER) {
-    out.DB_PROVIDER = isPostgresUrl(env.DATABASE_URL) || (!env.DATABASE_URL && supabase) ? 'postgres' : 'sqlite'
-  }
+  if (!env.REGISTRATION) out.REGISTRATION = 'invite'
+  if (!env.DB_PROVIDER) out.DB_PROVIDER = isPostgresUrl(env.DATABASE_URL) ? 'postgres' : 'sqlite'
   if (!env.DATABASE_URL && get('DB_PROVIDER') === 'sqlite') {
     out.DATABASE_URL = `file:${(env.DATA_DIR || 'data').replace(/\/$/, '')}/codeplans.db`
   }
@@ -92,13 +85,13 @@ export function sqliteFilePath(url: string | undefined): string | null {
 }
 
 /**
- * Self-hosted SQLite installs may leave AUTH_SECRET unset: one is generated
+ * SQLite installs may leave AUTH_SECRET unset: one is generated
  * on first boot and kept next to the database (on the persistent volume), so
  * sessions and encrypted integration tokens survive restarts. Postgres and
  * multi-instance setups must set AUTH_SECRET explicitly.
  */
 function ensureAuthSecret(env: Env) {
-  if (env.AUTH_SECRET || env.AUTH_PROVIDER !== 'local' || env.DB_PROVIDER !== 'sqlite') return
+  if (env.AUTH_SECRET || env.DB_PROVIDER !== 'sqlite') return
   if (env.NEXT_PHASE === 'phase-production-build') return
   const dbPath = sqliteFilePath(env.DATABASE_URL)
   if (!dbPath) return

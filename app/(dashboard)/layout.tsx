@@ -4,7 +4,6 @@ import { users, organizations, products } from '@/lib/db/schema'
 import { eq, or } from 'drizzle-orm'
 import { AppShell } from '@/components/app-shell'
 import { Toaster } from '@/components/ui/sonner'
-import { config } from '@/lib/config'
 import { getProductScope } from '@/lib/product-scope'
 import { getEnterpriseHooks } from '@/lib/ee/registry'
 import { canCreateProductIn } from '@/lib/db/authz'
@@ -13,7 +12,7 @@ import { countUnread } from '@/lib/db/notifications'
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const authUser = await authAdapter.getUser()
 
-  let shellUser: { name: string; email: string; billingTier: 'free' | 'pro' | 'team' | 'enterprise'; viewOnly?: boolean } = { name: '', email: '', billingTier: 'free' }
+  let shellUser: { name: string; email: string; viewOnly?: boolean } = { name: '', email: '' }
   let orgName: string | null = null
   let productList: { id: string; name: string; slug: string }[] = []
 
@@ -24,7 +23,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
       shellUser = {
         name: profile.name || authUser.email.split('@')[0] || '',
         email: profile.email,
-        billingTier: profile.billingTier,
         // Current workspace role; per-product enforcement lives in lib/db/authz.ts.
         viewOnly: profile.organizationId ? !(await canCreateProductIn(authUser.id, profile.organizationId)) : false,
       }
@@ -59,7 +57,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
       orgName={orgName}
       products={productList}
       selectedProductId={selectedProductId}
-      billingEnabled={config.billing.enabled}
       extraNavItems={getEnterpriseHooks().navItems()}
       unreadNotifications={unreadNotifications}
     >

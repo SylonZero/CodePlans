@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 
-export function LoginForm() {
+export function LoginForm({ canSignUp }: { canSignUp: boolean }) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -44,12 +44,16 @@ export function LoginForm() {
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? 'Signing in…' : 'Sign in'}
           </Button>
-          <p className="text-sm text-muted-foreground text-center">
-            Don&apos;t have an account?{' '}
-            <Link href="/signup" className="underline underline-offset-4">
-              Sign up
-            </Link>
-          </p>
+          {canSignUp ? (
+            <p className="text-sm text-muted-foreground text-center">
+              Don&apos;t have an account?{' '}
+              <Link href="/signup" className="underline underline-offset-4">
+                Sign up
+              </Link>
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center">New here? Ask a workspace admin for an invite.</p>
+          )}
         </CardFooter>
       </form>
     </Card>

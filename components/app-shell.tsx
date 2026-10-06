@@ -27,7 +27,6 @@ import {
   BarChart3,
   Settings,
   Users,
-  CreditCard,
   ChevronDown,
   Menu,
   X,
@@ -45,17 +44,15 @@ import {
 import { signOut } from '@/app/(auth)/actions'
 import { setProductScopeAction } from '@/lib/actions/product-scope'
 import { ProductCreateDialog } from '@/components/product-create-dialog'
-import type { BillingTier } from '@/lib/types'
 import type { NavExtension } from '@/lib/ee/types'
 
 type AppShellProps = {
   children: React.ReactNode
-  user: { name: string; email: string; billingTier: BillingTier | string; viewOnly?: boolean }
+  user: { name: string; email: string; viewOnly?: boolean }
   unreadNotifications?: number
   orgName: string | null
   products: { id: string; name: string; slug: string }[]
   selectedProductId: string | null
-  billingEnabled?: boolean
   /** Extra nav items contributed by the private enterprise module, if any. */
   extraNavItems?: NavExtension[]
 }
@@ -86,14 +83,13 @@ const navigation = [
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
 ]
 
-const secondaryNavigationBase = [
+const secondaryNavigation = [
   { name: 'Team', href: '/team', icon: Users },
   { name: 'Integrations', href: '/integrations', icon: Plug },
-  { name: 'Billing', href: '/billing', icon: CreditCard, billingOnly: true },
   { name: 'Settings', href: '/settings', icon: Settings },
 ]
 
-export function AppShell({ children, user, orgName, products, selectedProductId, billingEnabled = true, extraNavItems = [], unreadNotifications = 0 }: AppShellProps) {
+export function AppShell({ children, user, orgName, products, selectedProductId, extraNavItems = [], unreadNotifications = 0 }: AppShellProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -109,10 +105,6 @@ export function AppShell({ children, user, orgName, products, selectedProductId,
       router.refresh()
     })
   }
-
-  const secondaryNavigation = secondaryNavigationBase.filter(
-    (item) => !item.billingOnly || billingEnabled
-  )
 
   const initials = user.name
     ? user.name.split(' ').map((n) => n[0]).join('').toUpperCase()
@@ -349,11 +341,6 @@ export function AppShell({ children, user, orgName, products, selectedProductId,
                 <DropdownMenuItem asChild>
                   <Link href="/settings">Profile Settings</Link>
                 </DropdownMenuItem>
-                {billingEnabled && (
-                  <DropdownMenuItem asChild>
-                    <Link href="/billing">Subscription</Link>
-                  </DropdownMenuItem>
-                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   className="text-destructive"

@@ -1844,8 +1844,6 @@ export async function getOrganization(id: string): Promise<(Organization & { mem
     name: org.name,
     slug: org.slug,
     ownerId: org.ownerId,
-    billingTier: org.billingTier,
-    productLimit: org.productLimit,
     memberCount: memberRow?.count ?? 0,
     createdAt: org.createdAt.toISOString(),
   }
@@ -1862,8 +1860,6 @@ export async function getTeamMembers(orgId: string): Promise<TeamMember[]> {
       userName: users.name,
       userEmail: users.email,
       userAvatarUrl: users.avatarUrl,
-      userBillingTier: users.billingTier,
-      userFeatureFlags: users.featureFlags,
       userCreatedAt: users.createdAt,
     })
     .from(organizationMembers)
@@ -1885,10 +1881,8 @@ export async function getTeamMembers(orgId: string): Promise<TeamMember[]> {
       email: r.userEmail,
       name: r.userName,
       avatarUrl: r.userAvatarUrl ?? undefined,
-      billingTier: r.userBillingTier,
       role: r.role,
       organizationId: r.organizationId,
-      featureFlags: (r.userFeatureFlags as { alpha?: boolean; beta?: boolean; aiAssistance?: boolean }) ?? {},
       createdAt: r.userCreatedAt.toISOString(),
     },
   }))

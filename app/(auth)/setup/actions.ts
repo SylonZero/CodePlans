@@ -1,12 +1,11 @@
 'use server'
 
-import { config } from '@/lib/config'
 import { authAdapter } from '@/lib/auth'
 import { checkSetupCode, createOwnerAccount, needsSetup } from '@/lib/db/first-run'
 
 /** Claims a fresh instance: creates the owner and their workspace, then signs in. */
 export async function completeSetup(formData: FormData): Promise<{ error: string } | undefined> {
-  if (config.auth.provider !== 'local' || !(await needsSetup())) {
+  if (!(await needsSetup())) {
     return { error: 'This instance is already set up. Sign in instead.' }
   }
   const field = (k: string) => String(formData.get(k) ?? '').trim()
