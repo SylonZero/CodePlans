@@ -4,7 +4,7 @@
  * Run with: pnpm db:seed-demo
  *
  * Safe to re-run: checks for existing data before inserting.
- * Works in both postgres (Supabase) and sqlite (local) modes.
+ * Works on both SQLite and Postgres.
  *
  * All demo accounts use password: Password1!
  */
@@ -50,8 +50,7 @@ async function seed() {
   console.log('\n🌱 Seeding demo data...\n')
 
   // ── Auth users + profiles ─────────────────────────────────────────────────
-  // adminCreateUser handles auth layer (Supabase Admin API or local DB insert).
-  // Subsequent profile upsert sets role/billingTier regardless of mode.
+  // adminCreateUser creates the account; the upsert below sets name and role.
   console.log('Creating auth users...')
   const [alexId, sarahId, mikeId, lisaId, jamesId] = await Promise.all([
     authAdapter.adminCreateUser('alex.chen@codeplans.local',  'Password1!', 'Alex Chen'),
@@ -63,22 +62,22 @@ async function seed() {
 
   console.log('\nCreating user profiles...')
   const profileData = [
-    { id: alexId,   email: 'alex.chen@codeplans.local',   name: 'Alex Chen',   billingTier: 'pro' as const, role: 'owner' as const },
-    { id: sarahId,  email: 'sarah.kim@codeplans.local',   name: 'Sarah Kim',   billingTier: 'pro' as const, role: 'admin' as const },
-    { id: mikeId,   email: 'mike.jones@codeplans.local',  name: 'Mike Jones',  billingTier: 'pro' as const, role: 'editor' as const },
-    { id: lisaId,   email: 'lisa.wang@codeplans.local',   name: 'Lisa Wang',   billingTier: 'pro' as const, role: 'editor' as const },
-    { id: jamesId,  email: 'james.lee@codeplans.local',   name: 'James Lee',   billingTier: 'pro' as const, role: 'viewer' as const },
+    { id: alexId,   email: 'alex.chen@codeplans.local',   name: 'Alex Chen',   role: 'owner' as const },
+    { id: sarahId,  email: 'sarah.kim@codeplans.local',   name: 'Sarah Kim',   role: 'admin' as const },
+    { id: mikeId,   email: 'mike.jones@codeplans.local',  name: 'Mike Jones',  role: 'editor' as const },
+    { id: lisaId,   email: 'lisa.wang@codeplans.local',   name: 'Lisa Wang',   role: 'editor' as const },
+    { id: jamesId,  email: 'james.lee@codeplans.local',   name: 'James Lee',   role: 'viewer' as const },
   ]
 
   for (const p of profileData) {
     if (await profileExists(p.id)) {
       // Row already exists (local mode: adminCreateUser created it) — update profile fields
       await db.update(users)
-        .set({ name: p.name, billingTier: p.billingTier, role: p.role, featureFlags: {} })
+        .set({ name: p.name, role: p.role })
         .where(eq(users.id, p.id))
       console.log(`  updated profile: ${p.email}`)
     } else {
-      await db.insert(users).values({ ...p, featureFlags: {} })
+      await db.insert(users).values(p)
       console.log(`  created profile: ${p.email}`)
     }
   }
@@ -101,8 +100,6 @@ async function seed() {
         name: 'Codeplans',
         slug: 'codeplans',
         ownerId: alexId,
-        billingTier: 'pro',
-        productLimit: 10,
       })
       .returning()
     orgId = org.id

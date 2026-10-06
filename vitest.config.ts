@@ -9,10 +9,7 @@ export default defineConfig({
     env: {
       DB_PROVIDER: 'sqlite',
       DATABASE_URL: ':memory:',
-      AUTH_PROVIDER: 'local',
       AUTH_SECRET: 'test-secret-at-least-32-bytes-xxxx',
-      BILLING_ENABLED: 'false',
-      HOST_MODE: 'team',
     },
   },
   resolve: {

@@ -15,7 +15,7 @@ FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # Build-time only: nothing touches a real database during `next build`.
-RUN DB_PROVIDER=sqlite DATABASE_URL=:memory: AUTH_PROVIDER=local pnpm build
+RUN DB_PROVIDER=sqlite DATABASE_URL=:memory: pnpm build
 
 FROM node:22-slim AS runner
 WORKDIR /app

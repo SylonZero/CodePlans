@@ -1,13 +1,10 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-import { config } from '@/lib/config'
 import type { AuthAdapter } from './types'
 
-function getAuthAdapter(): AuthAdapter {
-  if (config.auth.provider === 'local') {
-    return (require('./local') as { localAdapter: AuthAdapter }).localAdapter
-  }
-  return (require('./supabase') as { supabaseAdapter: AuthAdapter }).supabaseAdapter
-}
-
-export const authAdapter: AuthAdapter = getAuthAdapter()
+/**
+ * Email and password accounts stored in the app's own database (SQLite or
+ * Postgres). Loaded with require so Auth.js resolves next/server the way Node
+ * does, also under the test runner.
+ */
+export const authAdapter: AuthAdapter = (require('./local') as { localAdapter: AuthAdapter }).localAdapter
 export type { AuthAdapter, AuthUser } from './types'

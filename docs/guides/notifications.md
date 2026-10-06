@@ -88,14 +88,12 @@ stops at once. **Recent deliveries** on the settings page shows each message's
 status and last error. A failing channel is marked **Failing** until a send
 succeeds.
 
-Retries run from `/api/cron/notifications`:
-
-- **Self-hosted (`HOST_MODE=team`).** The server runs the job every minute on
-  its own. Set `NOTIFY_INTERVAL_SECONDS` to change the interval, or `0` to turn
-  it off.
-- **Everywhere else.** Set `CRON_SECRET` and call the endpoint every minute or
-  few with `Authorization: Bearer $CRON_SECRET` (Vercel Cron sends this
-  header). Without `CRON_SECRET` the endpoint is disabled.
+Retries run in the server process every minute. Set `NOTIFY_INTERVAL_SECONDS`
+to change the interval, or `0` to turn it off, for example on serverless hosts
+where nothing runs between requests. There, set `CRON_SECRET` and call
+`/api/cron/notifications` every minute or few with
+`Authorization: Bearer $CRON_SECRET` (Vercel Cron sends this header). Without
+`CRON_SECRET` the endpoint is disabled.
 
 The same job deletes finished deliveries, and notifications marked done, after
 90 days. `sync_log` remains the permanent record of what happened.
@@ -108,4 +106,4 @@ The same job deletes finished deliveries, and notifications marked done, after
 | `RESEND_API_URL` | Send through a Resend-compatible relay instead of `api.resend.com` |
 | `NOTIFY_WEBHOOK_ALLOWED_HOSTS` | Extra webhook hosts (comma-separated, e.g. a Mattermost server). By default only `https://hooks.slack.com` is accepted |
 | `CRON_SECRET` | Enables `/api/cron/notifications` |
-| `NOTIFY_INTERVAL_SECONDS` | Team mode's in-process retry interval (default 60, `0` to disable) |
+| `NOTIFY_INTERVAL_SECONDS` | In-process retry interval (default 60, `0` to disable) |

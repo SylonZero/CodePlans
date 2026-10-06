@@ -141,7 +141,7 @@ characters; optionally `ADMIN_NAME`) before the first start. CodePlans creates
 the owner from them on boot while the instance is empty, and ignores them
 afterwards.
 
-Registration is closed by default. Invite people from the **Team** page.
+Sign-up is invite-only by default. Invite people from the **Team** page.
 
 ## Updating
 
@@ -181,8 +181,7 @@ what CodePlans works out.
 | `ALLOW_EPHEMERAL_DB` | — | `true` lets SQLite run on Railway, Fly.io or Render without a volume (data is lost on every deploy) |
 | `DB_SSL` | from the URL and host | `true` / `false` to force Postgres TLS |
 | `DATABASE_AUTH_TOKEN` | — | For `libsql://` (Turso) URLs |
-| `HOST_MODE` | `team` | `saas` is for the multi-tenant hosted setup |
-| `REGISTRATION` | `closed` in team mode | `open` lets anyone who reaches the server sign up |
+| `REGISTRATION` | `invite` | `open` lets anyone who reaches the server sign up; `closed` removes the sign-up page |
 | `PORT` | `3000` | Railway sets it for you |
 
 Email and Slack are set up in the app; see [notifications](notifications.md).

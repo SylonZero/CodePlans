@@ -6,7 +6,6 @@ import { eq } from 'drizzle-orm'
 import { getOrganization } from '@/lib/db/queries'
 import { SettingsClient } from './settings-client'
 import { listApiKeys } from '@/lib/mcp/auth'
-import { config } from '@/lib/config'
 import { isOrgAdmin } from '@/lib/db/authz'
 import { getOrgWorkflowDefault, availableWorkflowLevels } from '@/lib/db/workflow'
 import { WorkflowPanel } from './workflow-panel'
@@ -63,14 +62,11 @@ export default async function SettingsPage({ searchParams }: Props) {
         name: profile.name,
         email: profile.email,
         role: profile.role,
-        featureFlags: (profile.featureFlags as { alpha?: boolean; beta?: boolean; aiAssistance?: boolean }) ?? {},
       }}
       org={{
         name: org?.name ?? 'No Organization',
         memberCount: org?.memberCount ?? 0,
-        billingTier: org?.billingTier ?? profile.billingTier,
       }}
-      billingEnabled={config.billing.enabled}
       pendingEmailChange={pendingEmailChange}
       emailJustVerified={emailVerified === '1'}
       emailPrefs={emailPrefs}

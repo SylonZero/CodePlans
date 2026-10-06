@@ -69,7 +69,7 @@ const roleLabels: Record<UserRole, string> = {
 }
 
 const roleDescriptions: Record<UserRole, string> = {
-  owner: 'Full access, billing management',
+  owner: 'Full access, including the workspace itself',
   admin: 'Manage team, products, plans',
   editor: 'Create and edit content',
   viewer: 'View-only access',
@@ -295,9 +295,6 @@ export function TeamClient({ members, organization, currentUserId }: Props) {
               <CardTitle>{organization.name}</CardTitle>
               <CardDescription>{organization.memberCount} members</CardDescription>
             </div>
-            <Badge variant="secondary" className="capitalize">
-              {organization.billingTier} Plan
-            </Badge>
           </div>
         </CardHeader>
         <CardContent>

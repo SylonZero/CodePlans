@@ -1,14 +1,8 @@
-// Auth.js v5 route handler — only active in local (AUTH_PROVIDER=local) mode.
-// Dynamic import prevents local.ts from loading (and requiring AUTH_SECRET)
-// in Supabase mode.
+// Auth.js v5 route handler for local accounts.
 import type { NextRequest } from 'next/server'
-import { config } from '@/lib/config'
+import { handlers } from '@/lib/auth/local'
 
 async function handler(request: NextRequest) {
-  if (config.auth.provider !== 'local') {
-    return new Response('Not found', { status: 404 })
-  }
-  const { handlers } = await import('@/lib/auth/local')
   const method = request.method.toUpperCase()
   if (method === 'GET') return handlers.GET(request)
   if (method === 'POST') return handlers.POST(request)

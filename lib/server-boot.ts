@@ -5,6 +5,9 @@ import { config } from '@/lib/config'
 import { platformName } from '@/lib/runtime-env'
 import { checkPersistentStorage } from '@/lib/storage-check'
 
+/** Settings from earlier versions that no longer do anything. */
+const RETIRED_SETTINGS = ['HOST_MODE', 'BILLING_ENABLED', 'NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'SUPABASE_SECRET_KEY']
+
 export function migrateOnBoot(env = process.env): boolean {
   if (env.MIGRATE_ON_BOOT) return env.MIGRATE_ON_BOOT !== 'false'
   return env.NODE_ENV === 'production'
@@ -24,8 +27,7 @@ function describeDatabase(): string {
 
 export async function bootServer() {
   const platform = platformName(process.env)
-  console.log(`[boot] CodePlans · ${config.hostMode} mode · ${config.auth.provider} auth · registration ${config.registration}`
-    + `${platform ? ` · ${platform}` : ''}`)
+  console.log(`[boot] CodePlans · registration ${config.registration}${platform ? ` · ${platform}` : ''}`)
   console.log(`[boot] database: ${describeDatabase()}`)
   if (process.env.AUTH_URL) console.log(`[boot] public URL: ${process.env.AUTH_URL}`)
 
@@ -39,7 +41,14 @@ export async function bootServer() {
   if (storage.reason === 'ALLOW_EPHEMERAL_DB=true') console.warn('[boot] ALLOW_EPHEMERAL_DB=true: the SQLite database is not on a volume and is lost on every deploy.')
 
   if (!config.db.url) return fatal('DATABASE_URL is not set. Set it to a postgres:// URL, or leave DB_PROVIDER unset to use SQLite.')
-  if (config.auth.provider === 'local' && !process.env.AUTH_SECRET) {
+  const retired = RETIRED_SETTINGS.filter((k) => process.env[k])
+  if (retired.length) console.warn(`[boot] ${retired.join(', ')} ${retired.length > 1 ? 'are' : 'is'} no longer used and can be removed. `
+    + 'CodePlans runs as a single workspace with its own accounts; billing and Supabase sign-in are not part of the community edition.')
+  if (process.env.AUTH_PROVIDER && process.env.AUTH_PROVIDER !== 'local') {
+    console.warn(`[boot] AUTH_PROVIDER=${process.env.AUTH_PROVIDER} is not supported; using local accounts. `
+      + 'People without a password here can be re-invited from the Team page.')
+  }
+  if (!process.env.AUTH_SECRET) {
     return fatal('AUTH_SECRET is not set. Generate one with `openssl rand -base64 32` and set it as a secret.')
   }
 

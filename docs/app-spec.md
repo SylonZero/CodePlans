@@ -24,11 +24,11 @@ CodePlans is a **code change coordination tool** for engineering teams. It organ
 | email | text | |
 | name | text | |
 | avatarUrl | text? | |
-| billingTier | `free\|pro\|team\|enterprise` | default `free` |
+| billingTier | `free\|pro\|team\|enterprise` | unused (kept from earlier versions) |
 | role | `owner\|admin\|editor\|viewer` | default `viewer` |
 | organizationId | text? | FK → organizations (nullable) |
-| featureFlags | JSON `{ alpha?, beta?, aiAssistance? }` | default `{}` |
-| passwordHash | text? | only used in local auth mode |
+| featureFlags | JSON | unused (kept from earlier versions) |
+| passwordHash | text? | bcrypt hash; null until the person sets a password |
 | createdAt | timestamp | |
 
 #### `organizations`
@@ -38,8 +38,7 @@ CodePlans is a **code change coordination tool** for engineering teams. It organ
 | name | text | |
 | slug | text | unique |
 | ownerId | text | FK → users.id |
-| billingTier | `free\|pro\|team\|enterprise` | default `free` |
-| productLimit | integer | default `1` |
+| billingTier, productLimit | | unused (kept from earlier versions) |
 | createdAt | timestamp | |
 
 #### `organization_members`
@@ -237,7 +236,7 @@ How sync keeps provenance straight:
 
 **Product visibility** (single source of truth: `productAccessWhere` in `lib/db/queries.ts`):
 - Products the user created **OR** products belonging to any org where the user has a joined `organization_members` row. `users.organizationId` is only a "current org" pointer and is not consulted for access.
-- In `HOST_MODE=team`, a boot hook (`instrumentation.ts` → `lib/db/bootstrap.ts`) creates the workspace org from the first user and adopts org-less products; signup auto-joins new users as editors.
+- A boot hook (`instrumentation.ts` → `lib/db/bootstrap.ts`) creates the workspace org from the first user and adopts org-less products; signup auto-joins new users as editors.
 - Mirrored work items (`source ≠ native`): mirrored fields (title/description/status/tags) are rejected by the mutation layer — only native annotations (asset, area, severity) are locally editable.
 
 **Mutation ownership checks:**
@@ -350,8 +349,8 @@ Both redirect to `/` on success.
 All routes share `AppShell`: 64px top header + 256px sidebar. Sidebar contains:
 - Product switcher dropdown — **wired**: "All Products" + per-product options; selection persisted in a cookie (`lib/product-scope-cookie.ts`) and scopes Dashboard, Products, Code Plans, Tasks, and Analytics
 - Primary nav: Dashboard, My Work, Products, Assets, Work Items, Code Plans, Releases, Tasks, Analytics
-- Secondary nav: Team, Integrations, Billing (hidden if `BILLING_ENABLED=false`), Settings
-- Org/user footer: org name + billing tier, links to Team/Billing/Settings
+- Secondary nav: Team, Integrations, Settings
+- Org/user footer: org name, links to Team/Settings
 
 **Header:** Global search input (cosmetic — not wired), bell icon (cosmetic), user avatar dropdown with sign out.
 
@@ -497,7 +496,7 @@ Streamable HTTP MCP endpoint (`mcp-handler`) with 71 tools wrapping the query/mu
 #### `/team` — Team Management
 - Requires org membership; shows message if no org
 - `TeamClient` renders:
-  - Org info card: name, member count, billing tier, admins count, pending invites
+  - Org info card: name, member count, admins count, pending invites
   - Members table: avatar, name, email, role badge (with crown for owner), joined date, kebab menu per row
   - Kebab menu options: "Change Role" → `changeMemberRoleAction`, "Remove from Team" → `removeMemberAction`
 - "Invite Member" button opens dialog with email + role select → `inviteMemberAction`
@@ -517,36 +516,22 @@ All charts are wired to `getAnalytics` (live data). Charts (Recharts):
 
 #### `/settings` — Settings
 Client component with 4 tabs:
-- **Profile:** Name update → `updateProfileAction`; email change with verification flow → `requestEmailChangeAction` / `cancelEmailChangeAction`; photo upload button (not wired); org info card with billing tier
+- **Profile:** Name update → `updateProfileAction`; email change with verification flow → `requestEmailChangeAction` / `cancelEmailChangeAction`; photo upload button (not wired); org info card
 - **Notifications:** Email and in-app notification toggles (cosmetic — not persisted)
-- **Features:** Feature flag toggles for AI Assistance / Beta / Alpha (reads from props but writes not wired)
 - **Security:** Password change form → `changePasswordAction`; 2FA setup and Delete Account button (not wired)
 - **API Keys** (`api-keys-panel.tsx`): create (name + read/write scope; plaintext shown once), list (prefix, scope, last-used), revoke → API key actions
 
 ---
 
-#### `/billing` — Billing
-Guarded by `BILLING_ENABLED` env flag (redirects to `/` if false). Shows:
-- Current plan card with usage progress bars (hardcoded usage values)
-- 4-column plan comparison grid (Free $0 / Pro $29 / Team $79 / Enterprise custom)
-- Invoice history (3 hardcoded invoices)
-
-**Wiring gap:** No actual Stripe/payment integration; all usage data is hardcoded.
-
----
-
 ### Infrastructure / Config
 
-**Auth providers** (pluggable via `AUTH_PROVIDER` env):
-- `local`: bcrypt password hash stored in DB, JWT session cookie, `adminCreateUser` for seeding
-- `supabase`: delegates to Supabase client, session via cookies
+**Auth:** email and password accounts in the app's database: bcrypt password hash, Auth.js JWT session cookie, `adminCreateUser` for `/setup`, `ADMIN_EMAIL` and seeding. `REGISTRATION` (`invite` default, `open`, `closed`) controls sign-up.
 
 **DB providers** (pluggable via `DB_PROVIDER` env):
 - `sqlite`: `@libsql/client` + `drizzle-orm/libsql`, local file or `:memory:`; tests use isolated temporary files to preserve state across transactions
 - `postgres`: `postgres` (postgres.js) + `drizzle-orm/postgres-js`
 
-**Feature flags:**
-- `BILLING_ENABLED=false` hides billing nav, billing page, and billing info throughout the shell
+**Optional features:**
 - **AI drafting** (`lib/ai.ts`, official Anthropic SDK): enabled only when `ANTHROPIC_API_KEY` is set and `AI_ENABLED` isn't `false`; model via `AI_MODEL` (default `claude-opus-5`). Powers "Draft release notes" and "Draft design note from plan" — drafts always land in an editor, never auto-published; refusals/empty outputs surface as errors
 
 ---
@@ -559,10 +544,9 @@ in the current feature set.
 
 | Area | Gap |
 |---|---|
-| Billing | Hardcoded usage data; no payment integration |
 | Analytics | No time-range filtering (fixed windows: 8 weeks / 6 months) |
 | Search | Header search input is cosmetic only |
-| Settings | Notifications + feature-flag toggles not persisted; photo upload, 2FA, Delete Account not wired |
+| Settings | Photo upload, 2FA, Delete Account not wired |
 | Integrations | GitHub + GitLab Issues; sync is manual ("Sync now") — no scheduler/webhooks; assignee mapping not implemented (provider login stored in externalData). Write-back is completion comments only |
 | Scheduled sync | Sync remains manual ("Sync now" / link-time); no scheduler or webhooks |
 | Notifications | All toggles cosmetic; no notification system exists |

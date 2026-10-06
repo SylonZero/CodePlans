@@ -95,8 +95,7 @@ See the [reviews guide](docs/guides/reviews-and-comments.md), [My Work guide](do
 | Organization & team management | ✅ Available |
 | Role-based access (owner / admin / editor / viewer) | ✅ Available |
 | SQLite local mode (no cloud required) | ✅ Available |
-| Supabase + Postgres cloud mode | ✅ Available |
-| Pluggable auth (local password or Supabase) | ✅ Available |
+| Postgres for larger or managed deployments | ✅ Available |
 | Work items — features, bugs & tech debt register, linkable to code plans | ✅ Available |
 | Per-asset branch & PR tracking on code plans | ✅ Available |
 | Asset dependency mapping & plan impact analysis | ✅ Available |
@@ -120,7 +119,6 @@ See the [reviews guide](docs/guides/reviews-and-comments.md), [My Work guide](do
 | Shared GFM Markdown — paragraphs, line breaks, tables & task lists across pages and side panels | ✅ Available |
 | AI drafting — release notes & design notes (feature-flagged, `ANTHROPIC_API_KEY`) | ✅ Available |
 | AI-assisted effort estimation | 🔜 Planned |
-| Billing / subscription management | 🔜 Planned (optional, feature-flagged) |
 
 ---
 
@@ -133,50 +131,24 @@ See the [reviews guide](docs/guides/reviews-and-comments.md), [My Work guide](do
 | Styling | Tailwind CSS v4 + Radix UI primitives |
 | ORM | [Drizzle ORM](https://orm.drizzle.team) |
 | Database | SQLite (local / libsql) or PostgreSQL (cloud) |
-| Auth | Local (bcrypt + session cookie) or Supabase |
+| Auth | Email and password (bcrypt + Auth.js session cookie) |
 | Charts | Recharts |
 | Testing | Vitest (483 tests) |
 
 ---
 
-## Deployment Modes
+## Accounts and sign-up
 
-CodePlans has two independent configuration axes that control how an instance behaves.
-
-### `HOST_MODE` — the deployment model
-
-| Value | Description |
-|---|---|
-| `team` | Single private team. One organisation, no open registration, billing UI hidden. The right default for self-hosted installs. |
-| `saas` | Multi-tenant hosted. Multiple independent orgs can exist, open registration is possible, billing UI available. |
-
-### `REGISTRATION` — who can create accounts
+An instance is one workspace. Accounts are email and password, stored in the
+app's own database (SQLite or Postgres). The owner is created at `/setup` on
+first run (or from `ADMIN_EMAIL`), and `REGISTRATION` decides how everyone
+else gets in:
 
 | Value | Description |
 |---|---|
-| `closed` | `/signup` returns 404. The owner is created at `/setup` on first run (or from `ADMIN_EMAIL`, or `pnpm db:seed`); admins invite everyone else from the **Team** page. |
-| `invite` | `/signup` shows an invite-only message. (Token-based invite flow is planned.) |
-| `open` | Anyone who can reach the server can sign up. |
-
-### Common combinations
-
-**Self-hosted team** (recommended default):
-```bash
-HOST_MODE=team
-REGISTRATION=closed
-```
-
-**Hosted SaaS with open signup:**
-```bash
-HOST_MODE=saas
-REGISTRATION=open
-```
-
-**Closed beta / waitlist:**
-```bash
-HOST_MODE=saas
-REGISTRATION=invite
-```
+| `invite` | The default. Admins invite people from the **Team** page; `/signup` says the workspace is invite-only. |
+| `open` | Anyone who can reach the server can sign up and joins the workspace as an editor. |
+| `closed` | No sign-up page at all. Accounts come only from invites, `/setup`, `ADMIN_EMAIL` or `pnpm db:seed`. |
 
 Commercial/hosted-only features are built as an optional private module the
 app loads at startup, never as forked or hidden code in this repo. See the
@@ -228,7 +200,7 @@ pnpm install
 
 # 3. Configure environment
 cp .env.example .env.local
-# .env.example defaults to HOST_MODE=team, REGISTRATION=closed, SQLite — no changes needed
+# .env.example defaults to SQLite and invite-only sign-up — no changes needed
 
 # 4. Run migrations and create the admin account
 pnpm db:migrate
@@ -252,30 +224,18 @@ Change your password in **Settings → Security** after first login.
 > **Running this on a server?** Prefer the [Docker image](docs/guides/deploying.md). For `pnpm build && pnpm start`, set `AUTH_URL=https://your-server-domain` (or `http://ip:port`). Auth.js uses it to build callback URLs, and Railway, Fly and Render domains are detected automatically.  
 > If running the dev server on a remote machine, also set `ALLOWED_DEV_ORIGINS=your.server.ip`.
 
-### Cloud (Supabase + Postgres) mode
+### Postgres
 
-```bash
-# Set these variables in .env.local
-HOST_MODE=saas
-REGISTRATION=open
-AUTH_PROVIDER=supabase
-DB_PROVIDER=postgres
-DATABASE_URL=postgresql://...
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
-SUPABASE_SECRET_KEY=your-service-role-key
-```
-
-Then run `pnpm db:migrate` and `pnpm dev`.
+Point `DATABASE_URL` at any Postgres database (`postgresql://…`), set
+`AUTH_SECRET`, and run `pnpm db:migrate` and `pnpm dev`. See the
+[deployment guide](docs/guides/deploying.md) for Railway, Fly.io and Docker.
 
 ### Environment variables
 
 | Variable | Default | Description |
 |---|---|---|
 | `PORT` | `3000` | Port the server binds to |
-| `HOST_MODE` | `team` (`saas` if Supabase is configured) | `team` (private self-hosted) or `saas` (multi-tenant hosted) |
-| `REGISTRATION` | `closed` in team mode, else `open` | `closed`, `invite`, or `open` — controls who can create accounts |
-| `AUTH_PROVIDER` | `local` (`supabase` if Supabase is configured) | `local` (bcrypt + session cookie, on SQLite or Postgres) or `supabase` |
+| `REGISTRATION` | `invite` | `invite`, `open` or `closed` — who can create accounts (see above) |
 | `DB_PROVIDER` | from `DATABASE_URL` | `sqlite` or `postgres`; only needed to override the URL-based choice |
 | `DATABASE_URL` | SQLite at `$DATA_DIR/codeplans.db` | `postgres://…` selects Postgres; `file:…`, `libsql://…` or `:memory:` select SQLite |
 | `DATA_DIR` | `data` (`/data` in the image) | Where the default SQLite file lives |
@@ -287,17 +247,13 @@ Then run `pnpm db:migrate` and `pnpm dev`.
 | `MIGRATE_ON_BOOT` | on in production | Apply pending migrations at server start; `false` to run `pnpm db:migrate` yourself |
 | `GITHUB_PUBLIC_TOKEN` | — | Optional personal token used by the read-only `import_github_issues` MCP tool to raise GitHub's anonymous rate limit (no scopes needed) |
 | `ALLOW_EPHEMERAL_DB` | — | On Railway, Fly.io and Render, SQLite refuses to start unless its folder is on a volume (otherwise every deploy wipes it). `true` allows it for a throwaway trial |
-| `BILLING_ENABLED` | `true` | Set `false` to hide billing UI (always off in `team` mode) |
 | `ALLOWED_DEV_ORIGINS` | — | Comma-separated hosts allowed to access Next.js dev resources (needed when running on a remote server) |
 | `RESEND_API_KEY` | — | Resend API key for transactional email and the fallback notification email channel. Without this, verification URLs are logged to the server console (dev only). Admins can also connect Resend in **Settings → Manage workspace notifications**. |
 | `RESEND_FROM_EMAIL` | `CodePlans <noreply@codeplans.ai>` | From address used in outgoing emails |
 | `RESEND_API_URL` | `https://api.resend.com` | Send notification email through a Resend-compatible relay |
 | `NOTIFY_WEBHOOK_ALLOWED_HOSTS` | — | Extra hosts allowed for the notification webhook (only `hooks.slack.com` by default) |
 | `CRON_SECRET` | — | Enables `/api/cron/notifications` for email/Slack retries from an external cron |
-| `NOTIFY_INTERVAL_SECONDS` | `60` | Team mode retries notifications in-process at this interval; `0` turns it off |
-| `NEXT_PUBLIC_SUPABASE_URL` | — | Required for Supabase auth mode |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | — | Required for Supabase auth mode |
-| `SUPABASE_SECRET_KEY` | — | Required for Supabase auth mode (server-side) |
+| `NOTIFY_INTERVAL_SECONDS` | `60` | The server retries notifications in-process at this interval; `0` turns it off |
 
 ---
 
@@ -525,7 +481,6 @@ Your agent can then read specs, plans, work items, and tech debt and (with a wri
 - [x] **Collaboration loop (next release)** (see [`docs/specs/collaboration-review-notifications-spec.md`](docs/specs/collaboration-review-notifications-spec.md)): responsibilities, plan and spec reviews pinned to a version with Open/Guided workflows, anchored comments with @mentions, spec revision history and diffs, the My Work inbox with role lenses and evidence gaps, and notifications in-app, by email (Resend) and to Slack with admin rules, opt-outs and mutes
 - [ ] **Planned — Reconciliation & round-trip engineering** (see [`docs/specs/asset-record-spec.md`](docs/specs/asset-record-spec.md)): agent reconciliation proposals, release publishing
 - [ ] AI-assisted effort estimation
-- [ ] Billing / subscription management (hosted tier, optional & feature-flagged)
 
 See [`docs/app-spec.md`](docs/app-spec.md) for the full current state of the app, and [`docs/specs/design-spec-v3.md`](docs/specs/design-spec-v3.md) for the target design and detailed roadmap.
 

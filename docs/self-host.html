@@ -110,34 +110,23 @@
 <section class="section" id="config">
   <div class="container">
     <div class="section-label">Configuration</div>
-    <h2>Deployment modes &amp; environment variables</h2>
-    <p class="section-sub">Two independent knobs control how your instance behaves — the deployment model and who can register.</p>
+    <h2>Accounts &amp; environment variables</h2>
+    <p class="section-sub">An instance is one workspace with its own email and password accounts. <code>REGISTRATION</code> decides how people get in.</p>
 
     <div class="config-grid">
       <div class="config-card">
-        <div class="config-card-header">HOST_MODE — deployment model</div>
-        <div class="config-row">
-          <div class="config-val">team</div>
-          <div class="config-desc">Single private team. One org, registration closed by default, billing UI hidden. Recommended for self-hosted installs.</div>
-        </div>
-        <div class="config-row">
-          <div class="config-val">saas</div>
-          <div class="config-desc">Multi-tenant hosted. Multiple independent orgs, open registration possible, billing UI available.</div>
-        </div>
-      </div>
-      <div class="config-card">
         <div class="config-card-header">REGISTRATION — who can create accounts</div>
         <div class="config-row">
-          <div class="config-val">closed</div>
-          <div class="config-desc">/signup returns 404. The owner is created at <code>/setup</code> on first run; admins invite everyone else from the Team page.</div>
-        </div>
-        <div class="config-row">
           <div class="config-val">invite</div>
-          <div class="config-desc">/signup shows an invite-only message. (Token invite flow is planned.)</div>
+          <div class="config-desc">The default. Admins invite people from the Team page; /signup says the workspace is invite-only.</div>
         </div>
         <div class="config-row">
           <div class="config-val">open</div>
-          <div class="config-desc">Anyone who can reach the server can sign up.</div>
+          <div class="config-desc">Anyone who can reach the server can sign up and joins the workspace as an editor.</div>
+        </div>
+        <div class="config-row">
+          <div class="config-val">closed</div>
+          <div class="config-desc">No sign-up page. Accounts come only from invites, <code>/setup</code> or <code>ADMIN_EMAIL</code>.</div>
         </div>
       </div>
     </div>
@@ -158,19 +147,9 @@
             <td class="env-desc">Port the server binds to. Railway sets it for you.</td>
           </tr>
           <tr>
-            <td class="env-var">HOST_MODE</td>
-            <td class="env-default">team</td>
-            <td class="env-desc"><code>team</code> (private self-hosted) or <code>saas</code> (multi-tenant hosted; the default when Supabase is configured).</td>
-          </tr>
-          <tr>
             <td class="env-var">REGISTRATION</td>
-            <td class="env-default">closed (team)</td>
-            <td class="env-desc"><code>closed</code>, <code>invite</code>, or <code>open</code> — controls who can create accounts. Defaults to <code>open</code> in saas mode.</td>
-          </tr>
-          <tr>
-            <td class="env-var">AUTH_PROVIDER</td>
-            <td class="env-default">local</td>
-            <td class="env-desc"><code>local</code> (bcrypt + session cookie, on SQLite or Postgres) or <code>supabase</code>.</td>
+            <td class="env-default">invite</td>
+            <td class="env-desc"><code>invite</code>, <code>open</code> or <code>closed</code> — who can create accounts (see above).</td>
           </tr>
           <tr>
             <td class="env-var">DATABASE_URL</td>
@@ -216,11 +195,6 @@
             <td class="env-var">MIGRATE_ON_BOOT</td>
             <td class="env-default">on in production</td>
             <td class="env-desc">Apply pending migrations at server start (behind a Postgres advisory lock). <code>false</code> to run <code>pnpm db:migrate</code> yourself.</td>
-          </tr>
-          <tr>
-            <td class="env-var">BILLING_ENABLED</td>
-            <td class="env-default">true</td>
-            <td class="env-desc">Set <code>false</code> to hide billing UI. Always off when <code>HOST_MODE=team</code>.</td>
           </tr>
           <tr>
             <td class="env-var">ALLOWED_DEV_ORIGINS</td>
@@ -306,8 +280,8 @@
           </tr>
           <tr>
             <td class="layer">Auth</td>
-            <td class="tech">Local bcrypt <span class="chip">local</span> / Supabase <span class="chip">cloud</span></td>
-            <td class="note">Switched via <code>AUTH_PROVIDER</code> env var</td>
+            <td class="tech">Email &amp; password (bcrypt + Auth.js)</td>
+            <td class="note">Accounts live in the app's own database</td>
           </tr>
           <tr>
             <td class="layer">Charts</td>
