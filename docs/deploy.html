@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CodePlans — Deploy</title>
+  <meta name="description" content="Step-by-step guides to deploy CodePlans on Railway, Fly.io, Render or any Docker host, and claim it with the setup code." />
+  <link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+<!-- Generated page: the nav and footer are repeated on every page of the site. -->
+<nav>
+  <div class="container inner">
+    <a class="nav-logo" href="index.html" style="text-decoration:none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> CodePlans</a>
+    <div class="nav-links">
+      <a href="index.html">Overview</a><a href="plan.html">Plan &amp; deliver</a><a href="assets.html">Assets</a><a href="specs.html">Specs &amp; Wiki</a><a href="reviews.html">Reviews</a><a href="my-work.html">My Work</a><a href="agents.html">AI agents</a><a href="self-host.html">Self-host</a><a href="deploy.html" class="active" aria-current="page">Deploy</a><a href="docs.html">Docs</a>
+      <a class="btn-gh" href="https://github.com/SylonZero/CodePlans" target="_blank" rel="noopener"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.38.6.11.82-.26.82-.58v-2.03c-3.34.72-4.04-1.61-4.04-1.61-.54-1.38-1.33-1.75-1.33-1.75-1.09-.74.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4 11.5 11.5 0 0 1 3 .4c2.28-1.55 3.3-1.23 3.3-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/></svg> GitHub</a>
+    </div>
+  </div>
+</nav>
+<section class="page-hero"><div class="container"><div class="crumb"><a href="index.html">CodePlans</a> / Deploy</div><h1>Deploy CodePlans</h1><p class="hero-sub">Step-by-step guides for Railway, Fly.io, Render and any Docker host. Expect about ten minutes from a fork to your first sign-in.</p>
+<nav class="platform-nav" aria-label="Platforms"><a href="#railway">Railway <span>· clicks only</span></a><a href="#fly">Fly.io <span>· CLI</span></a><a href="#render">Render <span>· clicks only</span></a><a href="#docker">Docker <span>· your own server</span></a><a href="#after">After deploying</a><a href="#trouble">Troubleshooting</a></nav>
+</div></section>
+<main>
+
+<section class="section" id="before">
+  <div class="container">
+    <div class="section-label">Before you start</div>
+    <h2>Two decisions</h2>
+    <p class="section-sub">Every guide below works the same way: the platform builds the repo's Dockerfile, CodePlans applies its database migrations when it starts, and you create the first account in the browser using a setup code from the server log.</p>
+    <div class="config-grid">
+      <div class="config-card">
+        <div class="config-card-header">1 · Where the code comes from</div>
+        <div class="config-row"><div class="config-val">fork</div><div class="config-desc">Fork <a href="https://github.com/SylonZero/CodePlans">SylonZero/CodePlans</a> to your GitHub account. Platforms deploy from your fork, and to update you click <strong>Sync fork</strong> on GitHub.</div></div>
+        <div class="config-row"><div class="config-val">branch</div><div class="config-desc"><code>master</code> is the latest release line.</div></div>
+      </div>
+      <div class="config-card">
+        <div class="config-card-header">2 · Which database</div>
+        <div class="config-row"><div class="config-val">SQLite</div><div class="config-desc">The default and the simplest. Needs a 1 GB volume mounted at <code>/data</code>. One instance.</div></div>
+        <div class="config-row"><div class="config-val">Postgres</div><div class="config-desc">For managed backups or several instances. Set <code>DATABASE_URL</code> and <code>AUTH_SECRET</code>. There's no SQLite→Postgres move yet, so pick it up front if you'll need it.</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="railway">
+  <div class="container">
+    <div class="section-label">Railway</div>
+    <h2>Deploy on Railway</h2>
+    <p class="section-sub">All in the browser. The repo's <code>railway.json</code> tells Railway to build the Dockerfile and to check <code>/api/health</code> before switching traffic to a new deploy.</p>
+    <ol class="steps">
+      <li><h3>Create a service from your fork</h3>
+        <p>At <a href="https://railway.com">railway.com</a> choose <span class="ui">New Project</span> → <span class="ui">Deploy from GitHub repo</span> and pick your fork. The first time, Railway asks you to install its GitHub app and choose which repositories it can see.</p>
+        <p>Railway starts building straight away. The first deploy <strong>stops with a volume error</strong> on SQLite. That's expected: CodePlans won't run on storage that each deploy wipes. The next step fixes it.</p></li>
+      <li><h3>Attach storage</h3>
+        <p>On the project canvas, right-click the CodePlans service → <span class="ui">Attach volume</span>, and set the mount path to <code>/data</code>. Railway redeploys the service with the volume in place.</p>
+        <div class="variant"><strong>Using Postgres instead?</strong> Skip the volume. Choose <span class="ui">+ Create</span> → <span class="ui">Database</span> → <span class="ui">PostgreSQL</span>. Then on the CodePlans service open <span class="ui">Variables</span> and add <code>DATABASE_URL</code> = <code>${{Postgres.DATABASE_URL}}</code>, and <code>AUTH_SECRET</code> = the output of <code>openssl rand -base64 32</code>.</div></li>
+      <li><h3>Give it a public address</h3>
+        <p>Open the service → <span class="ui">Settings</span> → <span class="ui">Networking</span> → <span class="ui">Generate Domain</span>. If Railway asks for a port, accept the one it suggests. CodePlans picks up the domain by itself, so there's no URL to configure.</p></li>
+      <li><h3>Copy the setup code from the logs</h3>
+        <p>Open <span class="ui">Deployments</span>, click the latest deployment, then <span class="ui">Deploy Logs</span>. Look for the <code>[setup]</code> line:</p>
+        <div class="code-block"><div class="log">[boot] migrations: applied 33, 33 total, schema up to date
+[setup] No accounts yet. Open https://codeplans-production.up.railway.app/setup and enter the setup code: <span class="hl">K7QM-4XZP-W2HD</span></div></div></li>
+      <li><h3>Open the deployed service and claim it</h3>
+        <p>Open the domain. Any page sends you to <code>/setup</code>. Enter the setup code, your name, email and password, and a workspace name. You're signed in as the owner, and <code>/setup</code> closes for good.</p></li>
+    </ol>
+    <div class="callout"><strong>Updating:</strong> click <strong>Sync fork</strong> on your fork's GitHub page. Railway redeploys automatically, and the new version applies any migrations before it takes traffic.</div>
+  </div>
+</section>
+
+<section class="section" id="fly">
+  <div class="container">
+    <div class="section-label">Fly.io</div>
+    <h2>Deploy on Fly.io</h2>
+    <p class="section-sub">From a terminal with <a href="https://fly.io/docs/flyctl/install/">flyctl</a> installed. The repo's <code>fly.toml</code> sets up SQLite on a 1 GB volume, on one machine that sleeps when idle.</p>
+    <ol class="steps">
+      <li><h3>Get the code and sign in</h3>
+        <div class="code-block"><div><span class="cmd">git clone</span> <span class="arg">https://github.com/&lt;you&gt;/CodePlans.git</span> &amp;&amp; <span class="cmd">cd</span> CodePlans</div><div><span class="cmd">fly auth login</span></div></div></li>
+      <li><h3>Create the app</h3>
+        <div class="code-block"><div><span class="cmd">fly launch</span> <span class="arg">--copy-config --no-deploy</span></div></div>
+        <p>Pick an app name and region. Decline any offer to add a database: the volume comes from <code>fly.toml</code>.</p></li>
+      <li><h3>Deploy</h3>
+        <div class="code-block"><div><span class="cmd">fly deploy</span></div></div>
+        <p>The first deploy creates the <code>codeplans_data</code> volume. If it says the volume is missing, run <code>fly volumes create codeplans_data --size 1 --region &lt;region&gt;</code> and deploy again.</p>
+        <div class="variant"><strong>Using Postgres instead?</strong> Delete the <code>[[mounts]]</code> section from <code>fly.toml</code>. Create a database with <code>fly mpg create</code> and attach it with <code>fly mpg attach &lt;cluster&gt; -a &lt;app&gt;</code>, which sets <code>DATABASE_URL</code>. Also run <code>fly secrets set AUTH_SECRET=$(openssl rand -base64 32)</code>.</div></li>
+      <li><h3>Copy the setup code</h3>
+        <div class="code-block"><div><span class="cmd">fly logs</span> <span class="comment"># look for the [setup] line</span></div></div></li>
+      <li><h3>Open it and claim it</h3>
+        <div class="code-block"><div><span class="cmd">fly open</span></div></div>
+        <p>Enter the code at <code>/setup</code> to create the owner account.</p></li>
+    </ol>
+    <div class="callout"><strong>Updating:</strong> <code>git pull</code> and <code>fly deploy</code>. Keep SQLite apps on one machine (<code>fly scale count 1</code>). Set <code>AUTH_URL</code> if you add a custom domain.</div>
+  </div>
+</section>
+
+<section class="section" id="render">
+  <div class="container">
+    <div class="section-label">Render</div>
+    <h2>Deploy on Render</h2>
+    <p class="section-sub">In the browser. Persistent disks need a paid instance type. Use Postgres if you want to stay on a free one.</p>
+    <ol class="steps">
+      <li><h3>Create a web service from your fork</h3>
+        <p>In the <a href="https://dashboard.render.com">Render dashboard</a> choose <span class="ui">New</span> → <span class="ui">Web Service</span>, connect GitHub and pick your fork. Render detects the Dockerfile, so leave the language as <strong>Docker</strong>.</p></li>
+      <li><h3>Attach storage</h3>
+        <p>Choose a paid instance type. Under <span class="ui">Advanced</span>, <span class="ui">Add Disk</span> with mount path <code>/data</code> and 1 GB. Set <span class="ui">Health Check Path</span> to <code>/api/health</code>, then <span class="ui">Deploy Web Service</span>.</p>
+        <div class="variant"><strong>Using Postgres instead?</strong> Skip the disk. Create <span class="ui">New</span> → <span class="ui">Postgres</span>, copy its <strong>Internal Database URL</strong>, and add it to the web service's <span class="ui">Environment</span> as <code>DATABASE_URL</code>, with <code>AUTH_SECRET</code> = <code>openssl rand -base64 32</code>.</div></li>
+      <li><h3>Copy the setup code</h3>
+        <p>Open the service's <span class="ui">Logs</span> and find the <code>[setup]</code> line.</p></li>
+      <li><h3>Open it and claim it</h3>
+        <p>Open the <code>onrender.com</code> address at the top of the service page and enter the code at <code>/setup</code>.</p></li>
+    </ol>
+    <div class="callout"><strong>Updating:</strong> sync your fork. Render redeploys on every push to the branch it watches.</div>
+  </div>
+</section>
+
+<section class="section" id="docker">
+  <div class="container">
+    <div class="section-label">Docker</div>
+    <h2>Any server with Docker</h2>
+    <p class="section-sub">A VM, a home server or a NAS. The named volume keeps the database across upgrades.</p>
+    <ol class="steps">
+      <li><h3>Build and run</h3>
+        <div class="code-block"><div><span class="cmd">git clone</span> <span class="arg">https://github.com/SylonZero/CodePlans.git</span> &amp;&amp; <span class="cmd">cd</span> CodePlans</div><div><span class="cmd">docker build</span> <span class="arg">-t codeplans .</span></div><div><span class="cmd">docker run</span> <span class="arg">-d --name codeplans -p 3000:3000 -v codeplans-data:/data --restart unless-stopped codeplans</span></div></div></li>
+      <li><h3>Copy the setup code</h3>
+        <div class="code-block"><div><span class="cmd">docker logs</span> <span class="arg">codeplans</span> | <span class="cmd">grep</span> <span class="arg">setup</span></div></div></li>
+      <li><h3>Open it and claim it</h3>
+        <p>Go to <code>http://&lt;server&gt;:3000</code> and enter the code. Behind a reverse proxy or on a domain, add <code>-e AUTH_URL=https://your.domain</code> to <code>docker run</code>.</p>
+        <div class="variant"><strong>Using Postgres instead?</strong> The <a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/deploying.md#any-docker-host">deployment guide</a> has a <code>compose.yaml</code> with CodePlans and Postgres together.</div></li>
+    </ol>
+    <div class="callout"><strong>Updating:</strong> <code>git pull</code>, rebuild, then <code>docker rm -f codeplans</code> and run the same <code>docker run</code> again. The volume keeps your data.</div>
+  </div>
+</section>
+
+<section class="section" id="after">
+  <div class="container">
+    <div class="feature-row">
+      <div class="row-text">
+        <div class="section-label">After deploying</div>
+        <h2>Claim it, then invite your team</h2>
+        <p>The setup page asks for the code from the log, then your name, email, password and a workspace name. Only someone who can read the server log can claim the instance. The code stays the same across restarts, so you can come back to it.</p>
+        <p>Next, invite people from the <strong>Team</strong> page. Sign-up is invite-only unless you set <code>REGISTRATION=open</code>. Then connect AI agents at <code>https://&lt;your-domain&gt;/api/mcp</code> with a key from <strong>Settings → API Keys</strong>. Email and Slack notifications are set up in <strong>Settings</strong> too.</p>
+        <p>Prefer no browser step? Set <code>ADMIN_EMAIL</code> and <code>ADMIN_PASSWORD</code> before the first start.</p>
+        <p><a class="more" href="agents.html">Connect AI agents →</a></p>
+      </div>
+      <div class="row-media"><figure class="shot plain" style="max-width: 400px; margin: 0 auto;"><a href="screenshots/setup.png" aria-label="Open full size: The setup page: setup code, name, email, password and workspace name"><img src="screenshots/setup.png" alt="The setup page: setup code, name, email, password and workspace name" width="928" height="1404" loading="lazy"></a></figure></div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="trouble">
+  <div class="container">
+    <div class="section-label">Troubleshooting</div>
+    <h2>If something's off</h2>
+    <div class="trouble">
+      <div><h3>"…is not on a persistent volume"</h3><p>The service is on SQLite without a volume, so CodePlans refuses to start rather than lose your data on the next deploy. Attach a volume at <code>/data</code> (the log names the exact path), or switch to Postgres.</p></div>
+      <div><h3>No [setup] line in the logs</h3><p>It only appears while the instance has no accounts. If someone already claimed it, sign in instead. Otherwise restart or redeploy the service and look again.</p></div>
+      <div><h3>The health check keeps failing</h3><p>Look further up the log. A failed migration or a missing <code>AUTH_SECRET</code> on Postgres stops the server on purpose and says why. The previous deploy keeps running meanwhile.</p></div>
+      <div><h3>Sign-in fails on a custom domain</h3><p>Set <code>AUTH_URL</code> to the public address, e.g. <code>https://codeplans.yourteam.com</code>. Platform domains are detected automatically.</p></div>
+      <div><h3>Someone can't sign up</h3><p>That's the invite-only default. Invite them from the <strong>Team</strong> page, or set <code>REGISTRATION=open</code> to let anyone who can reach the server join.</p></div>
+      <div><h3>Every setting</h3><p>The <a href="self-host.html#config">self-host page</a> and the <a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/deploying.md">deployment guide</a> list every environment variable, backups and health checks.</p></div>
+    </div>
+  </div>
+</section>
+
+</main>
+<div class="container"><div class="page-nav"><a href="self-host.html"><span>← Previous</span>Self-host</a><a class="next" href="docs.html"><span>Next →</span>Docs</a></div></div>
+<footer>
+  <div class="container footer-inner">
+    <div class="footer-left">
+      <span class="footer-logo">CodePlans</span>
+      <span class="footer-copy">© 2026 Sai Prakash · MIT License · Community edition</span>
+    </div>
+    <div class="footer-links">
+      <a href="https://codeplans.ai" target="_blank" rel="noopener">Beta Signup</a>
+      <a href="https://github.com/SylonZero/CodePlans" target="_blank" rel="noopener">GitHub</a>
+      <a href="docs.html">Docs</a>
+      <a href="https://github.com/SylonZero/CodePlans/blob/master/LICENSE" target="_blank" rel="noopener">License</a>
+    </div>
+  </div>
+</footer>
+<script src="assets/site.js"></script>
+</body>
+</html>

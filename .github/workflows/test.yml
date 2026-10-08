@@ -10,13 +10,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      DB_PROVIDER: sqlite
       DATABASE_URL: ':memory:'
-      AUTH_PROVIDER: local
       AUTH_SECRET: ci-only-secret-at-least-32-bytes-long
-      HOST_MODE: team
-      REGISTRATION: closed
-      BILLING_ENABLED: 'false'
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
