@@ -51,7 +51,7 @@ export type ExternalScope = {
 export type ExternalPrStatus = 'draft' | 'open' | 'merged' | 'closed'
 
 /**
- * The pluggable connector interface (mirrors the AUTH_PROVIDER / DB_PROVIDER
+ * The pluggable connector interface (mirrors the DB_PROVIDER
  * pattern). Providers implement pull-only sync; write-back is a later phase
  * of narrow explicit actions, never field-level two-way sync.
  */
