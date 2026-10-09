@@ -27,6 +27,15 @@ const nextConfig = {
   // bundling it at build time, so a community build never fails just
   // because the private package isn't installed.
   serverExternalPackages: ['@codeplans/enterprise'],
+  // Addresses people (and agents) guess. Query strings carry over.
+  async redirects() {
+    return [
+      { source: '/code-plans', destination: '/plans', permanent: false },
+      { source: '/code-plans/:path*', destination: '/plans/:path*', permanent: false },
+      { source: '/work-items/:id', destination: '/work-items?item=:id', permanent: false },
+      { source: '/search', destination: '/wiki', permanent: false },
+    ]
+  },
 }
 
 export default nextConfig

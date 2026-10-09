@@ -313,6 +313,16 @@ function WorkItemEditor({
         <div className="space-y-1.5">
           <Label htmlFor="wie-tags" className="text-xs">Tags (comma-separated)</Label>
           <Input id="wie-tags" name="tags" defaultValue={item.tags.join(', ')} disabled={isMirrored} />
+          {item.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 pt-0.5" aria-label="Filter the list by tag">
+              {item.tags.map((t) => (
+                <Link key={t} href={`/work-items?tags=${encodeURIComponent(t)}`} title={`Show work items tagged ${t}`}
+                  className="rounded border border-border bg-muted/50 px-1.5 py-0.5 text-xs text-muted-foreground hover:border-accent hover:text-foreground">
+                  #{t}
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
         <p className="text-xs text-muted-foreground">{isPending ? 'Saving…' : 'Changes save automatically'}</p>
       </form>
