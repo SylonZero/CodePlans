@@ -4,7 +4,6 @@ import { useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { RichTextField } from '@/components/rich-text-field'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
@@ -318,8 +317,8 @@ export function AddTaskDialog({ plan, teamMembers }: Props) {
             <Input id="task-title" name="title" placeholder="e.g. Update login handler" required />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="task-description">Description</Label>
-            <Textarea id="task-description" name="description" placeholder="What needs to be done?" rows={2} />
+            <Label>Description</Label>
+            <RichTextField name="description" />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">

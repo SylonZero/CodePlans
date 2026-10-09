@@ -4,7 +4,11 @@ import { authAdapter } from '@/lib/auth'
 import { getProducts } from '@/lib/db/queries'
 import { getProductScope } from '@/lib/product-scope'
 import { wikiHref } from '@/lib/wiki/model'
-export default async function WikiIndex() {
+// /search?q= redirects here (next.config.mjs); the query carries on to the
+// product wiki's search.
+export default async function WikiIndex({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const raw = await searchParams
+  const q = typeof raw.q === 'string' ? raw.q.slice(0, 250) : undefined
   const user = await authAdapter.getUser()
   if (!user) redirect('/login')
   const products = await getProducts(user.id),
@@ -12,7 +16,7 @@ export default async function WikiIndex() {
   const selected =
     products.find((p) => p.id === scope) ??
     (products.length === 1 ? products[0] : undefined)
-  if (selected) redirect(wikiHref(selected.slug))
+  if (selected) redirect(wikiHref(selected.slug, { q }))
   return (
     <main id="wiki-content" className="wiki-product-picker">
       <p className="wiki-eyebrow">CodePlans / Wiki</p>
@@ -23,7 +27,7 @@ export default async function WikiIndex() {
       </p>
       <div className="wiki-cards">
         {products.map((p) => (
-          <Link className="wiki-card" key={p.id} href={wikiHref(p.slug)}>
+          <Link className="wiki-card" key={p.id} href={wikiHref(p.slug, { q })}>
             <h2>{p.name}</h2>
             <p>{p.description}</p>
             <span>{p.assetCount} assets →</span>

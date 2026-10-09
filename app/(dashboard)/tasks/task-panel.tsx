@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Textarea } from '@/components/ui/textarea'
+import { RichTextField } from '@/components/rich-text-field'
+import { MarkdownContent } from '@/components/markdown-content'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
@@ -222,7 +223,11 @@ function TaskEditor({ task, members, onDeleted }: { task: TaskRow; members: Memb
             />
           </div>
         )}
-        <Textarea name="description" defaultValue={task.description} disabled={isMirrored} rows={3} placeholder="Description" aria-label="Description" />
+        {isMirrored
+          ? (task.description
+              ? <MarkdownContent className="rounded-md border bg-muted/30 px-3 py-2">{task.description}</MarkdownContent>
+              : null)
+          : <div aria-label="Description"><RichTextField name="description" defaultValue={task.description} /></div>}
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="te-start" className="text-xs">Start date</Label>
@@ -356,14 +361,8 @@ function TaskForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="tp-description">Description</Label>
-        <Textarea
-          id="tp-description"
-          name="description"
-          defaultValue={task?.description}
-          placeholder="What needs to be done?"
-          rows={3}
-        />
+        <Label>Description</Label>
+        <RichTextField name="description" defaultValue={task?.description ?? ''} />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">

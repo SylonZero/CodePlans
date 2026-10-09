@@ -116,5 +116,6 @@ export function markdownPreWithMermaid({
     return <MermaidDiagram source={source} />
   }
 
-  return <pre {...props}>{children}</pre>
+  // Focusable so wide blocks can be scrolled with the keyboard.
+  return <pre tabIndex={0} {...props}>{children}</pre>
 }

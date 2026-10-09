@@ -469,7 +469,7 @@ Client component (`TasksClient`) with:
 **Board view:** 3 kanban columns (up to 8 per column); task cards with priority badge, plan title, assignee avatar, effort.
 
 **Task panel** (`task-panel.tsx`, Sheet-based, deep-linkable via `?task=<id>`):
-- **Auto-save editor** (no view/edit split): status/priority/assignee selects commit on change, text/effort fields on blur, toast confirm → `updateTaskAction`; delete → `deleteTaskAction`; mirrored tasks disable tracker-owned fields
+- **Auto-save editor** (no view/edit split): status/priority/assignee selects commit on change, text/effort fields on blur, toast confirm → `updateTaskAction`; delete → `deleteTaskAction`; mirrored tasks disable tracker-owned fields. The description uses the shared markdown rich text editor (same as plans and work items, also in the plan page's Add task dialog); mirrored tasks show it rendered, read-only
 - "New Task" button opens the panel in create mode → `createTaskAction`
 - List rows edit inline: status checkbox cycle, priority + assignee dropdowns in-row
 
@@ -478,10 +478,14 @@ Client component (`TasksClient`) with:
 #### `/work-items` — Work Items
 Client component (`WorkItemsClient`) with:
 - Stats: Open Items / In Progress / Resolved / Open Tech Debt
-- Status tabs (All/Open/Planned/In Progress/Resolved), type filter dropdown, view toggle: **List** / **Debt Register**
-- List: table with title (+ mirrored-source icon), type/severity badges, asset + area, linked plan links, status badge — paginated (25/page; resets on filter change)
+- Status tabs (All/Open/Planned/In Progress/Resolved); type, asset, area, **severity** (multi-select) and **tag** (searchable, any-of) filters; source/triage filter when external items exist; view toggle: **List** / **Debt Register**
+- Severity, tags and sort live in the URL (`?severity=high,critical&tags=cuda&sort=severity&dir=asc`, logic in `lib/work-item-list.ts`), so a filtered list can be shared; active filters show as removable chips
+- List: table with title (+ triage badge, mirrored-source icon, up to three clickable `#tag` chips), type/severity badges, asset + area, linked plan links, status badge, created and updated; **Severity, Created and Updated headers sort** (descending → ascending → off) — paginated at 25/50/100 rows (remembered per viewer; resets on filter change)
 - Debt Register: open `tech_debt` items grouped by asset with critical/high rollups
-- Deep-linkable panel (`?item=<id>`): **auto-save editor** (selects commit on change, inputs on blur, toast confirm) — no view/edit mode split; link/unlink to plans; mirrored items disable tracker-owned fields (mutations also reject mirrored-field writes)
+- Deep-linkable panel (`?item=<id>`, also reachable at `/work-items/<id>`; opening and closing keeps the list's filters); tags in the panel link to the list filtered by that tag. **Auto-save editor** (selects commit on change, inputs on blur, toast confirm) — no view/edit mode split; link/unlink to plans; mirrored items disable tracker-owned fields (mutations also reject mirrored-field writes)
+
+#### Route aliases and 404
+`next.config.mjs` redirects `/code-plans[/…]` → `/plans[/…]`, `/work-items/<id>` → `/work-items?item=<id>`, and `/search?q=` → `/wiki?q=` (the wiki index forwards `q` to the product wiki's search). Unknown routes render `app/not-found.tsx`, a branded page linking the main sections.
 
 #### `/integrations` — Integrations
 Client component (`IntegrationsClient`) with:

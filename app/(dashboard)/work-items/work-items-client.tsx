@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { TRIAGE_LABELS } from '@/lib/intake-labels'
 import { triageStyles } from './triage-block'
-import { Filter, Plus, Circle, Play, CheckCircle2, Wrench, ExternalLink, List, Layers } from 'lucide-react'
+import { Filter, Plus, Circle, Play, CheckCircle2, Wrench, ExternalLink, List, Layers, ArrowDown, ArrowUp, ArrowUpDown, Tag, Check, X, ChevronDown } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { timeAgo } from '@/components/comments-panel'
+import {
+  SEVERITIES, PAGE_SIZES, parseListView, writeListView, matchesListView, sortItems, nextSort, tagCounts, normalizePageSize,
+  type ListView, type SortField,
+} from '@/lib/work-item-list'
 import type { WorkItemStatus, WorkItemType } from '@/lib/types'
 import type { WorkItemWithContext, AssetDebtInfo } from '@/lib/db/queries'
 import { cn } from '@/lib/utils'
@@ -30,7 +38,7 @@ import {
   type AssetOption,
 } from './work-item-panel'
 
-const PAGE_SIZE = 25
+const PAGE_SIZE_KEY = 'codeplans.workItems.pageSize'
 const UNASSIGNED_ASSET = '__unassigned__'
 const UNASSIGNED_AREA = '__unassigned__'
 
@@ -63,7 +71,31 @@ export function WorkItemsClient({
   const [sourceFilter, setSourceFilter] = useState<string>('all')
   const [view, setView] = useState<'list' | 'debt'>('list')
   const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState<number>(25)
   const [createOpen, setCreateOpen] = useState(false)
+
+  // Severity, tag and sort live in the URL so a filtered list can be shared.
+  const listView = useMemo(() => parseListView(new URLSearchParams(searchParams.toString())), [searchParams])
+  const updateListView = useCallback((patch: Partial<ListView>) => {
+    const params = writeListView(new URLSearchParams(window.location.search), { ...listView, ...patch })
+    const q = params.toString()
+    window.history.replaceState(null, '', q ? `/work-items?${q}` : '/work-items')
+    setPage(0)
+  }, [listView])
+  const toggleTag = useCallback((tag: string) => {
+    updateListView({ tags: listView.tags.includes(tag) ? listView.tags.filter((t) => t !== tag) : [...listView.tags, tag] })
+  }, [listView, updateListView])
+
+  // Rows per page is a per-viewer preference.
+  useEffect(() => {
+    try { setPageSize(normalizePageSize(window.localStorage.getItem(PAGE_SIZE_KEY))) } catch { /* storage unavailable */ }
+  }, [])
+  const changePageSize = (v: string) => {
+    const n = normalizePageSize(v)
+    setPageSize(n)
+    setPage(0)
+    try { window.localStorage.setItem(PAGE_SIZE_KEY, String(n)) } catch { /* storage unavailable */ }
+  }
 
   const openItemId = searchParams.get('item')
   const openItem = useMemo(
@@ -71,14 +103,23 @@ export function WorkItemsClient({
     [openItemId, items],
   )
 
+  // Opening and closing the drawer keeps the list's filters in the URL.
   const openPanel = useCallback((item: WorkItemWithContext) => {
-    window.history.pushState(null, '', `/work-items?item=${item.id}`)
+    const params = new URLSearchParams(window.location.search)
+    params.set('item', item.id)
+    window.history.pushState(null, '', `/work-items?${params}`)
   }, [])
 
   const closePanel = useCallback(() => {
     setCreateOpen(false)
-    if (openItemId) window.history.pushState(null, '', '/work-items')
+    if (!openItemId) return
+    const params = new URLSearchParams(window.location.search)
+    params.delete('item')
+    const q = params.toString()
+    window.history.pushState(null, '', q ? `/work-items?${q}` : '/work-items')
   }, [openItemId])
+
+  const allTags = useMemo(() => tagCounts(items), [items])
 
   const assetFilterOptions = useMemo(() => {
     const map = new Map<string, string>()
@@ -119,10 +160,11 @@ export function WorkItemsClient({
       const wanted = sourceFilter.split(':')[1]
       if (wanted && item.triageState !== wanted) return false
     }
-    return true
+    return matchesListView(item, listView)
   })
+  const sortedItems = sortItems(filteredItems, listView)
   const hasExternal = items.some((i) => i.origin === 'external')
-  const pageItems = filteredItems.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+  const pageItems = sortedItems.slice(page * pageSize, (page + 1) * pageSize)
 
   const openStatuses: WorkItemStatus[] = ['open', 'planned', 'in_progress']
   const stats = {
@@ -255,6 +297,8 @@ export function WorkItemsClient({
               )}
             </SelectContent>
           </Select>
+          <SeverityFilter value={listView.severities} onChange={(severities) => updateListView({ severities })} />
+          {allTags.length > 0 && <TagFilter tags={allTags} value={listView.tags} onToggle={toggleTag} onClear={() => updateListView({ tags: [] })} />}
           {hasExternal && (
             <Select value={sourceFilter} onValueChange={(v) => { setSourceFilter(v); setPage(0) }}>
               <SelectTrigger className="w-[170px]" aria-label="Source and triage">
@@ -281,6 +325,25 @@ export function WorkItemsClient({
         </div>
       </div>
 
+      {(listView.severities.length > 0 || listView.tags.length > 0) && view === 'list' && (
+        <div className="-mt-3 mb-4 flex flex-wrap items-center gap-1.5 text-xs" aria-label="Active filters">
+          {listView.severities.map((sv) => (
+            <button key={sv} type="button" onClick={() => updateListView({ severities: listView.severities.filter((x) => x !== sv) })}
+              className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 capitalize', severityStyles[sv])} aria-label={`Remove severity ${sv}`}>
+              {sv}<X className="h-3 w-3" />
+            </button>
+          ))}
+          {listView.tags.map((t) => (
+            <button key={t} type="button" onClick={() => toggleTag(t)}
+              className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5" aria-label={`Remove tag ${t}`}>
+              <Tag className="h-3 w-3" />{t}<X className="h-3 w-3" />
+            </button>
+          ))}
+          <button type="button" className="ml-1 text-muted-foreground underline-offset-2 hover:underline" onClick={() => updateListView({ severities: [], tags: [] })}>Clear</button>
+          <span className="text-muted-foreground">· {filteredItems.length} of {items.length}</span>
+        </div>
+      )}
+
       {view === 'debt' ? (
         <DebtRegister items={items} assetDebtInfo={assetDebtInfo} onOpen={openPanel} />
       ) : (
@@ -290,10 +353,12 @@ export function WorkItemsClient({
             <TableRow className="hover:bg-transparent">
               <TableHead>Item</TableHead>
               <TableHead>Type</TableHead>
-              <TableHead>Severity</TableHead>
+              <SortHead field="severity" label="Severity" view={listView} onSort={(f) => updateListView(nextSort(listView, f))} />
               <TableHead>Asset / Area</TableHead>
               <TableHead>Plans</TableHead>
               <TableHead>Status</TableHead>
+              <SortHead field="created" label="Created" view={listView} onSort={(f) => updateListView(nextSort(listView, f))} className="hidden lg:table-cell" />
+              <SortHead field="updated" label="Updated" view={listView} onSort={(f) => updateListView(nextSort(listView, f))} className="hidden lg:table-cell" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -314,7 +379,17 @@ export function WorkItemsClient({
                         </span>
                       )}
                     </p>
-                    <p className="text-xs text-muted-foreground truncate" title={item.productName}>{item.productName}</p>
+                    <p className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+                      <span className="truncate" title={item.productName}>{item.productName}</span>
+                      {item.tags.slice(0, 3).map((t) => (
+                        <button key={t} type="button" title={`Filter by tag ${t}`}
+                          onClick={(e) => { e.stopPropagation(); toggleTag(t) }}
+                          className={cn('shrink-0 rounded px-1 hover:bg-muted hover:text-foreground', listView.tags.includes(t) && 'bg-muted text-foreground')}>
+                          #{t}
+                        </button>
+                      ))}
+                      {item.tags.length > 3 && <span className="shrink-0">+{item.tags.length - 3}</span>}
+                    </p>
                   </div>
                 </TableCell>
                 <TableCell>
@@ -363,6 +438,8 @@ export function WorkItemsClient({
                     {statusLabel(item.status)}
                   </Badge>
                 </TableCell>
+                <TableCell className="hidden whitespace-nowrap text-xs text-muted-foreground lg:table-cell" title={item.createdAt} suppressHydrationWarning>{timeAgo(item.createdAt)}</TableCell>
+                <TableCell className="hidden whitespace-nowrap text-xs text-muted-foreground lg:table-cell" title={item.updatedAt} suppressHydrationWarning>{timeAgo(item.updatedAt)}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -375,18 +452,111 @@ export function WorkItemsClient({
             </p>
           </div>
         )}
-          {filteredItems.length > PAGE_SIZE && (
-            <div className="flex items-center justify-between border-t border-border px-4 py-3 text-sm text-muted-foreground">
-              <span>{page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filteredItems.length)} of {filteredItems.length}</span>
-              <div className="flex gap-1">
-                <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</Button>
-                <Button variant="outline" size="sm" disabled={(page + 1) * PAGE_SIZE >= filteredItems.length} onClick={() => setPage((p) => p + 1)}>Next</Button>
+          {filteredItems.length > PAGE_SIZES[0] && (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3 text-sm text-muted-foreground">
+              <span>{page * pageSize + 1}–{Math.min((page + 1) * pageSize, filteredItems.length)} of {filteredItems.length}</span>
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2">
+                  <span>Rows</span>
+                  <Select value={String(pageSize)} onValueChange={changePageSize}>
+                    <SelectTrigger className="h-8 w-[72px]" aria-label="Rows per page"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {PAGE_SIZES.map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </label>
+                <div className="flex gap-1">
+                  <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</Button>
+                  <Button variant="outline" size="sm" disabled={(page + 1) * pageSize >= filteredItems.length} onClick={() => setPage((p) => p + 1)}>Next</Button>
+                </div>
               </div>
             </div>
           )}
       </Card>
       )}
     </>
+  )
+}
+
+function SortHead({ field, label, view, onSort, className }: {
+  field: SortField
+  label: string
+  view: ListView
+  onSort: (field: SortField) => void
+  className?: string
+}) {
+  const active = view.sort === field
+  const Icon = !active ? ArrowUpDown : view.dir === 'desc' ? ArrowDown : ArrowUp
+  return (
+    <TableHead className={className} aria-sort={active ? (view.dir === 'desc' ? 'descending' : 'ascending') : 'none'}>
+      <button type="button" onClick={() => onSort(field)} className={cn('-ml-1 inline-flex items-center gap-1 rounded px-1 hover:text-foreground', active && 'text-foreground')}>
+        {label}
+        <Icon className={cn('h-3.5 w-3.5', !active && 'opacity-40')} />
+      </button>
+    </TableHead>
+  )
+}
+
+function SeverityFilter({ value, onChange }: { value: ListView['severities']; onChange: (v: ListView['severities']) => void }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="h-9 w-[150px] justify-between font-normal" aria-label="Severity filter">
+          <span className={cn('truncate', !value.length && 'text-muted-foreground')}>
+            {value.length === 0 ? 'All Severities' : value.length === 1 ? <span className="capitalize">{value[0]}</span> : `${value.length} severities`}
+          </span>
+          <ChevronDown className="h-4 w-4 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-48 p-2">
+        {SEVERITIES.map((sv) => (
+          <label key={sv} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted">
+            <Checkbox checked={value.includes(sv)} onCheckedChange={(c) => onChange(c ? [...value, sv] : value.filter((x) => x !== sv))} />
+            <Badge variant="secondary" className={cn('text-xs capitalize', severityStyles[sv])}>{sv}</Badge>
+          </label>
+        ))}
+        {value.length > 0 && <Button variant="ghost" size="sm" className="mt-1 w-full" onClick={() => onChange([])}>Clear</Button>}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+function TagFilter({ tags, value, onToggle, onClear }: {
+  tags: { tag: string; count: number }[]
+  value: string[]
+  onToggle: (tag: string) => void
+  onClear: () => void
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="h-9 w-[150px] justify-between font-normal" aria-label="Tag filter">
+          <span className={cn('flex min-w-0 items-center gap-1.5', !value.length && 'text-muted-foreground')}>
+            <Tag className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{value.length === 0 ? 'All Tags' : value.length === 1 ? value[0] : `${value.length} tags`}</span>
+          </span>
+          <ChevronDown className="h-4 w-4 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-64 p-0">
+        <Command>
+          <CommandInput placeholder="Search tags…" />
+          <CommandList className="max-h-72">
+            <CommandEmpty>No matching tags</CommandEmpty>
+            {tags.map(({ tag, count }) => (
+              <CommandItem key={tag} value={tag} onSelect={() => onToggle(tag)}>
+                <Check className={cn('h-4 w-4', value.includes(tag) ? 'opacity-100' : 'opacity-0')} />
+                <span className="truncate">{tag}</span>
+                <span className="ml-auto text-xs text-muted-foreground">{count}</span>
+              </CommandItem>
+            ))}
+          </CommandList>
+        </Command>
+        <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
+          Shows items with any selected tag.{value.length > 0 && <> <button type="button" className="underline" onClick={onClear}>Clear</button></>}
+        </p>
+      </PopoverContent>
+    </Popover>
   )
 }
 
