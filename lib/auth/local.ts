@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm'
 import { db as _db } from '@/lib/db'
 import { users } from '@/lib/db/schema'
 import type { AuthAdapter } from './types'
+import { getEnterpriseHooks } from '@/lib/ee/registry'
 
 // Local auth runs on either database (users comes from the schema barrel, so it
 // matches the active driver). Cast db to any to avoid pg/sqlite type conflicts.
@@ -49,11 +50,18 @@ export const {
   pages: { signIn: '/login' },
   callbacks: {
     jwt({ token, user }) {
-      if (user?.id) token.id = user.id
+      if (user?.id) {
+        token.id = user.id
+        // Where the session was issued (null in the community edition); a
+        // session read anywhere else carries no user. See sessionScope in
+        // lib/ee/types.ts.
+        token.scope = getEnterpriseHooks().sessionScope()
+      }
       return token
     },
     session({ session, token }) {
-      if (token.id && session.user) {
+      const inScope = (token.scope ?? null) === getEnterpriseHooks().sessionScope()
+      if (token.id && session.user && inScope) {
         session.user.id = token.id as string
       }
       return session

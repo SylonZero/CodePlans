@@ -10,6 +10,18 @@ describe('enterprise hook registry', () => {
     expect(getEnterpriseHooks().navItems()).toEqual([])
     expect(await getEnterpriseHooks().reviewGate({} as never)).toEqual({ allowed: true, reasons: [] })
     expect(getEnterpriseHooks().workflowLevels()).toEqual(['open', 'guided'])
+    expect(getEnterpriseHooks().workspaceDatabase()).toBeNull()
+    expect(getEnterpriseHooks().routeRequest({ host: 'localhost', pathname: '/', search: '' })).toBeNull()
+    expect(getEnterpriseHooks().sessionScope()).toBeNull()
+    expect(await getEnterpriseHooks().page({ area: 'dashboard', path: ['billing'], searchParams: {}, user: null })).toBeNull()
+    expect(await getEnterpriseHooks().handleApi({ request: new Request('http://localhost/api/ee/x'), path: ['x'], user: null })).toBeNull()
+    expect(getEnterpriseHooks().workspaceNotice()).toBeNull()
+  })
+
+  it('runs an inEachWorkspace job exactly once by default', async () => {
+    const job = vi.fn(async () => {})
+    await getEnterpriseHooks().inEachWorkspace('maintenance', job)
+    expect(job).toHaveBeenCalledTimes(1)
   })
 
   it('lets registered overrides replace individual hooks', () => {

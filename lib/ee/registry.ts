@@ -20,6 +20,13 @@ const defaultHooks: EnterpriseHooks = {
   navItems: () => [],
   reviewGate: () => ({ allowed: true, reasons: [] }),
   workflowLevels: () => ['open', 'guided'],
+  workspaceDatabase: () => null,
+  inEachWorkspace: (_kind, job) => job(),
+  routeRequest: () => null,
+  sessionScope: () => null,
+  page: () => null,
+  handleApi: () => null,
+  workspaceNotice: () => null,
 }
 
 const REGISTRY_KEY = Symbol.for('codeplans.ee.registry')

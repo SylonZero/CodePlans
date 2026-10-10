@@ -11,6 +11,7 @@
 // reinforces this by telling Next.js to leave it to a plain runtime
 // `require`/`import()` instead of tracing it at build time.
 import { registerEnterpriseHooks } from './registry'
+import { enterpriseHost } from './host'
 import type { EnterpriseModule } from './types'
 
 const ENTERPRISE_PACKAGE_NAME = '@codeplans/enterprise'
@@ -31,7 +32,7 @@ export async function loadEnterpriseModule(): Promise<void> {
       | EnterpriseModule
       | { default: EnterpriseModule }
     const enterpriseModule = 'default' in mod ? mod.default : mod
-    enterpriseModule.register(registerEnterpriseHooks)
+    enterpriseModule.register(registerEnterpriseHooks, enterpriseHost)
     console.log(`[ee] loaded ${ENTERPRISE_PACKAGE_NAME}`)
   } catch (err) {
     console.warn(
