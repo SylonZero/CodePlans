@@ -58,6 +58,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       products={productList}
       selectedProductId={selectedProductId}
       extraNavItems={getEnterpriseHooks().navItems()}
+      notice={getEnterpriseHooks().workspaceNotice()}
       unreadNotifications={unreadNotifications}
     >
       {children}

@@ -52,14 +52,22 @@ export async function bootServer() {
     return fatal('AUTH_SECRET is not set. Generate one with `openssl rand -base64 32` and set it as a secret.')
   }
 
+  // Migrations and first-run checks run per database: once in the community
+  // edition, once per workspace when an enterprise module supplies several.
+  const { getEnterpriseHooks } = await import('@/lib/ee/registry')
+  try {
+    await getEnterpriseHooks().inEachWorkspace('maintenance', prepareDatabase)
+  } catch (err) {
+    return fatal(`migration failed; not starting: ${err instanceof Error ? err.message : err}`)
+  }
+}
+
+/** Applies migrations (when enabled) and runs first-run setup on the current database. */
+export async function prepareDatabase() {
   if (migrateOnBoot()) {
-    try {
-      const { migrateDatabase } = await import('@/lib/db/migrate')
-      const r = await migrateDatabase()
-      console.log(`[boot] migrations: ${r.applied ? `applied ${r.applied}, ` : ''}${r.total} total, schema up to date`)
-    } catch (err) {
-      return fatal(`migration failed; not starting: ${err instanceof Error ? err.message : err}`)
-    }
+    const { migrateDatabase } = await import('@/lib/db/migrate')
+    const r = await migrateDatabase()
+    console.log(`[boot] migrations: ${r.applied ? `applied ${r.applied}, ` : ''}${r.total} total, schema up to date`)
   }
 
   try {
@@ -73,4 +81,7 @@ export async function bootServer() {
     // An unmigrated database (MIGRATE_ON_BOOT=false) lands here; don't crash.
     console.error('[setup] first-run check failed:', err instanceof Error ? err.message : err)
   }
+
+  const { ensureTeamWorkspace } = await import('@/lib/db/bootstrap')
+  await ensureTeamWorkspace()
 }

@@ -1,5 +1,6 @@
 import { timingSafeEqual } from 'crypto'
 import { runNotificationJobs } from '@/lib/db/notification-delivery'
+import { getEnterpriseHooks } from '@/lib/ee/registry'
 
 // Sends due email/Slack deliveries, retries failures and prunes old rows.
 // Call it every minute or few from Vercel Cron or a system cron with
@@ -19,7 +20,10 @@ function authorized(req: Request) {
 async function handle(req: Request) {
   if (!process.env.CRON_SECRET) return Response.json({ error: 'Set CRON_SECRET to enable this endpoint' }, { status: 503 })
   if (!authorized(req)) return Response.json({ error: 'Unauthorized' }, { status: 401 })
-  return Response.json(await runNotificationJobs())
+  // One result per database: a single entry in the community edition.
+  const results: Awaited<ReturnType<typeof runNotificationJobs>>[] = []
+  await getEnterpriseHooks().inEachWorkspace('background', async () => { results.push(await runNotificationJobs()) })
+  return Response.json(results.length === 1 ? results[0] : results)
 }
 
 export const GET = handle

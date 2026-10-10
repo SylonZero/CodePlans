@@ -61,12 +61,37 @@ const extraNavItems = getEnterpriseHooks().navItems() // [] unless enabled
 | `navItems()` | Dashboard sidebar. `href` is an in-app path or an absolute http(s) URL, which opens in a new tab (the enterprise edition links billing this way) | `[]` |
 | `reviewGate(ctx)` | `lib/db/workflow.ts` `checkActivation`, on every activation path: a spec becoming active, a plan being activated, a task being started (UI, API and MCP alike) | `{ allowed: true, reasons: [] }` |
 | `workflowLevels()` | Workflow settings (which levels a product or org may be set to) | `['open', 'guided']` |
+| `workspaceDatabase()` | `lib/db/index.ts`, on every `db` access: which database the current request or job uses, and whether it is read-only | `null` (use `DATABASE_URL`) |
+| `inEachWorkspace(kind, job)` | Boot (`lib/server-boot.ts`: migrations, first-run setup, workspace bootstrap), the in-process notification timer and `/api/cron/notifications` | runs `job` once |
+| `routeRequest(req)` | `proxy.ts`, before the session check | `null` (continue) |
+| `sessionScope()` | Auth.js callbacks in `lib/auth/local.ts`: stored in the session token at sign-in; a session read where the scope differs has no user | `null` |
+| `page(req)` | `/ee/<path>` (signed in, in the app shell) and `/p/<path>` (public), rendered from plain data by `components/ee-page.tsx` | `null` (404) |
+| `handleApi(req)` | `/api/ee/<path>`, which skips the session redirect | `null` (404) |
+| `workspaceNotice()` | Dashboard layout: a banner above every page | `null` |
 
 `reviewGate` receives plain data — product, subject, transition, actor and
 actor kind, the product's workflow level, whether an approval covers the
 subject's current content, the code owners it touches and its author — and
 returns `{ allowed, reasons }`. When `allowed` is false the caller throws with
 the reasons, which reach the user or agent verbatim.
+
+### The `db` proxy
+
+`db` from `lib/db` is a proxy. Each property access asks `workspaceDatabase()`
+for the current database and forwards to it, opening each database URL once.
+With no enterprise module that is always `DATABASE_URL`, so the community
+edition behaves exactly as with a plain Drizzle instance. When the hook marks a
+database read-only, `insert`, `update`, `delete`, `transaction` and the raw
+write methods throw `ReadOnlyDatabaseError` with the hook's message, and reads
+still work. The URL a hook returns must use the configured `DB_PROVIDER`: the
+schema is chosen once per process.
+
+### Host functions
+
+`register` receives a second argument, `EnterpriseHost`, with community
+functions a module can call: `migrateDatabase()`, `createOwnerAccount()` and
+`countMembers()`. They act on the current database, so a module that supplies
+several databases calls them inside its own workspace context.
 
 ## Adding a new extension point
 

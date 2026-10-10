@@ -44,7 +44,7 @@ import {
 import { signOut } from '@/app/(auth)/actions'
 import { setProductScopeAction } from '@/lib/actions/product-scope'
 import { ProductCreateDialog } from '@/components/product-create-dialog'
-import type { NavExtension } from '@/lib/ee/types'
+import type { EnterpriseNotice, NavExtension } from '@/lib/ee/types'
 import { isExternalNavHref } from '@/lib/ee/nav'
 
 type AppShellProps = {
@@ -56,6 +56,8 @@ type AppShellProps = {
   selectedProductId: string | null
   /** Extra nav items contributed by the private enterprise module, if any. */
   extraNavItems?: NavExtension[]
+  /** A banner from the private enterprise module (e.g. a trial ending), if any. */
+  notice?: EnterpriseNotice | null
 }
 
 // Extension points can only reference icons by name (see NavExtension in
@@ -90,7 +92,7 @@ const secondaryNavigation = [
   { name: 'Settings', href: '/settings', icon: Settings },
 ]
 
-export function AppShell({ children, user, orgName, products, selectedProductId, extraNavItems = [], unreadNotifications = 0 }: AppShellProps) {
+export function AppShell({ children, user, orgName, products, selectedProductId, extraNavItems = [], notice = null, unreadNotifications = 0 }: AppShellProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -358,6 +360,22 @@ export function AppShell({ children, user, orgName, products, selectedProductId,
           </div>
         </header>
 
+        {notice && (
+          <div
+            role="status"
+            className={cn(
+              'flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-6 py-2 text-sm lg:px-8',
+              notice.tone === 'warning' ? 'border-amber-500/40 bg-amber-500/10' : 'bg-muted/40'
+            )}
+          >
+            <span>{notice.text}</span>
+            {notice.href && (
+              <Link href={notice.href} className="font-medium text-primary underline-offset-4 hover:underline">
+                {notice.linkLabel ?? 'Details'}
+              </Link>
+            )}
+          </div>
+        )}
         <main className="flex-1 overflow-y-auto p-6 lg:p-8">{children}</main>
       </div>
     </div>
