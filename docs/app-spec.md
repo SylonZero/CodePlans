@@ -352,7 +352,7 @@ All routes share `AppShell`: 64px top header + 256px sidebar. Sidebar contains:
 - Secondary nav: Team, Integrations, Settings
 - Org/user footer: org name, links to Team/Settings
 
-**Header:** Global search input (cosmetic — not wired), bell icon (cosmetic), user avatar dropdown with sign out.
+**Header:** Global search (`components/search-palette.tsx`): `/` or Cmd/Ctrl+K opens a palette that searches as you type via `GET /api/search`, grouped by type; "See all results" opens `/search?q=` with per-type tabs, counts and paging. Search (`lib/db/search.ts`) covers products, assets, code plans, tasks, work items, specs and releases in every product the user can see (`productAccessWhere`; archived products and assets excluded): every word must appear, case-insensitively, in the title, text or external key, title matches rank first, then most recent. Plain `lower() like`, so it runs the same on SQLite and Postgres with no index. Agents get the same search as the `search` MCP tool. Also: bell icon (cosmetic), user avatar dropdown with sign out.
 
 ---
 
@@ -476,7 +476,7 @@ Client component (`WorkItemsClient`) with:
 - Deep-linkable panel (`?item=<id>`, also reachable at `/work-items/<id>`; opening and closing keeps the list's filters); tags in the panel link to the list filtered by that tag. **Auto-save editor** (selects commit on change, inputs on blur, toast confirm) — no view/edit mode split; link/unlink to plans; mirrored items disable tracker-owned fields (mutations also reject mirrored-field writes)
 
 #### Route aliases and 404
-`next.config.mjs` redirects `/code-plans[/…]` → `/plans[/…]`, `/work-items/<id>` → `/work-items?item=<id>`, and `/search?q=` → `/wiki?q=` (the wiki index forwards `q` to the product wiki's search). Unknown routes render `app/not-found.tsx`, a branded page linking the main sections.
+`next.config.mjs` redirects `/code-plans[/…]` → `/plans[/…]`, and `/work-items/<id>` → `/work-items?item=<id>`. (`/search` used to redirect to the wiki's search; it is now the global search page, which links to the wiki's document search.) Unknown routes render `app/not-found.tsx`, a branded page linking the main sections.
 
 #### `/integrations` — Integrations
 Client component (`IntegrationsClient`) with:

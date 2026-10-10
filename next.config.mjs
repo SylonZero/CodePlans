@@ -33,7 +33,6 @@ const nextConfig = {
       { source: '/code-plans', destination: '/plans', permanent: false },
       { source: '/code-plans/:path*', destination: '/plans/:path*', permanent: false },
       { source: '/work-items/:id', destination: '/work-items?item=:id', permanent: false },
-      { source: '/search', destination: '/wiki', permanent: false },
     ]
   },
 }

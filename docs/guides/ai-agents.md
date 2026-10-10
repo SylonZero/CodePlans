@@ -30,6 +30,7 @@ the server lives inside the Next.js app.
 
 | Area | Tools |
 |---|---|
+| Search | `search`: text search across products, assets, plans, tasks, work items, specs and releases |
 | Products & assets | `list_products` · `get_product` · `get_asset` · `get_modeling_guide` |
 | Demand & debt | `list_work_items` · `get_tech_debt_register` |
 | Plans & tasks | `list_code_plans` · `get_code_plan` |

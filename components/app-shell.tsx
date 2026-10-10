@@ -31,7 +31,6 @@ import {
   X,
   Bell,
   FileText,
-  Search,
   Building2,
   Boxes,
   Layers,
@@ -44,6 +43,7 @@ import {
 import { signOut } from '@/app/(auth)/actions'
 import { setProductScopeAction } from '@/lib/actions/product-scope'
 import { ProductCreateDialog } from '@/components/product-create-dialog'
+import { SearchPalette } from '@/components/search-palette'
 import type { EnterpriseNotice, NavExtension } from '@/lib/ee/types'
 import { isExternalNavHref } from '@/lib/ee/nav'
 
@@ -300,17 +300,7 @@ export function AppShell({ children, user, orgName, products, selectedProductId,
             <Menu className="h-5 w-5" />
           </Button>
 
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search plans, tasks, assets..."
-              className="h-9 w-full rounded-md border border-input bg-input pl-9 pr-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-            <kbd className="absolute right-3 top-1/2 -translate-y-1/2 rounded border border-border bg-muted px-1.5 text-xs text-muted-foreground">
-              /
-            </kbd>
-          </div>
+          <SearchPalette />
 
           <div className="ml-auto flex items-center gap-2">
             {user.viewOnly && (
