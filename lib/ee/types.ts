@@ -157,7 +157,7 @@ export type EnterpriseHost = {
   migrateDatabase: () => Promise<{ applied: number; total: number }>
   /** Creates the owner account and its workspace organization; returns the user id. */
   createOwnerAccount: (input: { email: string; password: string; name: string; orgName?: string }) => Promise<string>
-  /** Number of members in the current database's workspace. */
+  /** Number of joined members (not pending invites) in the current database's workspace. */
   countMembers: () => Promise<number>
 }
 

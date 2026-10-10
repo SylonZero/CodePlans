@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runMigrations, clearTables } from '@/tests/helpers/db'
 import { db, ReadOnlyDatabaseError } from '@/lib/db/index'
-import { users } from '@/lib/db/schema.sqlite'
+import { users, organizations, organizationMembers } from '@/lib/db/schema.sqlite'
 import { registerEnterpriseHooks, resetEnterpriseHooks } from '@/lib/ee/registry'
 import { enterpriseHost } from '@/lib/ee/host'
 
@@ -36,8 +36,16 @@ describe('db without an enterprise module', () => {
     expect(await emails()).toEqual(['community@example.com'])
   })
 
-  it('counts workspace members through the host API', async () => {
+  it('counts joined workspace members, not pending invites, through the host API', async () => {
     expect(await enterpriseHost.countMembers()).toBe(0)
+    const [joined, invited] = [crypto.randomUUID(), crypto.randomUUID()]
+    await d.insert(users).values([{ id: joined, email: 'j@example.com', name: 'J' }, { id: invited, email: 'i@example.com', name: 'I' }])
+    const [org] = await d.insert(organizations).values({ name: 'W', slug: 'w', ownerId: joined }).returning()
+    await d.insert(organizationMembers).values([
+      { organizationId: org.id, userId: joined, role: 'owner', joinedAt: new Date() },
+      { organizationId: org.id, userId: invited, role: 'editor', joinedAt: null },
+    ])
+    expect(await enterpriseHost.countMembers()).toBe(1)
   })
 })
 

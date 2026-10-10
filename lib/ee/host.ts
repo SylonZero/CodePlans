@@ -16,8 +16,9 @@ export const enterpriseHost: EnterpriseHost = {
   async countMembers() {
     const { db } = await import('@/lib/db')
     const { organizationMembers } = await import('@/lib/db/schema')
-    const { count } = await import('drizzle-orm')
-    const [row] = await db.select({ n: count() }).from(organizationMembers)
+    const { count, isNotNull } = await import('drizzle-orm')
+    // Joined members only: pending invites aren't members yet.
+    const [row] = await db.select({ n: count() }).from(organizationMembers).where(isNotNull(organizationMembers.joinedAt))
     return Number(row?.n ?? 0)
   },
 }
