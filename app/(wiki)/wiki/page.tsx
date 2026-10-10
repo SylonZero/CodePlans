@@ -4,8 +4,8 @@ import { authAdapter } from '@/lib/auth'
 import { getProducts } from '@/lib/db/queries'
 import { getProductScope } from '@/lib/product-scope'
 import { wikiHref } from '@/lib/wiki/model'
-// /search?q= redirects here (next.config.mjs); the query carries on to the
-// product wiki's search.
+// A ?q= query (e.g. from the global /search page's wiki link) carries on to
+// the product wiki's search.
 export default async function WikiIndex({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const raw = await searchParams
   const q = typeof raw.q === 'string' ? raw.q.slice(0, 250) : undefined

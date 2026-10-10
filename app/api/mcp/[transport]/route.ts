@@ -59,6 +59,7 @@ import {
   moveAsset,
 } from '@/lib/db/mutations'
 import { getAssetOptions, getAssetDetail } from '@/lib/db/queries'
+import { search, SEARCH_TYPES } from '@/lib/db/search'
 import { resolveAssigneeEmail } from '@/lib/mcp/users'
 import { paginate, compactWorkItem, compactSpec, DEFAULT_LIMIT, MAX_LIMIT } from '@/lib/mcp/list-shape'
 import { TRIAGE_STATES, DECLINE_REASONS, IntakeError, importExternalWorkItems, triageWorkItem } from '@/lib/db/intake'
@@ -215,6 +216,16 @@ const handler = createMcpHandler(
     }, async ({ fields, limit, cursor, ...filters }, extra) => {
       const page = paginate(await listSpecs(uid(extra), filters), { limit, cursor })
       return json(fields === 'full' ? page : { ...page, items: page.items.map(compactSpec) })
+    })
+
+    server.tool('search', 'Find products, assets, code plans, tasks, work items, specs and releases by text across every product you can see. Every word must appear (case-insensitive) in the title, text or external key (e.g. JIRA-142); use "quotes" for a phrase. Title matches rank first, then most recently updated. Returns { results, counts } with up to `limit` results per type; each result has type, id, title, snippet, url, productId, productName, status, key and, for tasks, the plan title as context. Use the get_* tools to read a result in full.', {
+      query: z.string().min(2),
+      types: z.array(z.enum(SEARCH_TYPES)).optional(),
+      productId: z.string().optional(),
+      limit: z.number().int().min(1).max(50).default(10),
+    }, async ({ query, types, productId, limit }, extra) => {
+      const { results, counts } = await search(uid(extra), query, { types, productId, limit, withCounts: true })
+      return json({ results, counts })
     })
 
     // ── Read tools ─────────────────────────────────────────────────────────
