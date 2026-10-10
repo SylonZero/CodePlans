@@ -16,6 +16,7 @@ describe('enterprise hook registry', () => {
     expect(await getEnterpriseHooks().page({ area: 'dashboard', path: ['billing'], searchParams: {}, user: null })).toBeNull()
     expect(await getEnterpriseHooks().handleApi({ request: new Request('http://localhost/api/ee/x'), path: ['x'], user: null })).toBeNull()
     expect(getEnterpriseHooks().workspaceNotice()).toBeNull()
+    expect(getEnterpriseHooks().health()).toBeNull()
   })
 
   it('runs an inEachWorkspace job exactly once by default', async () => {

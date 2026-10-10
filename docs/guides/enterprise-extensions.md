@@ -68,6 +68,7 @@ const extraNavItems = getEnterpriseHooks().navItems() // [] unless enabled
 | `page(req)` | `/ee/<path>` (signed in, in the app shell) and `/p/<path>` (public), rendered from plain data by `components/ee-page.tsx` | `null` (404) |
 | `handleApi(req)` | `/api/ee/<path>`, which skips the session redirect | `null` (404) |
 | `workspaceNotice()` | Dashboard layout: a banner above every page | `null` |
+| `health()` | `/api/health`: whether the app is healthy, for deployments where a bare health check has no database of its own | `null` (query the current database) |
 
 `reviewGate` receives plain data — product, subject, transition, actor and
 actor kind, the product's workflow level, whether an approval covers the
