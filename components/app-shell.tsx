@@ -319,7 +319,7 @@ export function AppShell({ children, user, orgName, products, selectedProductId,
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="gap-2 px-2">
                   <Avatar className="h-7 w-7">
-                    <AvatarFallback className="bg-accent text-accent-foreground text-xs">
+                    <AvatarFallback className="bg-brand text-neutral-950 text-xs font-medium">
                       {initials}
                     </AvatarFallback>
                   </Avatar>

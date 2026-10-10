@@ -25,8 +25,8 @@ export function VelocityChart({ data = [] }: { data?: VelocityWeek[] }) {
             <AreaChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
               <defs>
                 <linearGradient id="colorTasks" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="oklch(0.7 0.15 145)" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="oklch(0.7 0.15 145)" stopOpacity={0} />
+                  <stop offset="5%" stopColor="oklch(0.8 0.14 196)" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="oklch(0.8 0.14 196)" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.22 0 0)" vertical={false} />
@@ -65,7 +65,7 @@ export function VelocityChart({ data = [] }: { data?: VelocityWeek[] }) {
               <Area
                 type="monotone"
                 dataKey="completed"
-                stroke="oklch(0.7 0.15 145)"
+                stroke="oklch(0.8 0.14 196)"
                 strokeWidth={2}
                 fill="url(#colorTasks)"
                 name="Completed"
@@ -75,7 +75,7 @@ export function VelocityChart({ data = [] }: { data?: VelocityWeek[] }) {
         </div>
         <div className="mt-4 flex items-center justify-center gap-6 text-sm">
           <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-accent" />
+            <div className="h-3 w-3 rounded-full bg-brand" />
             <span className="text-muted-foreground">Completed Tasks</span>
           </div>
           <div className="flex items-center gap-2">

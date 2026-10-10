@@ -199,7 +199,7 @@ function ProfileTab({ user, org, pendingEmailChange, emailJustVerified }: Props)
         <CardContent className="space-y-6">
           <div className="flex items-center gap-6">
             <Avatar className="h-20 w-20">
-              <AvatarFallback className="bg-accent text-accent-foreground text-xl">
+              <AvatarFallback className="bg-brand text-neutral-950 text-xl font-medium">
                 {name.split(' ').map((n) => n[0]).join('')}
               </AvatarFallback>
             </Avatar>
