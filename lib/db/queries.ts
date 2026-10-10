@@ -1,4 +1,5 @@
 import { getAssetSpecs } from './specs'
+import { sortTasks } from '@/lib/task-order'
 import { specEvents } from './schema'
 import { db } from './index'
 import {
@@ -21,7 +22,7 @@ import {
   assetDesignLog,
   assetCapabilities,
 } from './schema'
-import { eq, and, sql, desc, or, inArray, gte, isNotNull, isNull } from 'drizzle-orm'
+import { asc, eq, and, sql, desc, or, inArray, gte, isNotNull, isNull } from 'drizzle-orm'
 import type {
   Product,
   Asset,
@@ -473,10 +474,10 @@ export async function getCodePlan(id: string, userId: string): Promise<CodePlanD
   })
   if (!product) return null
 
-  const [planTasks, planAssetRows] = await Promise.all([
+  const [unorderedTasks, planAssetRows] = await Promise.all([
     db.query.tasks.findMany({
       where: eq(tasks.codePlanId, id),
-      orderBy: desc(tasks.createdAt),
+      orderBy: asc(tasks.createdAt),
     }),
     db
       .select({
@@ -493,6 +494,8 @@ export async function getCodePlan(id: string, userId: string): Promise<CodePlanD
       .where(eq(codePlanAssets.codePlanId, id)),
   ])
 
+  // Title order, numbers compared naturally (T2 before T10): agents number their tasks.
+  const planTasks = sortTasks(unorderedTasks)
   const resolvedAssets = planAssetRows.map((r) => ({ id: r.assetId, name: r.assetName }))
 
   // Assignees are derived from who's actually assigned to the plan's tasks —

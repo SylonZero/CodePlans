@@ -76,8 +76,9 @@ function slugify(name: string): string {
     .replace(/^-+|-+$/g, '')
 }
 
-function parseTags(raw: string): string[] {
-  return raw
+/** Comma-separated tags; a missing field (e.g. the plan page's quick-add) means none. */
+function parseTags(raw: string | null | undefined): string[] {
+  return (raw ?? '')
     .split(',')
     .map((t) => t.trim())
     .filter(Boolean)
@@ -428,7 +429,6 @@ export async function createTaskAction(codePlanId: string, formData: FormData) {
   }, await currentEditor())
 
   revalidatePath(`/plans/${codePlanId}`)
-  revalidatePath('/tasks')
 }
 
 export async function updateTaskAction(id: string, formData: FormData) {
@@ -457,7 +457,6 @@ export async function updateTaskAction(id: string, formData: FormData) {
     endDate: (formData.get('endDate') as string) || undefined,
   }, await currentEditor())
 
-  revalidatePath('/tasks')
   revalidatePath('/plans/[id]', 'page')
   revalidatePath('/plans')
 }
@@ -465,7 +464,6 @@ export async function updateTaskAction(id: string, formData: FormData) {
 export async function updateTaskStatusAction(id: string, status: 'not_started' | 'in_progress' | 'done') {
   await requireWriter({ taskId: id })
   await updateTaskStatus(id, status, await currentEditor())
-  revalidatePath('/tasks')
   revalidatePath('/plans/[id]', 'page')
   revalidatePath('/plans')
 }
@@ -477,7 +475,6 @@ export async function deleteTaskAction(id: string, planId: string) {
   }
   await deleteTask(id, await currentEditor())
   revalidatePath(`/plans/${planId}`)
-  revalidatePath('/tasks')
 }
 
 // ---------------------------------------------------------------------------
@@ -919,7 +916,6 @@ export async function linkPlanScopeAction(
   const result = await syncConnection(connectionId)
 
   revalidatePath(`/plans/${planId}`)
-  revalidatePath('/tasks')
   return result
 }
 
@@ -927,7 +923,6 @@ export async function unlinkPlanScopeAction(planId: string) {
   await requireWriter({ codePlanId: planId })
   await unlinkPlanFromExternalScope(planId, await currentEditor())
   revalidatePath(`/plans/${planId}`)
-  revalidatePath('/tasks')
 }
 
 // ---------------------------------------------------------------------------
@@ -955,7 +950,6 @@ export async function revokeApiKeyAction(id: string) {
 export async function updateTaskPriorityAction(id: string, priority: 'low' | 'medium' | 'high' | 'critical') {
   await requireWriter({ taskId: id })
   await updateTask(id, { priority }, await currentEditor())
-  revalidatePath('/tasks')
   revalidatePath('/plans/[id]', 'page')
   revalidatePath('/plans')
 }
@@ -964,7 +958,6 @@ export async function moveTaskToPlanAction(id: string, codePlanId: string) {
   await requireWriter({ taskId: id }, { codePlanId })
   const { moveTaskToPlan } = await import('@/lib/db/mutations')
   await moveTaskToPlan(id, codePlanId, await currentEditor())
-  revalidatePath('/tasks')
   revalidatePath('/plans/[id]', 'page')
   revalidatePath('/plans')
 }
@@ -972,7 +965,6 @@ export async function moveTaskToPlanAction(id: string, codePlanId: string) {
 export async function updateTaskAssigneeAction(id: string, assigneeId: string | null) {
   await requireWriter({ taskId: id })
   await updateTask(id, { assigneeId }, await currentEditor())
-  revalidatePath('/tasks')
   revalidatePath('/plans/[id]', 'page')
 }
 

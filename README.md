@@ -90,7 +90,7 @@ See the [reviews guide](docs/guides/reviews-and-comments.md), [My Work guide](do
 | Workspace product switcher (filter all pages by product) | ✅ Available |
 | Tech debt scoring per asset | ✅ Available |
 | Code Plans with status lifecycle (draft → active → completed) | ✅ Available |
-| Task management (list & kanban views, deep-linkable task panel) | ✅ Available |
+| Plan tasks (list & board views, numbered titles in natural order, deep-linkable task panel) | ✅ Available |
 | Dashboard with velocity metrics | ✅ Available |
 | Organization & team management | ✅ Available |
 | Role-based access (owner / admin / editor / viewer) | ✅ Available |
@@ -267,7 +267,7 @@ CodePlans/
 │       ├── page.tsx            # Dashboard
 │       ├── products/           # Product list + detail
 │       ├── plans/              # Code Plans list + detail
-│       ├── tasks/              # Task management
+│       ├── tasks/              # Redirects old task links to their plan
 │       ├── team/               # Team & org management
 │       ├── analytics/          # Analytics
 │       └── settings/           # User settings

@@ -51,8 +51,14 @@ const typeStyles: Record<CodePlanType, string> = {
   bugfix: 'bg-chart-5/20 text-chart-5',
 }
 
-export default async function PlanDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PlanDetailPage({ params, searchParams }: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   const { id } = await params
+  const query = await searchParams
+  // A task link (?task=<id>, from My Work or a notification) opens on the Tasks tab.
+  const initialTab = query.task || query.tab === 'tasks' ? 'tasks' : 'overview'
   const user = await authAdapter.getUser()
   if (!user) return null
 
@@ -223,7 +229,7 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
       {/* The spec is the work's anchor: description + linked design spec live in
           a default Overview tab so they read properly and every tab's content
           starts above the fold. */}
-      <Tabs defaultValue="overview">
+      <Tabs defaultValue={initialTab}>
         <div className="flex items-center justify-between flex-wrap gap-2">
           <TabsList className="bg-muted">
             <TabsTrigger value="overview">Overview</TabsTrigger>
