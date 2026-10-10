@@ -7,6 +7,10 @@
 export type NavExtension = {
   id: string
   name: string
+  /**
+   * An in-app path (e.g. "/audit-log") or an absolute http(s) URL (e.g. a
+   * hosted billing portal). Absolute URLs open in a new tab.
+   */
   href: string
   /**
    * Name of a lucide-react icon (e.g. "ShieldCheck"), resolved client-side

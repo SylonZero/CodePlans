@@ -39,11 +39,13 @@ import {
   Rocket,
   BookOpen,
   ShieldCheck,
+  CreditCard,
 } from 'lucide-react'
 import { signOut } from '@/app/(auth)/actions'
 import { setProductScopeAction } from '@/lib/actions/product-scope'
 import { ProductCreateDialog } from '@/components/product-create-dialog'
 import type { NavExtension } from '@/lib/ee/types'
+import { isExternalNavHref } from '@/lib/ee/nav'
 
 type AppShellProps = {
   children: React.ReactNode
@@ -62,6 +64,7 @@ type AppShellProps = {
 // available; unrecognized names fall back to a generic icon below.
 const EXTRA_NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   ShieldCheck,
+  CreditCard,
 }
 
 function resolveExtraNavIcon(name: string) {
@@ -261,10 +264,14 @@ export function AppShell({ children, user, orgName, products, selectedProductId,
               {extraNavItems.map((item) => {
                 const isActive = pathname === item.href
                 const Icon = resolveExtraNavIcon(item.icon)
+                const external = isExternalNavHref(item.href)
                 return (
                   <Link
                     key={item.id}
                     href={item.href}
+                    target={external ? '_blank' : undefined}
+                    rel={external ? 'noopener noreferrer' : undefined}
+                    aria-label={external ? `${item.name} (opens in a new tab)` : undefined}
                     className={cn(
                       'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                       isActive

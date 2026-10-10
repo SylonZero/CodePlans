@@ -58,7 +58,7 @@ const extraNavItems = getEnterpriseHooks().navItems() // [] unless enabled
 
 | Hook | Called from | Community default |
 |---|---|---|
-| `navItems()` | Dashboard sidebar | `[]` |
+| `navItems()` | Dashboard sidebar. `href` is an in-app path or an absolute http(s) URL, which opens in a new tab (the enterprise edition links billing this way) | `[]` |
 | `reviewGate(ctx)` | `lib/db/workflow.ts` `checkActivation`, on every activation path: a spec becoming active, a plan being activated, a task being started (UI, API and MCP alike) | `{ allowed: true, reasons: [] }` |
 | `workflowLevels()` | Workflow settings (which levels a product or org may be set to) | `['open', 'guided']` |
 
