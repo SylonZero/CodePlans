@@ -1,31 +1,13 @@
-import { authAdapter } from '@/lib/auth'
-import { getTasks, getCodePlans, getTeamMembers } from '@/lib/db/queries'
-import { getProductScope } from '@/lib/product-scope'
-import { db } from '@/lib/db'
-import { users } from '@/lib/db/schema'
+import { redirect } from 'next/navigation'
 import { eq } from 'drizzle-orm'
-import { TasksClient } from './tasks-client'
+import { db } from '@/lib/db'
+import { tasks } from '@/lib/db/schema'
 
-export default async function TasksPage() {
-  const user = await authAdapter.getUser()
-  if (!user) return null
-
-  const scope = await getProductScope()
-
-  const [tasks, plans, profile] = await Promise.all([
-    getTasks(user.id, { productId: scope ?? undefined }),
-    getCodePlans(user.id, { status: 'active', productId: scope ?? undefined }),
-    db.query.users.findFirst({ where: eq(users.id, user.id) }),
-  ])
-
-  const teamMembers = profile?.organizationId ? await getTeamMembers(profile.organizationId) : []
-
-  const planList = plans.map((p) => ({ id: p.id, title: p.title }))
-  const memberList = teamMembers.map((m) => ({ id: m.userId, name: m.user.name }))
-
-  return (
-    <div className="space-y-8">
-      <TasksClient tasks={tasks} plans={planList} members={memberList} currentUserId={user.id} />
-    </div>
-  )
+// Tasks live on their code plan. Old /tasks?task=<id> links (bookmarks,
+// notification emails) open the task on its plan; access is checked there.
+export default async function TasksRedirect({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const raw = (await searchParams).task
+  const id = typeof raw === 'string' ? raw : undefined
+  const task = id ? await db.query.tasks.findFirst({ where: eq(tasks.id, id), columns: { codePlanId: true } }) : undefined
+  redirect(task ? `/plans/${task.codePlanId}?task=${id}` : '/plans')
 }

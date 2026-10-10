@@ -34,7 +34,7 @@ import { Slider } from '@/components/ui/slider'
 import { toast } from 'sonner'
 import type { TaskStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { createTaskAction, updateTaskAction, deleteTaskAction } from '../actions'
+import { createTaskAction, updateTaskAction, deleteTaskAction } from '../../actions'
 
 export type TaskRow = {
   id: string

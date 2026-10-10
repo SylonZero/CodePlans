@@ -368,7 +368,7 @@ All routes share `AppShell`: 64px top header + 256px sidebar. Sidebar contains:
 ---
 
 #### `/my-work` — My Work
-Personal execution view (the Tasks page remains the comprehensive review surface): open tasks assigned to me sorted by end date (overdue in red), plans I own with progress bars, and open work items I own — all respecting the product scope switcher. "My Open Tasks" additionally filters to tasks on **active** plans only (via `TaskWithContext.planStatus`) — a task on a draft plan hasn't started, and one on a completed/cancelled plan is a stale artifact, so neither belongs in a personal to-do list.
+Personal execution view: open tasks assigned to me sorted by end date (overdue in red), plans I own with progress bars, and open work items I own — all respecting the product scope switcher. "My Open Tasks" additionally filters to tasks on **active** plans only (via `TaskWithContext.planStatus`) — a task on a draft plan hasn't started, and one on a completed/cancelled plan is a stale artifact, so neither belongs in a personal to-do list.
 
 #### `/products` — Products List
 - Grid of product cards with name, description (truncated), tags (max 3 shown), asset count, active plan count
@@ -451,27 +451,18 @@ Client component (`PlansClient`) with:
 - **Target Assets & PRs** (`plan-assets-section.tsx`): per-asset rows with branch, PR link, PR status badge; inline edit form; add/remove target assets → plan-asset actions
 - **Impact Analysis**: assets depending on the plan's targets (via `asset_dependencies`), with dependency path and health badges
 - **Linked Work Items**: items linked via `work_item_code_plans` with type/status badges
-- Tasks section (`plan-tasks-section.tsx`): **list view by default** (paginated, 25/page) with a board toggle; quick-add row (title + Enter); selection checkboxes with a bulk bar (status/priority/assignee/**move to another plan**); wrapped titles with in-progress % shown; board = 3-column kanban by status
+- Tasks section (`plan-tasks-section.tsx`): tasks in **title order with numbers compared naturally** ("T2" before "T10"; `lib/task-order.ts`, also the order `get_code_plan` returns); **list view by default** (paginated, 25/page) with a board toggle; quick-add row (title + Enter); selection checkboxes with a bulk bar (status/priority/assignee/**move to another plan**); wrapped titles with in-progress % shown; board = 3-column kanban by status
   - Done column capped at 5 shown (board view)
   - "Add Task" button → task create form → `createTaskAction`
   - Task cards: title (strikethrough if done), priority badge, effort hours
 
 ---
 
-#### `/tasks` — Tasks
-Client component (`TasksClient`) with:
-- Summary stats: Total / Not Started / In Progress / Done
-- Tab filter by status, plan dropdown filter (active plans only)
-- View toggle: List view / Board view
+#### Task panel
+Tasks live on their code plan; there is no global Tasks page. `/tasks?task=<id>` (old links, notification emails) redirects to `/plans/<planId>?task=<id>`, and plain `/tasks` to `/plans`.
 
-**List view:** Table with wrapped task titles (+tags), code plan link, asset name, in-row priority + assignee dropdowns, effort, status. Paginated (25/page; resets on filter change). Review surface only — quick-add, selection, and bulk actions live on the plan-detail task list.
-
-**Board view:** 3 kanban columns (up to 8 per column); task cards with priority badge, plan title, assignee avatar, effort.
-
-**Task panel** (`task-panel.tsx`, Sheet-based, deep-linkable via `?task=<id>`):
+**Task panel** (`plans/[id]/task-panel.tsx`, Sheet-based, deep-linkable on the plan page via `?task=<id>`; My Work and task notifications link there):
 - **Auto-save editor** (no view/edit split): status/priority/assignee selects commit on change, text/effort fields on blur, toast confirm → `updateTaskAction`; delete → `deleteTaskAction`; mirrored tasks disable tracker-owned fields. The description uses the shared markdown rich text editor (same as plans and work items, also in the plan page's Add task dialog); mirrored tasks show it rendered, read-only
-- "New Task" button opens the panel in create mode → `createTaskAction`
-- List rows edit inline: status checkbox cycle, priority + assignee dropdowns in-row
 
 ---
 

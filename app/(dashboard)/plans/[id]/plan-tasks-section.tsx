@@ -1,12 +1,13 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useCallback, useRef, useState, useTransition } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { createTaskAction, updateTaskStatusAction, updateTaskPriorityAction, updateTaskAssigneeAction, moveTaskToPlanAction } from '../../actions'
 import { Checkbox } from '@/components/ui/checkbox'
-import { TaskPanel, type TaskRow } from '../../tasks/task-panel'
+import { TaskPanel, type TaskRow } from './task-panel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -143,7 +144,16 @@ export function PlanTasksSection({
   otherPlans?: PlanOption[]
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [openTaskId, setOpenTaskId] = useState<string | null>(null)
+  // The open task is in the URL (?task=<id>) so My Work and notification links can deep-link.
+  const searchParams = useSearchParams()
+  const openTaskId = searchParams.get('task')
+  const setOpenTaskId = useCallback((id: string | null) => {
+    const params = new URLSearchParams(window.location.search)
+    if (id) params.set('task', id)
+    else params.delete('task')
+    const q = params.toString()
+    window.history.pushState(null, '', `${window.location.pathname}${q ? `?${q}` : ''}`)
+  }, [])
 
   const openTask: TaskRow | null = (() => {
     const t = tasks.find((x) => x.id === openTaskId)

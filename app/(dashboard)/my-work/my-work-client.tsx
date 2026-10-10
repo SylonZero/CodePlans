@@ -253,7 +253,7 @@ export function MyWorkClient({ work, initialLens }: { work: MyWork; initialLens:
                   <li key={t.id} className="flex items-center justify-between gap-2 text-sm">
                     <span className="flex min-w-0 items-center gap-2">
                       {t.status === 'in_progress' ? <Play className="h-3.5 w-3.5 shrink-0 text-chart-1" /> : <Circle className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
-                      <Link href={`/tasks?task=${t.id}`} className="truncate hover:text-accent">{t.title}</Link>
+                      <Link href={`/plans/${g.planId}?task=${t.id}`} className="truncate hover:text-accent">{t.title}</Link>
                     </span>
                     {t.endDate && <span className={cn('shrink-0 text-xs', t.overdue ? 'text-destructive' : 'text-muted-foreground')}>{formatDateShort(new Date(t.endDate))}</span>}
                   </li>))}</ul>

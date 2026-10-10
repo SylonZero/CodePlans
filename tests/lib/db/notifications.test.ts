@@ -107,9 +107,9 @@ describe('responsibility-routed notifications', () => {
     await updateWorkItem(item.id, { ownerId: F.bob }, { id: F.alice })
     await updateWorkItem(item.id, { title: 'Owned (renamed)' }, { id: F.alice })
     expect((await types(F.bob)).filter((t) => t === 'work_item.assigned')).toHaveLength(1)
-    await createTask({ codePlanId: F.planActive, title: 'Wire refresh', description: '', priority: 'high', tags: [], assigneeId: ERIN }, { id: F.alice })
+    const task = await createTask({ codePlanId: F.planActive, title: 'Wire refresh', description: '', priority: 'high', tags: [], assigneeId: ERIN }, { id: F.alice })
     const [n] = await listNotifications(ERIN)
-    expect(n).toMatchObject({ eventType: 'task.assigned', url: `/plans/${F.planActive}` })
+    expect(n).toMatchObject({ eventType: 'task.assigned', url: `/plans/${F.planActive}?task=${task.id}` })
   })
 
   it('tells code owners and product members when a release ships', async () => {

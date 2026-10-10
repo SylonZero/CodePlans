@@ -22,7 +22,6 @@ import {
   UserCircle2,
   Package,
   FileCode2,
-  CheckSquare,
   ClipboardList,
   BarChart3,
   Settings,
@@ -78,7 +77,6 @@ const navigation = [
   { name: 'Specs', href: '/specs', icon: FileText },
   { name: 'Code Plans', href: '/plans', icon: FileCode2 },
   { name: 'Releases', href: '/releases', icon: Rocket },
-  { name: 'Tasks', href: '/tasks', icon: CheckSquare },
   { name: 'Wiki ↗', href: '/wiki', icon: BookOpen },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
 ]

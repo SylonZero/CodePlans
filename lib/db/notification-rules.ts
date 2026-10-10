@@ -51,7 +51,7 @@ export function subjectUrl(subjectType: string, subjectId: string, extra?: { pla
     case 'work_item': return `/work-items?item=${subjectId}`
     case 'release': return `/releases/${subjectId}`
     case 'asset': return `/assets/${subjectId}`
-    case 'task': return extra?.planId ? `/plans/${extra.planId}` : '/tasks'
+    case 'task': return extra?.planId ? `/plans/${extra.planId}?task=${subjectId}` : `/tasks?task=${subjectId}`
     case 'product': return extra?.productSlug ? `/products/${extra.productSlug}` : '/products'
     default: return '/my-work'
   }
