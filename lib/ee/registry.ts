@@ -27,6 +27,7 @@ const defaultHooks: EnterpriseHooks = {
   page: () => null,
   handleApi: () => null,
   workspaceNotice: () => null,
+  health: () => null,
 }
 
 const REGISTRY_KEY = Symbol.for('codeplans.ee.registry')

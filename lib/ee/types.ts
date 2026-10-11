@@ -86,6 +86,13 @@ export type EnterpriseHooks = {
   handleApi: (request: EnterpriseApiRequest) => Response | null | Promise<Response | null>
   /** A banner shown at the top of every dashboard page. The community default is null. */
   workspaceNotice: () => EnterpriseNotice | null
+  /**
+   * The health check behind /api/health. Return null to use the default (a
+   * query on the current database), which the community edition always
+   * does; otherwise a promise of whether the app is healthy. For deployments
+   * where a bare health-check request has no database of its own.
+   */
+  health: () => Promise<boolean> | null
 }
 
 export type WorkspaceDatabase = {
