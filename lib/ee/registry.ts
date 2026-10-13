@@ -28,6 +28,9 @@ const defaultHooks: EnterpriseHooks = {
   handleApi: () => null,
   workspaceNotice: () => null,
   health: () => null,
+  publicUrl: () => null,
+  sharedEmail: () => null,
+  inviteGate: () => ({ allowed: true }),
 }
 
 const REGISTRY_KEY = Symbol.for('codeplans.ee.registry')

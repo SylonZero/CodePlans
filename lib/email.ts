@@ -1,6 +1,12 @@
 import { Resend } from 'resend'
+import { getEnterpriseHooks } from '@/lib/ee/registry'
 
+const DEFAULT_FROM = 'CodePlans <noreply@codeplans.ai>'
+
+/** The base of links in email and notifications, for the current workspace. */
 export function getBaseUrl(): string {
+  const workspaceUrl = getEnterpriseHooks().publicUrl()
+  if (workspaceUrl) return workspaceUrl.replace(/\/$/, '')
   if (process.env.AUTH_URL) return process.env.AUTH_URL.replace(/\/$/, '')
   const port = process.env.PORT ?? '3000'
   return `http://localhost:${port}`
@@ -18,7 +24,7 @@ export async function sendEmailVerificationEmail(
   newEmail: string,
 ): Promise<void> {
   const verifyUrl = `${getBaseUrl()}/verify-email?token=${token}`
-  const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'CodePlans <noreply@codeplans.ai>'
+  const fromEmail = process.env.RESEND_FROM_EMAIL ?? DEFAULT_FROM
 
   const resend = getResendClient()
   if (!resend) {
@@ -88,7 +94,7 @@ export async function sendInviteEmail(
   token: string,
 ): Promise<boolean> {
   const acceptUrl = `${getBaseUrl()}/accept-invite?token=${token}`
-  const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'CodePlans <noreply@codeplans.ai>'
+  const fromEmail = getEnterpriseHooks().sharedEmail()?.from(orgName) ?? process.env.RESEND_FROM_EMAIL ?? DEFAULT_FROM
 
   const resend = getResendClient()
   if (!resend) {

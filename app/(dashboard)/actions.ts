@@ -10,6 +10,7 @@ import { getWorkItem } from '@/lib/db/queries'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { authAdapter } from '@/lib/auth'
+import { getEnterpriseHooks } from '@/lib/ee/registry'
 import { db } from '@/lib/db'
 import { users, organizationMembers, organizations, emailVerificationTokens, integrations, products } from '@/lib/db/schema'
 import { eq, and, gt } from 'drizzle-orm'
@@ -490,6 +491,9 @@ export async function inviteMemberAction(formData: FormData) {
   const email = formData.get('email') as string
   const role = (formData.get('role') as UserRole) || 'editor'
   const name = (formData.get('name') as string) || email.split('@')[0]
+
+  const gate = await getEnterpriseHooks().inviteGate({ email, invitedById: authUser.id })
+  if (!gate.allowed) return { error: gate.reason ?? 'You can\'t invite anyone to this workspace right now.' }
 
   const tempPassword = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)
   const newUserId = await authAdapter.adminCreateUser(email, tempPassword, name)

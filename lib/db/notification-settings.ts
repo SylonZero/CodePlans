@@ -1,12 +1,13 @@
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { db } from './index'
-import { assets, notificationChannels, notificationDeliveries, notificationMutes, notificationPreferences, notificationRules, products } from './schema'
+import { assets, notificationChannels, notificationDeliveries, notificationMutes, notificationPreferences, notificationRules, organizations, products } from './schema'
 import type { NotificationChannelKind, NotificationChannelStatus, NotificationMuteSubject } from './schema.sqlite'
 import { ForbiddenError, NOT_ACCESSIBLE_MESSAGE, getProductRole, isOrgAdmin } from './authz'
 import type { ArtifactActor } from './attribution'
 import { encryptToken, decryptToken } from '@/lib/integrations/secrets'
 import { NOTIFICATION_CATALOG, catalogEntry, type ChannelFlags } from '@/lib/notification-catalog'
 import { validateEmail, validateFromAddress, validateWebhookUrl } from '@/lib/notify/transports'
+import { getEnterpriseHooks } from '@/lib/ee/registry'
 
 /**
  * Workspace notification settings: which events notify and where (rules),
@@ -90,18 +91,47 @@ export type ResolvedChannel = {
   status: NotificationChannelStatus
 }
 
-function envEmail(): ResolvedChannel | null {
-  const key = process.env.RESEND_API_KEY
-  return key ? { id: ENV_EMAIL_CHANNEL_ID, kind: 'email_resend', secret: key, config: { fromAddress: process.env.RESEND_FROM_EMAIL ?? DEFAULT_FROM }, status: 'active' } : null
+/**
+ * The From address for email sent with the server's RESEND_API_KEY. With a
+ * shared-email hook (e.g. a hosted service) it is fixed per workspace.
+ */
+async function serverFrom(organizationId: string | null): Promise<string> {
+  const shared = getEnterpriseHooks().sharedEmail()
+  if (!shared) return process.env.RESEND_FROM_EMAIL ?? DEFAULT_FROM
+  const org = organizationId ? await db.query.organizations.findFirst({ where: eq(organizations.id, organizationId), columns: { name: true } }) : null
+  return shared.from(org?.name ?? '')
 }
 
-function secretOf(row: typeof notificationChannels.$inferSelect) {
+async function envEmail(organizationId: string | null): Promise<ResolvedChannel | null> {
+  const key = process.env.RESEND_API_KEY
+  return key ? { id: ENV_EMAIL_CHANNEL_ID, kind: 'email_resend', secret: key, config: { fromAddress: await serverFrom(organizationId) }, status: 'active' } : null
+}
+
+/** The channel's own secret: saved in settings, or named by authRef. */
+function ownSecret(row: typeof notificationChannels.$inferSelect) {
   if (row.secretEncrypted) {
     const s = decryptToken(row.secretEncrypted)
     if (s) return s
   }
   if (row.authRef) return process.env[row.authRef] ?? null
-  return row.kind === 'email_resend' ? process.env.RESEND_API_KEY ?? null : null
+  return null
+}
+
+/** The secret to send with, and whether it is the server's RESEND_API_KEY rather than the channel's own. */
+function secretOf(row: typeof notificationChannels.$inferSelect): { secret: string | null; server: boolean } {
+  const own = ownSecret(row)
+  if (own) return { secret: own, server: false }
+  const server = row.kind === 'email_resend' ? process.env.RESEND_API_KEY ?? null : null
+  return { secret: server, server: !!server }
+}
+
+/** A saved channel's config as sent. On the server's key with shared email, the From address is fixed. */
+async function configOf(row: typeof notificationChannels.$inferSelect, server: boolean) {
+  const config = { ...(row.config ?? {}) } as Record<string, string>
+  if (row.kind !== 'email_resend') return config
+  if (server && getEnterpriseHooks().sharedEmail()) config.fromAddress = await serverFrom(row.organizationId)
+  else if (!config.fromAddress) config.fromAddress = process.env.RESEND_FROM_EMAIL ?? DEFAULT_FROM
+  return config
 }
 
 /**
@@ -111,24 +141,21 @@ function secretOf(row: typeof notificationChannels.$inferSelect) {
  */
 export async function resolveChannel(organizationId: string, kind: NotificationChannelKind, opts: { includePaused?: boolean } = {}): Promise<ResolvedChannel | null> {
   const row = await db.query.notificationChannels.findFirst({ where: and(eq(notificationChannels.organizationId, organizationId), eq(notificationChannels.kind, kind)) })
-  if (!row) return kind === 'email_resend' ? envEmail() : null
+  if (!row) return kind === 'email_resend' ? envEmail(organizationId) : null
   if (row.status === 'paused' && !opts.includePaused) return null
-  const secret = secretOf(row)
+  const { secret, server } = secretOf(row)
   if (!secret) return null
-  const config = { ...(row.config ?? {}) } as Record<string, string>
-  if (kind === 'email_resend' && !config.fromAddress) config.fromAddress = process.env.RESEND_FROM_EMAIL ?? DEFAULT_FROM
-  return { id: row.id, kind, secret, config, status: row.status }
+  return { id: row.id, kind, secret, config: await configOf(row, server), status: row.status }
 }
 
-export async function resolveChannelById(id: string): Promise<ResolvedChannel | null> {
-  if (id === ENV_EMAIL_CHANNEL_ID) return envEmail()
+/** A channel by id. The server email channel ('env:email') needs the workspace it sends for. */
+export async function resolveChannelById(id: string, organizationId: string | null = null): Promise<ResolvedChannel | null> {
+  if (id === ENV_EMAIL_CHANNEL_ID) return envEmail(organizationId)
   const row = await db.query.notificationChannels.findFirst({ where: eq(notificationChannels.id, id) })
   if (!row || row.status === 'paused') return null
-  const secret = secretOf(row)
+  const { secret, server } = secretOf(row)
   if (!secret) return null
-  const config = { ...(row.config ?? {}) } as Record<string, string>
-  if (row.kind === 'email_resend' && !config.fromAddress) config.fromAddress = process.env.RESEND_FROM_EMAIL ?? DEFAULT_FROM
-  return { id: row.id, kind: row.kind, secret, config, status: row.status }
+  return { id: row.id, kind: row.kind, secret, config: await configOf(row, server), status: row.status }
 }
 
 function hint(secret: string | null, kind: NotificationChannelKind) {
@@ -139,21 +166,27 @@ function hint(secret: string | null, kind: NotificationChannelKind) {
   return `${secret.slice(0, 3)}…${secret.slice(-4)}`
 }
 
-/** What the settings page shows. Secrets never leave the server; only a hint does. */
+/**
+ * What the settings page shows. Secrets never leave the server; only a hint
+ * does, and not even that for the server's key when email is shared
+ * (source 'platform').
+ */
 export async function listChannels(organizationId: string) {
   const rows = await db.select().from(notificationChannels).where(eq(notificationChannels.organizationId, organizationId))
-  const view = (kind: NotificationChannelKind) => {
+  const shared = !!getEnterpriseHooks().sharedEmail()
+  const view = async (kind: NotificationChannelKind) => {
     const row = rows.find((r) => r.kind === kind)
     if (!row) {
-      const env = kind === 'email_resend' ? envEmail() : null
-      return { kind, configured: !!env, source: env ? 'env' as const : null, status: env ? 'active' as NotificationChannelStatus : null,
-        config: env?.config ?? {}, secretHint: env ? hint(env.secret, kind) : null, lastError: null, lastUsedAt: null }
+      const env = kind === 'email_resend' ? await envEmail(organizationId) : null
+      return { kind, configured: !!env, source: env ? (shared ? 'platform' as const : 'env' as const) : null, status: env ? 'active' as NotificationChannelStatus : null,
+        config: env?.config ?? {}, secretHint: env && !shared ? hint(env.secret, kind) : null, lastError: null, lastUsedAt: null }
     }
-    const secret = secretOf(row)
-    return { kind, configured: !!secret, source: row.secretEncrypted ? 'settings' as const : 'env' as const, status: row.status,
-      config: (row.config ?? {}) as Record<string, string>, secretHint: hint(secret, kind), lastError: row.lastError, lastUsedAt: row.lastUsedAt }
+    const { secret, server } = secretOf(row)
+    const source = !server ? (row.secretEncrypted ? 'settings' as const : 'env' as const) : shared ? 'platform' as const : 'env' as const
+    return { kind, configured: !!secret, source, status: row.status,
+      config: await configOf(row, server), secretHint: source === 'platform' ? null : hint(secret, kind), lastError: row.lastError, lastUsedAt: row.lastUsedAt }
   }
-  return { email: view('email_resend'), slack: view('slack_webhook') }
+  return { email: await view('email_resend'), slack: await view('slack_webhook') }
 }
 
 async function upsertChannel(organizationId: string, kind: NotificationChannelKind, name: string, config: Record<string, string>, secret: string | undefined, actor: ArtifactActor) {
@@ -168,17 +201,27 @@ async function upsertChannel(organizationId: string, kind: NotificationChannelKi
   }
 }
 
-/** Save Resend settings. Leave the API key blank to keep the stored one (or use RESEND_API_KEY). */
-export async function saveEmailChannel(organizationId: string, input: { apiKey?: string; fromAddress: string; replyTo?: string }, actor: ArtifactActor) {
+/**
+ * Save Resend settings. Leave the API key blank to keep the stored one (or use
+ * RESEND_API_KEY). With shared email, the server's key sends from a fixed
+ * address, so without a key of their own only the reply-to is kept.
+ */
+export async function saveEmailChannel(organizationId: string, input: { apiKey?: string; fromAddress?: string; replyTo?: string }, actor: ArtifactActor) {
   await requireAdmin(organizationId, actor)
-  const fromAddress = input.fromAddress.trim()
-  const fromError = validateFromAddress(fromAddress)
-  if (fromError) throw new Error(fromError)
   const replyTo = input.replyTo?.trim() ?? ''
   if (replyTo) { const e = validateEmail(replyTo); if (e) throw new Error(`Reply-to: ${e}`) }
   const apiKey = input.apiKey?.trim()
   if (apiKey && !/^re_[A-Za-z0-9_]{8,}$/.test(apiKey)) throw new Error('That doesn\'t look like a Resend API key (it starts with re_)')
-  await upsertChannel(organizationId, 'email_resend', 'Email (Resend)', { fromAddress, ...(replyTo ? { replyTo } : {}) }, apiKey || undefined, actor)
+  const existing = await db.query.notificationChannels.findFirst({ where: and(eq(notificationChannels.organizationId, organizationId), eq(notificationChannels.kind, 'email_resend')) })
+  const ownKey = !!apiKey || (!!existing && !!ownSecret(existing))
+  const config: Record<string, string> = replyTo ? { replyTo } : {}
+  if (ownKey || !getEnterpriseHooks().sharedEmail()) {
+    const fromAddress = input.fromAddress?.trim() ?? ''
+    const fromError = validateFromAddress(fromAddress)
+    if (fromError) throw new Error(fromError)
+    config.fromAddress = fromAddress
+  }
+  await upsertChannel(organizationId, 'email_resend', 'Email (Resend)', config, apiKey || undefined, actor)
   return listChannels(organizationId)
 }
 

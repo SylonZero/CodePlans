@@ -21,7 +21,7 @@ import {
 type ChannelView = {
   kind: NotificationChannelKind
   configured: boolean
-  source: 'settings' | 'env' | null
+  source: 'settings' | 'env' | 'platform' | null
   status: NotificationChannelStatus | null
   config: Record<string, string>
   secretHint: string | null
@@ -42,7 +42,7 @@ function StatusBadge({ channel }: { channel: ChannelView }) {
   if (!channel.configured) return <Badge variant="outline" className="text-muted-foreground">Not set up</Badge>
   if (channel.status === 'paused') return <Badge variant="secondary">Paused</Badge>
   if (channel.status === 'error') return <Badge variant="destructive">Failing</Badge>
-  return <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/15">{channel.source === 'env' ? 'Connected (env)' : 'Connected'}</Badge>
+  return <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/15">{channel.source === 'env' ? 'Connected (env)' : channel.source === 'platform' ? 'On' : 'Connected'}</Badge>
 }
 
 function useAction() {
@@ -105,6 +105,9 @@ function EmailChannelCard({ channel }: { channel: ChannelView }) {
   const [apiKey, setApiKey] = useState('')
   const [fromAddress, setFrom] = useState(channel.config.fromAddress ?? '')
   const [replyTo, setReplyTo] = useState(channel.config.replyTo ?? '')
+  // Sent with the service's own key: the From address is fixed until the workspace adds its own key.
+  const platform = channel.source === 'platform'
+  const fromLocked = platform && !apiKey
   return (
     <Card className="bg-card border-border">
       <CardHeader>
@@ -112,17 +115,23 @@ function EmailChannelCard({ channel }: { channel: ChannelView }) {
           <CardTitle className="flex items-center gap-2 text-base"><Mail className="h-4 w-4" /> Email (Resend)</CardTitle>
           <StatusBadge channel={channel} />
         </div>
-        <CardDescription>Sends from your verified Resend domain.{channel.source === 'env' ? ' Using RESEND_API_KEY from the server environment; save a key here to override it.' : ''}</CardDescription>
+        <CardDescription>
+          {platform
+            ? 'Sent by CodePlans. To send from your own domain, add a Resend API key and a From address on a domain you verified in Resend.'
+            : <>Sends from your verified Resend domain.{channel.source === 'env' ? ' Using RESEND_API_KEY from the server environment; save a key here to override it.' : ''}</>}
+        </CardDescription>
       </CardHeader>
       <CardContent>
-        <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); act(() => saveEmailChannelAction({ apiKey, fromAddress, replyTo }), 'Saved'); setApiKey('') }}>
+        <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); act(() => saveEmailChannelAction({ apiKey, fromAddress: fromLocked ? undefined : fromAddress, replyTo }), 'Saved'); setApiKey('') }}>
           <div className="space-y-1.5">
             <Label htmlFor="resend-key">API key</Label>
-            <Input id="resend-key" type="password" autoComplete="off" placeholder={channel.secretHint ? `Saved (${channel.secretHint}) — leave blank to keep` : 're_…'} value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+            <Input id="resend-key" type="password" autoComplete="off" placeholder={channel.secretHint ? `Saved (${channel.secretHint}) — leave blank to keep` : platform ? 'Optional: re_… to send from your own domain' : 're_…'} value={apiKey}
+              onChange={(e) => { setApiKey(e.target.value); if (platform && fromAddress === channel.config.fromAddress) setFrom('') }} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="resend-from">From</Label>
-            <Input id="resend-from" placeholder="CodePlans <notify@your-domain.com>" value={fromAddress} onChange={(e) => setFrom(e.target.value)} required />
+            <Input id="resend-from" placeholder="CodePlans <notify@your-domain.com>" value={fromLocked ? channel.config.fromAddress ?? '' : fromAddress} onChange={(e) => setFrom(e.target.value)}
+              disabled={fromLocked} required={!fromLocked} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="resend-reply">Reply-to <span className="text-muted-foreground">(optional)</span></Label>
