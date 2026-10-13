@@ -18,6 +18,7 @@ import { setEmailPreferenceAction, setMutedAction } from './notifications/action
 import Link from 'next/link'
 import { BellOff } from 'lucide-react'
 import { EVENT_GROUP_LABELS, type EventGroup } from '@/lib/notification-catalog'
+import { MIN_PASSWORD_LENGTH } from '@/lib/auth/password-rules'
 
 interface Props {
   user: {
@@ -355,11 +356,11 @@ function SecurityTab() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="newPassword">New Password</Label>
-                <Input id="newPassword" name="newPassword" type="password" minLength={6} required />
+                <Input id="newPassword" name="newPassword" type="password" minLength={MIN_PASSWORD_LENGTH} required />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword">Confirm Password</Label>
-                <Input id="confirmPassword" name="confirmPassword" type="password" minLength={6} required />
+                <Input id="confirmPassword" name="confirmPassword" type="password" minLength={MIN_PASSWORD_LENGTH} required />
               </div>
             </div>
 

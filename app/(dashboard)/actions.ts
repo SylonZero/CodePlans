@@ -11,6 +11,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { authAdapter } from '@/lib/auth'
 import { getEnterpriseHooks } from '@/lib/ee/registry'
+import { MIN_PASSWORD_LENGTH } from '@/lib/auth/password-rules'
 import { db } from '@/lib/db'
 import { users, organizationMembers, organizations, emailVerificationTokens, integrations, products } from '@/lib/db/schema'
 import { eq, and, gt } from 'drizzle-orm'
@@ -521,6 +522,7 @@ export async function inviteMemberAction(formData: FormData) {
     await db.insert(emailVerificationTokens).values({
       userId: newUserId,
       newEmail: email,
+      purpose: 'invite',
       token,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     })
@@ -624,6 +626,7 @@ export async function requestEmailChangeAction(formData: FormData) {
   await db.insert(emailVerificationTokens).values({
     userId: authUser.id,
     newEmail,
+    purpose: 'email_change',
     token,
     expiresAt,
   })
@@ -651,7 +654,7 @@ export async function changePasswordAction(formData: FormData) {
   const confirmPassword = formData.get('confirmPassword') as string
 
   if (newPassword !== confirmPassword) return { error: 'Passwords do not match.' }
-  if (newPassword.length < 6) return { error: 'Password must be at least 6 characters.' }
+  if (newPassword.length < MIN_PASSWORD_LENGTH) return { error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` }
 
   const profile = await getUserProfile(authUser.id)
   if (!profile?.passwordHash) return { error: 'Password change is not available for this account.' }
@@ -662,6 +665,9 @@ export async function changePasswordAction(formData: FormData) {
 
   const hash = await bcrypt.hash(newPassword, 10)
   await db.update(users).set({ passwordHash: hash }).where(eq(users.id, authUser.id))
+  // Sign out everywhere else; this browser stays signed in.
+  const { endOtherSessions } = await import('@/lib/auth/local')
+  await endOtherSessions(authUser.id, { keepCurrent: true })
 
   return { success: true }
 }

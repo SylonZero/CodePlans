@@ -2,6 +2,7 @@
 
 import { authAdapter } from '@/lib/auth'
 import { checkSetupCode, createOwnerAccount, needsSetup } from '@/lib/db/first-run'
+import { MIN_PASSWORD_LENGTH } from '@/lib/auth/password-rules'
 
 /** Claims a fresh instance: creates the owner and their workspace, then signs in. */
 export async function completeSetup(formData: FormData): Promise<{ error: string } | undefined> {
@@ -17,7 +18,7 @@ export async function completeSetup(formData: FormData): Promise<{ error: string
 
   if (!checkSetupCode(code)) return { error: 'That setup code is not right. Copy it from the server log line starting with [setup].' }
   if (!name || !email.includes('@')) return { error: 'Enter your name and email.' }
-  if (password.length < 8) return { error: 'Use a password of at least 8 characters.' }
+  if (password.length < MIN_PASSWORD_LENGTH) return { error: `Use a password of at least ${MIN_PASSWORD_LENGTH} characters.` }
 
   await createOwnerAccount({ email, password, name, orgName: workspace || undefined })
   console.log(`[setup] Instance claimed by ${email}`)

@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { authAdapter } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { users, emailVerificationTokens } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { getOrganization } from '@/lib/db/queries'
 import { SettingsClient } from './settings-client'
 import { listApiKeys } from '@/lib/mcp/auth'
@@ -31,7 +31,7 @@ export default async function SettingsPage({ searchParams }: Props) {
     : null
 
   const pendingToken = await db.query.emailVerificationTokens.findFirst({
-    where: eq(emailVerificationTokens.userId, authUser.id),
+    where: and(eq(emailVerificationTokens.userId, authUser.id), eq(emailVerificationTokens.purpose, 'email_change')),
   })
 
   const pendingEmailChange =

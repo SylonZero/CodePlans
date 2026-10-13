@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
-import { emailVerificationTokens, users } from '@/lib/db/schema'
-import { eq, and, gt } from 'drizzle-orm'
+import { users } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
+import { findInvite } from '@/lib/auth/invites'
 import { AcceptInviteForm } from './accept-invite-form'
 
 export default async function AcceptInvitePage({
@@ -9,11 +10,7 @@ export default async function AcceptInvitePage({
   searchParams: Promise<{ token?: string }>
 }) {
   const { token } = await searchParams
-  const row = token
-    ? await db.query.emailVerificationTokens.findFirst({
-        where: and(eq(emailVerificationTokens.token, token), gt(emailVerificationTokens.expiresAt, new Date())),
-      })
-    : undefined
+  const row = token ? await findInvite(token) : null
   const invitee = row ? await db.query.users.findFirst({ where: eq(users.id, row.userId) }) : undefined
 
   if (!row || !invitee) {

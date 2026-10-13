@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm'
 import { db } from './index'
 import { users, organizations, organizationMembers } from './schema'
 import { authAdapter } from '@/lib/auth'
+import { MIN_PASSWORD_LENGTH } from '@/lib/auth/password-rules'
 
 export async function hasUsers(): Promise<boolean> {
   const row = await db.query.users.findFirst({ columns: { id: true } })
@@ -61,8 +62,8 @@ export async function ensureOwnerFromEnv(env: Record<string, string | undefined>
   const email = env.ADMIN_EMAIL || env.SEED_ADMIN_EMAIL
   const password = env.ADMIN_PASSWORD || env.SEED_ADMIN_PASSWORD
   if (!email || !password || !(await needsSetup())) return 'skipped'
-  if (password.length < 8) {
-    console.error('[setup] ADMIN_PASSWORD must be at least 8 characters; owner not created')
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    console.error(`[setup] ADMIN_PASSWORD must be at least ${MIN_PASSWORD_LENGTH} characters; owner not created`)
     return 'skipped'
   }
   await createOwnerAccount({ email, password, name: env.ADMIN_NAME || env.SEED_ADMIN_NAME || 'Admin' })

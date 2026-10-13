@@ -3,7 +3,8 @@
 // The token is 32 random bytes; only its SHA-256 is stored, so a copy of the
 // database can't be used to reset anyone's password. A link works for an
 // hour and only once, and asking again replaces any earlier link. The request
-// answers the same whether or not the address has an account.
+// answers the same whether or not the address has an account. Resetting signs
+// out every existing session of the account.
 import { createHash, randomBytes } from 'node:crypto'
 import bcrypt from 'bcryptjs'
 import { and, eq, gt, lt, sql } from 'drizzle-orm'
@@ -12,9 +13,11 @@ import { passwordResetTokens, users } from '@/lib/db/schema'
 import { getBaseUrl } from '@/lib/email'
 import { sendResendEmail } from '@/lib/notify/transports'
 import { getEnterpriseHooks } from '@/lib/ee/registry'
+import { MIN_PASSWORD_LENGTH } from './password-rules'
+
+export { MIN_PASSWORD_LENGTH }
 
 export const RESET_LINK_TTL_MS = 60 * 60 * 1000
-export const MIN_PASSWORD_LENGTH = 8
 /** Links that may be requested for one address per hour. */
 const REQUESTS_PER_HOUR = 3
 
@@ -112,7 +115,9 @@ export async function resetPassword(token: string, password: string, now = new D
     .returning({ id: passwordResetTokens.id })
   if (claimed.length === 0) return { error: 'This reset link is invalid or has expired. Ask for a new one.' }
 
-  await db.update(users).set({ passwordHash: await bcrypt.hash(password, 10) }).where(eq(users.id, link.userId))
+  // A new password ends every existing session: whoever was signed in may be why it was reset.
+  await db.update(users).set({ passwordHash: await bcrypt.hash(password, 10), sessionVersion: sql`${users.sessionVersion} + 1` })
+    .where(eq(users.id, link.userId))
   await db.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, link.userId))
   await db.delete(passwordResetTokens).where(lt(passwordResetTokens.expiresAt, now))
   return { email: link.email }

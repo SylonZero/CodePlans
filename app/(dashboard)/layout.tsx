@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { authAdapter } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { users, organizations, products } from '@/lib/db/schema'
@@ -11,6 +12,9 @@ import { countUnread } from '@/lib/db/notifications'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const authUser = await authAdapter.getUser()
+  // The proxy only checks the cookie; a session ended by a password change
+  // (or a deleted account) gets here without a user.
+  if (!authUser) redirect('/login')
 
   let shellUser: { name: string; email: string; viewOnly?: boolean } = { name: '', email: '' }
   let orgName: string | null = null

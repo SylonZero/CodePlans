@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { acceptInvite } from '../actions'
+import { MIN_PASSWORD_LENGTH } from '@/lib/auth/password-rules'
 
 export function AcceptInviteForm({ token, email }: { token: string; email: string }) {
   const [error, setError] = useState<string | null>(null)
@@ -13,7 +14,7 @@ export function AcceptInviteForm({ token, email }: { token: string; email: strin
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
-    if ((fd.get('password') as string).length < 8) { setError('Password must be at least 8 characters.'); return }
+    if ((fd.get('password') as string).length < MIN_PASSWORD_LENGTH) { setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`); return }
     if (fd.get('password') !== fd.get('confirm')) { setError('Passwords do not match.'); return }
     setError(null)
     startTransition(async () => {
@@ -31,7 +32,7 @@ export function AcceptInviteForm({ token, email }: { token: string; email: strin
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="ai-password">Password</Label>
-          <Input id="ai-password" name="password" type="password" required minLength={8} autoComplete="new-password" />
+          <Input id="ai-password" name="password" type="password" required minLength={MIN_PASSWORD_LENGTH} autoComplete="new-password" />
         </div>
         <div className="space-y-2">
           <Label htmlFor="ai-confirm">Confirm password</Label>
