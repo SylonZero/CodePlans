@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import NextAuth, { AuthError } from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
+import { decode } from 'next-auth/jwt'
 import bcrypt from 'bcryptjs'
 import { NextResponse, type NextRequest } from 'next/server'
 import { eq } from 'drizzle-orm'
@@ -73,6 +74,37 @@ export const {
 // Auth adapter implementation
 // ---------------------------------------------------------------------------
 
+// Auth.js v5 names the cookie by whether the public URL is https, not by
+// NODE_ENV — accept either so plain-http deployments don't loop on /login.
+const SESSION_COOKIES = ['__Secure-authjs.session-token', 'authjs.session-token']
+
+/** The secrets Auth.js decrypts sessions with: AUTH_SECRET, then AUTH_SECRET_1..3 (rotation). */
+function authSecrets(env = process.env): string[] {
+  return [env.AUTH_SECRET, env.AUTH_SECRET_1, env.AUTH_SECRET_2, env.AUTH_SECRET_3].filter((s): s is string => !!s)
+}
+
+/**
+ * Whether the request carries a session cookie this server can decrypt, and
+ * which session cookies it can't (wrong secret, expired, malformed). The
+ * cookie name is the decryption salt, as in Auth.js.
+ */
+export async function readSessionCookies(request: NextRequest): Promise<{ valid: boolean; stale: string[] }> {
+  const secrets = authSecrets()
+  let valid = false
+  const stale: string[] = []
+  for (const name of SESSION_COOKIES) {
+    const token = request.cookies.get(name)?.value
+    if (!token) continue
+    try {
+      if (secrets.length > 0 && (await decode({ token, secret: secrets, salt: name }))) valid = true
+      else stale.push(name)
+    } catch {
+      stale.push(name)
+    }
+  }
+  return { valid, stale }
+}
+
 function isAuthRoute(pathname: string) {
   return pathname.startsWith('/login') || pathname.startsWith('/signup') || pathname.startsWith('/accept-invite')
     || pathname.startsWith('/setup')
@@ -127,14 +159,19 @@ export const localAdapter: AuthAdapter = {
     const { pathname } = request.nextUrl
     const isAuthR = isAuthRoute(pathname)
 
-    // Auth.js v5 names the cookie by whether the public URL is https, not by
-    // NODE_ENV — accept either so plain-http deployments don't loop on /login.
-    const hasSession = request.cookies.has('__Secure-authjs.session-token') || request.cookies.has('authjs.session-token')
+    const { valid: hasSession, stale } = await readSessionCookies(request)
+    // A cookie this server can't decrypt (another AUTH_SECRET, e.g. after
+    // rotating it or moving an instance) or that has expired is cleared, so
+    // the visitor can sign in again instead of being treated as signed in.
+    const clearStale = (res: NextResponse) => {
+      for (const name of stale) res.cookies.delete(name)
+      return res
+    }
 
     if (!hasSession && !isAuthR) {
       const url = request.nextUrl.clone()
       url.pathname = '/login'
-      return NextResponse.redirect(url)
+      return clearStale(NextResponse.redirect(url))
     }
 
     if (hasSession && isAuthR) {
@@ -143,7 +180,7 @@ export const localAdapter: AuthAdapter = {
       return NextResponse.redirect(url)
     }
 
-    return NextResponse.next()
+    return clearStale(NextResponse.next())
   },
 
   async adminCreateUser(email, password, name) {
