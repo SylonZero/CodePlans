@@ -358,7 +358,7 @@ type PlanFilters = {
   includeArchived?: boolean
 }
 
-export async function getCodePlans(userId: string, filters: PlanFilters = {}): Promise<CodePlan[]> {
+export async function getCodePlans(userId: string, filters: PlanFilters = {}): Promise<(CodePlan & { productName: string })[]> {
   const productFilter = await productAccessWhere(userId, { includeArchived: filters.includeArchived })
   const accessibleProducts = await db.select({ id: products.id }).from(products).where(productFilter)
   const ids = accessibleProducts.map((p) => p.id)

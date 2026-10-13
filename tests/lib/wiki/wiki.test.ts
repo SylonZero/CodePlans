@@ -169,8 +169,8 @@ describe('product wiki', () => {
       { id: F.alice, kind: 'agent' },
     )
     await updateAsset(a.id, { notes: 'Runbook' }, { id: F.bob })
-    let result = (await read())!,
-      doc = result.documents.find((d) => d.key === `asset:${a.id}`)!
+    const result = (await read())!
+    const doc = result.documents.find((d) => d.key === `asset:${a.id}`)!
     expect(doc).toMatchObject({
       createdBy: 'Alice',
       createdByKind: 'agent',

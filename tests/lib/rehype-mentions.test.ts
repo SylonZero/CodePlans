@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { MarkdownContent } from '@/components/markdown-content'
 
 const html = (body: string, mentions?: string[]) =>
+  // eslint-disable-next-line react/no-children-prop -- plain .ts: no JSX here
   renderToStaticMarkup(createElement(MarkdownContent, { compact: true, mentions, children: body }))
 
 describe('comment markdown', () => {

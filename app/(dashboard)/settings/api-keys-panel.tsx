@@ -22,6 +22,29 @@ export type ApiKeyRow = {
   createdAt: string
 }
 
+/** A copyable connection snippet. */
+function Snippet({ label, text, copied, onCopy }: { label: string; text: string; copied: boolean; onCopy: (label: string, text: string) => void }) {
+  return (
+    <div className="relative">
+      <pre className="overflow-x-auto rounded-md bg-muted p-3 pr-12 text-xs leading-relaxed">
+        <code>{text}</code>
+      </pre>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="absolute right-1.5 top-1.5 h-7 w-7 text-muted-foreground"
+        title="Copy"
+        onClick={() => onCopy(label, text)}
+      >
+        <Copy className="h-3.5 w-3.5" />
+      </Button>
+      {copied && (
+        <span className="absolute right-10 top-2.5 text-xs text-accent">Copied</span>
+      )}
+    </div>
+  )
+}
+
 export function ApiKeysPanel({ keys }: { keys: ApiKeyRow[] }) {
   const [name, setName] = useState('')
   const [scope, setScope] = useState('read')
@@ -175,28 +198,6 @@ codex mcp add codeplans \\
     setTimeout(() => setCopied(null), 1500)
   }
 
-  function Snippet({ label, text }: { label: string; text: string }) {
-    return (
-      <div className="relative">
-        <pre className="overflow-x-auto rounded-md bg-muted p-3 pr-12 text-xs leading-relaxed">
-          <code>{text}</code>
-        </pre>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute right-1.5 top-1.5 h-7 w-7 text-muted-foreground"
-          title="Copy"
-          onClick={() => copy(label, text)}
-        >
-          <Copy className="h-3.5 w-3.5" />
-        </Button>
-        {copied === label && (
-          <span className="absolute right-10 top-2.5 text-xs text-accent">Copied</span>
-        )}
-      </div>
-    )
-  }
-
   return (
     <Card className="bg-card border-border">
       <CardHeader>
@@ -223,7 +224,7 @@ codex mcp add codeplans \\
             <p className="text-xs text-muted-foreground">
               Run once in a terminal — <code>--scope user</code> makes the server available in every project:
             </p>
-            <Snippet label="claude" text={claudeSnippet} />
+            <Snippet label="claude" text={claudeSnippet} copied={copied === 'claude'} onCopy={copy} />
             <p className="text-xs text-muted-foreground">
               Verify with <code>claude mcp list</code>, then ask Claude to &ldquo;list my CodePlans products&rdquo;.
             </p>
@@ -232,14 +233,14 @@ codex mcp add codeplans \\
             <p className="text-xs text-muted-foreground">
               Add to <code>~/.cursor/mcp.json</code> (all projects) or <code>.cursor/mcp.json</code> in a repo (that project only), then enable it under Cursor Settings → MCP:
             </p>
-            <Snippet label="cursor" text={cursorSnippet} />
+            <Snippet label="cursor" text={cursorSnippet} copied={copied === 'cursor'} onCopy={copy} />
           </TabsContent>
           <TabsContent value="codex" className="space-y-2">
             <p className="text-xs text-muted-foreground">
               Run once in a terminal. Codex reads the key from an env var rather than storing it in{' '}
               <code>~/.codex/config.toml</code> directly:
             </p>
-            <Snippet label="codex" text={codexSnippet} />
+            <Snippet label="codex" text={codexSnippet} copied={copied === 'codex'} onCopy={copy} />
             <p className="text-xs text-muted-foreground">
               Verify with <code>codex mcp list</code>. Re-export <code>CODEPLANS_API_KEY</code> in new shells, or add it to your shell profile.
             </p>
@@ -248,7 +249,7 @@ codex mcp add codeplans \\
             <p className="text-xs text-muted-foreground">
               GitHub Copilot CLI — run once in a terminal:
             </p>
-            <Snippet label="copilot" text={copilotSnippet} />
+            <Snippet label="copilot" text={copilotSnippet} copied={copied === 'copilot'} onCopy={copy} />
             <p className="text-xs text-muted-foreground">
               Verify with <code>copilot mcp list</code>. In VS Code&apos;s Copilot Chat instead, add the same URL/header under a{' '}
               <code>&quot;servers&quot;</code> entry in <code>.vscode/mcp.json</code> with <code>&quot;type&quot;: &quot;http&quot;</code>.
@@ -259,7 +260,7 @@ codex mcp add codeplans \\
               Add to <code>~/.gemini/config/mcp_config.json</code>, then reload MCP servers from the agent panel. Note the field is{' '}
               <code>serverUrl</code>, not <code>url</code>:
             </p>
-            <Snippet label="antigravity" text={antigravitySnippet} />
+            <Snippet label="antigravity" text={antigravitySnippet} copied={copied === 'antigravity'} onCopy={copy} />
           </TabsContent>
         </Tabs>
       </CardContent>
