@@ -12,38 +12,15 @@ work onto CodePlans concepts:
 | Pieces implemented | Tasks, marked done (assigned by email) |
 | Gaps, debt, follow-ups discovered | Work items — linked to the plan if it addresses them, left open if explicitly out of scope |
 
-Save as `~/.claude/skills/codeplans-log/SKILL.md`:
+Install it with the other [CodePlans agent skills](agent-skills.md):
 
-```markdown
----
-name: codeplans-log
-description: Document the engineering work from this session/branch in CodePlans (plans, tasks, PRs, work items) via the codeplans MCP server.
----
-
-Using the codeplans MCP server, document the work we've been discussing (or,
-if none, inspect the current branch: log, diff vs the default branch, and any
-open PR/MR). Then:
-
-1. Find the product and assets: list_products + get_product. If an asset that
-   was clearly worked on is missing, tell me — do not create assets here
-   (that's /codeplans-model's job).
-2. Find or create the code plan: list_code_plans first — update an existing
-   matching plan rather than duplicating. For a new plan: type that fits the
-   change, description = 2-5 paragraph summary (problem, approach, out of
-   scope), targetAssetIds for every asset the change touches, and create_spec/link_spec if
-   a spec markdown exists in the repo (blob URL).
-3. Record delivery: update_plan_asset per targeted asset with branch, PR/MR
-   URL, prStatus, and a short note. activate_plan if work is underway.
-4. Tasks: create_task per completed or planned piece of work (assign by email
-   where known); update_task_status to done for what's shipped.
-5. Work items: create_work_item for anything discovered but not done —
-   tech_debt (with assetId + area) for known gaps, bug for defects,
-   feature/enhancement for follow-ups. Link the ones this plan addresses via
-   link_work_item_to_plan; leave explicit non-goals unlinked and open.
-6. If the plan's work is fully shipped and merged, ask me before calling
-   complete_plan (it posts write-back comments to linked tracker issues).
-7. Finish with get_code_plan and show me the result so I can verify.
+```sh
+npx skills add SylonZero/CodePlans --skill codeplans-log
 ```
+
+or, in Claude Code, `/plugin marketplace add SylonZero/CodePlans` then
+`/plugin install codeplans@codeplans`. The skill text is in
+[`plugins/codeplans/skills/codeplans-log/SKILL.md`](../../plugins/codeplans/skills/codeplans-log/SKILL.md).
 
 Notes:
 

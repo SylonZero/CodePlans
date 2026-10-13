@@ -1,0 +1,32 @@
+{
+  "name": "codeplans",
+  "version": "1.0.0",
+  "description": "Connect Claude Code to CodePlans and work with its planning record: model a repo, load context before a change, log work, manage specs, close plans and ship releases.",
+  "author": { "name": "The team at MindStaq" },
+  "homepage": "https://github.com/SylonZero/CodePlans/blob/master/docs/guides/agent-skills.md",
+  "repository": "https://github.com/SylonZero/CodePlans",
+  "license": "MIT",
+  "keywords": ["codeplans", "planning", "specs", "tech-debt", "releases", "mcp"],
+  "userConfig": {
+    "api_url": {
+      "type": "string",
+      "title": "CodePlans URL",
+      "description": "Base URL of your CodePlans instance, without a trailing slash (for example https://acme.codeplans.app or http://localhost:3000)",
+      "required": true
+    },
+    "api_key": {
+      "type": "string",
+      "title": "CodePlans API key",
+      "description": "An API key from Settings → API Keys in CodePlans (starts with cpk_). Use a read/write key to let skills make changes.",
+      "required": true,
+      "sensitive": true
+    }
+  },
+  "mcpServers": {
+    "codeplans": {
+      "type": "http",
+      "url": "${user_config.api_url}/api/mcp/mcp",
+      "headers": { "Authorization": "Bearer ${user_config.api_key}" }
+    }
+  }
+}

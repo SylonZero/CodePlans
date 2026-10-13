@@ -144,4 +144,5 @@ migration.
 - [Asset History & the Design Log](asset-history.md) — the derived diary
 - [Modeling Monorepos](modeling-monorepos.md) — repo structure vs model structure
 - [Working with AI Agents](ai-agents.md) — the MCP tool catalog and agent workflows
+- [Agent Skills](agent-skills.md) — installable skills for those workflows
 - [`docs/app-spec.md`](../app-spec.md) — the authoritative current state

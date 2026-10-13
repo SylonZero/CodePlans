@@ -55,42 +55,21 @@ The MCP server embeds this guidance: agents get the short form in the
 `create_asset` / `add_asset_dependency` tool descriptions and the full
 heuristic from the **`get_modeling_guide`** tool.
 
-Save this as a Claude Code skill at `~/.claude/skills/codeplans-model/SKILL.md`,
-then run `/codeplans-model` inside any repo. It is **safe to re-run** as the
-repo grows: it diffs the inventory against the existing product and proposes
-only the delta (new assets, keystone promotions, missing edges, moved
-folders) — and `create_asset` is idempotent by (product, name) server-side,
-so duplicates can't happen even outside the skill:
+Install the `/codeplans-model` skill with the other
+[CodePlans agent skills](agent-skills.md):
 
-```markdown
----
-name: codeplans-model
-description: Inventory this repo/monorepo and model it in CodePlans (products, assets, dependency edges) via the codeplans MCP server.
----
-
-Using the codeplans MCP server:
-
-1. Call get_modeling_guide and follow it strictly.
-2. Inventory this repository: read the workspace config (pnpm-workspace.yaml,
-   nx.json, turbo.json, or package layout) and identify apps, services, and
-   libraries. Classify libraries into keystone (high-fanout/high-churn) vs
-   long-tail, and group the long tail into 2-4 domain clusters.
-3. Reconcile before proposing: call list_products, and if the target product
-   exists, call get_product and diff the inventory against its existing assets
-   and dependency edges. The proposal must contain ONLY the delta:
-   - new assets (or note when a new package belongs inside an existing cluster
-     — that needs no asset change)
-   - keystone promotions: a clustered lib that has grown high-fanout/high-churn
-   - missing coordination-risk edges; repoPath corrections for moved folders
-   - assets whose folders no longer exist — FLAG these for manual review in the
-     UI (never attempt deletion; deletes are UI-only)
-   On a first run against an empty/absent product, the delta is everything.
-4. Propose the delta to me and WAIT for approval; apply corrections.
-5. On approval: create the product if needed, then create_asset /
-   update_asset / add_asset_dependency as approved.
-6. Verify by calling get_product and show me the resulting asset list and
-   dependency count.
+```sh
+npx skills add SylonZero/CodePlans --skill codeplans-model
 ```
+
+or, in Claude Code, `/plugin marketplace add SylonZero/CodePlans` then
+`/plugin install codeplans@codeplans`. Run `/codeplans-model` inside any repo.
+It is **safe to re-run** as the repo grows: it diffs the inventory against the
+existing product and proposes only the delta (new assets, keystone
+promotions, missing edges, moved folders) — and `create_asset` is idempotent
+by (product, name) server-side, so duplicates can't happen even outside the
+skill. The skill text is in
+[`plugins/codeplans/skills/codeplans-model/SKILL.md`](../../plugins/codeplans/skills/codeplans-model/SKILL.md).
 
 **Model vs. log:** structural change (new packages, moved folders) is this
 skill's job. *Engineering work* — features shipped, PRs opened, debt found —
