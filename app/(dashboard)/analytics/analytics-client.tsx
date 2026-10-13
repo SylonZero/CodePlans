@@ -31,7 +31,7 @@ const TYPE_COLORS = [
   'oklch(0.6 0.2 300)',
   'oklch(0.65 0.2 250)',
   'oklch(0.65 0.18 25)',
-  'oklch(0.7 0.15 145)',
+  'var(--brand)',
   'oklch(0.75 0.15 85)',
 ]
 
@@ -150,8 +150,8 @@ export function AnalyticsClient({ stats, analytics }: Props) {
                 <AreaChart data={analytics.velocityByWeek} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
                   <defs>
                     <linearGradient id="colorVelocity" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="oklch(0.7 0.15 145)" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="oklch(0.7 0.15 145)" stopOpacity={0} />
+                      <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.22 0 0)" vertical={false} />
@@ -159,7 +159,7 @@ export function AnalyticsClient({ stats, analytics }: Props) {
                   <YAxis stroke="oklch(0.6 0 0)" fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
                   <Tooltip contentStyle={{ backgroundColor: 'oklch(0.11 0 0)', border: '1px solid oklch(0.22 0 0)', borderRadius: '8px', color: 'oklch(0.95 0 0)' }} />
                   <Area type="monotone" dataKey="created" stroke="oklch(0.6 0 0)" strokeWidth={1} strokeDasharray="4 4" fill="none" name="Created" />
-                  <Area type="monotone" dataKey="completed" stroke="oklch(0.7 0.15 145)" strokeWidth={2} fill="url(#colorVelocity)" name="Completed" />
+                  <Area type="monotone" dataKey="completed" stroke="var(--chart-1)" strokeWidth={2} fill="url(#colorVelocity)" name="Completed" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -217,7 +217,7 @@ export function AnalyticsClient({ stats, analytics }: Props) {
                 <YAxis stroke="oklch(0.6 0 0)" fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
                 <Tooltip contentStyle={{ backgroundColor: 'oklch(0.11 0 0)', border: '1px solid oklch(0.22 0 0)', borderRadius: '8px', color: 'oklch(0.95 0 0)' }} />
                 <Bar dataKey="estimated" fill="oklch(0.6 0 0)" radius={[4, 4, 0, 0]} name="Estimated" />
-                <Bar dataKey="actual" fill="oklch(0.7 0.15 145)" radius={[4, 4, 0, 0]} name="Actual" />
+                <Bar dataKey="actual" fill="var(--chart-1)" radius={[4, 4, 0, 0]} name="Actual" />
               </BarChart>
             </ResponsiveContainer>
           </div>
