@@ -40,6 +40,8 @@ describe('runtimeDefaults', () => {
     expect(runtimeDefaults({ RENDER: 'true', RENDER_EXTERNAL_URL: 'https://cp.onrender.com' }).AUTH_URL).toBe('https://cp.onrender.com')
     expect(runtimeDefaults({ FLY_APP_NAME: 'cp', AUTH_URL: 'https://plans.example.com' }).AUTH_URL).toBeUndefined()
     expect(runtimeDefaults({}).AUTH_TRUST_HOST).toBeUndefined()
+    // An explicit AUTH_TRUST_HOST=true leaves AUTH_URL to the request host (multi-host setups).
+    expect(runtimeDefaults({ RAILWAY_PUBLIC_DOMAIN: 'cp.up.railway.app', AUTH_TRUST_HOST: 'true' }).AUTH_URL).toBeUndefined()
   })
 })
 

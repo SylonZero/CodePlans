@@ -23,7 +23,8 @@ export function isPostgresUrl(url: string | undefined): boolean {
  * - The database follows DATABASE_URL: postgres:// → Postgres, anything else
  *   (file:, libsql://, :memory:) → SQLite, unset → SQLite under DATA_DIR.
  * - Registration defaults to invite: people join through Team page invites.
- * - The public URL comes from the platform (Railway, Fly.io, Render).
+ * - The public URL comes from the platform (Railway, Fly.io, Render), unless
+ *   AUTH_TRUST_HOST=true is set explicitly: then it follows the request host.
  */
 export function runtimeDefaults(env: Env): Record<string, string> {
   const out: Record<string, string> = {}
@@ -35,7 +36,10 @@ export function runtimeDefaults(env: Env): Record<string, string> {
     out.DATABASE_URL = `file:${(env.DATA_DIR || 'data').replace(/\/$/, '')}/codeplans.db`
   }
 
-  if (!env.AUTH_URL) {
+  // An explicit AUTH_TRUST_HOST=true means the public URL comes from each
+  // request's host (e.g. one workspace per subdomain), so don't pin AUTH_URL
+  // to the platform's domain: Auth.js would send every sign-in there.
+  if (!env.AUTH_URL && env.AUTH_TRUST_HOST !== 'true') {
     const url = platformUrl(env)
     if (url) out.AUTH_URL = url
   }
