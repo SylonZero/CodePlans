@@ -9,6 +9,7 @@ import { db as _db } from '@/lib/db'
 import { users } from '@/lib/db/schema'
 import type { AuthAdapter } from './types'
 import { getEnterpriseHooks } from '@/lib/ee/registry'
+import { bumpSessionVersion, currentSessionVersion, sessionUserId } from './session-version'
 
 // Local auth runs on either database (users comes from the schema barrel, so it
 // matches the active driver). Cast db to any to avoid pg/sqlite type conflicts.
@@ -24,6 +25,7 @@ export const {
   signIn: _nextAuthSignIn,
   signOut: _nextAuthSignOut,
   auth,
+  unstable_update: _nextAuthUpdate,
 } = NextAuth({
   providers: [
     Credentials({
@@ -43,32 +45,43 @@ export const {
         const valid = await bcrypt.compare(credentials.password as string, user.passwordHash)
         if (!valid) return null
 
-        return { id: user.id, email: user.email }
+        return { id: user.id, email: user.email, sessionVersion: user.sessionVersion ?? 0 }
       },
     }),
   ],
   session: { strategy: 'jwt' },
   pages: { signIn: '/login' },
   callbacks: {
-    jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user?.id) {
         token.id = user.id
+        token.sv = (user as { sessionVersion?: number }).sessionVersion ?? 0
         // Where the session was issued (null in the community edition); a
         // session read anywhere else carries no user. See sessionScope in
         // lib/ee/types.ts.
         token.scope = getEnterpriseHooks().sessionScope()
       }
+      // After a password change, this session moves to the new version and stays signed in.
+      if (trigger === 'update' && token.id) token.sv = (await currentSessionVersion(token.id as string)) ?? 0
       return token
     },
-    session({ session, token }) {
-      const inScope = (token.scope ?? null) === getEnterpriseHooks().sessionScope()
-      if (token.id && session.user && inScope) {
-        session.user.id = token.id as string
-      }
+    async session({ session, token }) {
+      const userId = await sessionUserId(token)
+      if (userId && session.user) session.user.id = userId
       return session
     },
   },
 })
+
+/**
+ * Ends every session of an account issued before now: call after its
+ * password changes. With `keepCurrent`, the session making the request is
+ * moved to the new version so its owner stays signed in.
+ */
+export async function endOtherSessions(userId: string, { keepCurrent = false } = {}) {
+  await bumpSessionVersion(userId)
+  if (keepCurrent) await _nextAuthUpdate({})
+}
 
 // ---------------------------------------------------------------------------
 // Auth adapter implementation
@@ -174,11 +187,9 @@ export const localAdapter: AuthAdapter = {
       return clearStale(NextResponse.redirect(url))
     }
 
-    if (hasSession && isAuthR) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/'
-      return NextResponse.redirect(url)
-    }
+    // A signed-in visitor on an auth page is sent home by the auth layout,
+    // which checks the account; here a cookie that decrypts may still belong
+    // to a session ended by a password change.
 
     return clearStale(NextResponse.next())
   },

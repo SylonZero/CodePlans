@@ -1,4 +1,6 @@
+import { redirect } from 'next/navigation'
 import { GitBranch, History, Bot } from 'lucide-react'
+import { authAdapter } from '@/lib/auth'
 
 const BRAND = 'oklch(0.8 0.14 196)'
 
@@ -71,7 +73,12 @@ const POINTS = [
   { icon: Bot, text: 'Your coding agents read and update it over MCP' },
 ]
 
-export default function AuthLayout({ children }: { children: React.ReactNode }) {
+export default async function AuthLayout({ children }: { children: React.ReactNode }) {
+  // Already signed in: go to the app. A session ended by a password change
+  // (or with no workspace to check against) counts as signed out.
+  const user = await authAdapter.getUser().catch(() => null)
+  if (user) redirect('/')
+
   return (
     <div className="grid min-h-screen bg-background lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
       <aside

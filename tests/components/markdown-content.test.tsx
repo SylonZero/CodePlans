@@ -1,11 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { createElement } from 'react'
 import { MarkdownContent } from '@/components/markdown-content'
 
 describe('MarkdownContent', () => {
   it('preserves paragraphs and authored line breaks and renders safe GFM in narrow panels', () => {
-    const html = renderToStaticMarkup(createElement(MarkdownContent, { children: '# Heading\n\nFirst line\nSecond line\n\nNext paragraph with **bold**, ~~deleted~~ and `code`.\n\n| Column | Value |\n| --- | ---: |\n| Quota | 100 |\n\n- [x] Shipped\n- [ ] Pending\n\n<script>alert(1)</script>' }))
+    const html = renderToStaticMarkup(<MarkdownContent>{'# Heading\n\nFirst line\nSecond line\n\nNext paragraph with **bold**, ~~deleted~~ and `code`.\n\n| Column | Value |\n| --- | ---: |\n| Quota | 100 |\n\n- [x] Shipped\n- [ ] Pending\n\n<script>alert(1)</script>'}</MarkdownContent>)
     expect(html).toContain('<h1>Heading</h1>')
     expect(html).toMatch(/First line<br\s*\/>\nSecond line/)
     expect(html).toContain('<p>Next paragraph')
@@ -18,12 +17,12 @@ describe('MarkdownContent', () => {
     expect(html).not.toContain('<script>')
   })
   it('keeps code block whitespace and disables unsafe links', () => {
-    const html = renderToStaticMarkup(createElement(MarkdownContent, { children: '```ts\nconst x = 1\n\n  x + 1\n```\n\n[bad](javascript:alert%281%29)' }))
+    const html = renderToStaticMarkup(<MarkdownContent>{'```ts\nconst x = 1\n\n  x + 1\n```\n\n[bad](javascript:alert%281%29)'}</MarkdownContent>)
     expect(html).toContain('const x = 1\n\n  x + 1')
     expect(html).not.toContain('href="javascript:')
   })
   it('renders mermaid fences through the diagram widget, showing source before client-side render', () => {
-    const html = renderToStaticMarkup(createElement(MarkdownContent, { children: '```mermaid\nflowchart TD\n  A --> B\n```' }))
+    const html = renderToStaticMarkup(<MarkdownContent>{'```mermaid\nflowchart TD\n  A --> B\n```'}</MarkdownContent>)
     expect(html).toContain('Diagram')
     expect(html).toContain('flowchart TD')
     expect(html).toContain('A --&gt; B')

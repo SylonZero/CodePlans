@@ -15,15 +15,17 @@ const req = (path: string, cookie?: string) =>
 const deletesCookie = (res: Response) => (res.headers.get('set-cookie') ?? '').includes(`${COOKIE}=;`)
 
 describe('proxy session check', () => {
-  it('lets a valid session through and keeps it away from the sign-in page', async () => {
+  it('lets a valid session through, including to the sign-in page', async () => {
     const valid = await token()
     const page = await proxy(req('/plans', valid))
     expect(page.headers.get('x-middleware-next')).toBe('1')
     expect(deletesCookie(page)).toBe(false)
 
+    // The auth layout, not the proxy, sends a live session away from /login:
+    // only it can tell whether the session was ended by a password change.
     const login = await proxy(req('/login', valid))
-    expect(login.status).toBe(307)
-    expect(login.headers.get('location')).toBe('http://localhost:3000/')
+    expect(login.headers.get('x-middleware-next')).toBe('1')
+    expect(deletesCookie(login)).toBe(false)
   })
 
   it('treats a cookie from another AUTH_SECRET as signed out and clears it', async () => {

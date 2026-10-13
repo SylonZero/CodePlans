@@ -5,8 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { resetPasswordAction } from '../actions'
-
-const MIN_LENGTH = 8
+import { MIN_PASSWORD_LENGTH } from '@/lib/auth/password-rules'
 
 export function ResetPasswordForm({ token, email }: { token: string; email: string }) {
   const [error, setError] = useState<string | null>(null)
@@ -15,7 +14,7 @@ export function ResetPasswordForm({ token, email }: { token: string; email: stri
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
-    if ((fd.get('password') as string).length < MIN_LENGTH) { setError(`Password must be at least ${MIN_LENGTH} characters.`); return }
+    if ((fd.get('password') as string).length < MIN_PASSWORD_LENGTH) { setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`); return }
     if (fd.get('password') !== fd.get('confirm')) { setError('Passwords do not match.'); return }
     setError(null)
     startTransition(async () => {
@@ -35,7 +34,7 @@ export function ResetPasswordForm({ token, email }: { token: string; email: stri
         <input type="email" name="username" value={email} autoComplete="username" readOnly hidden />
         <div className="space-y-2">
           <Label htmlFor="rp-password">New password</Label>
-          <Input id="rp-password" name="password" type="password" required minLength={MIN_LENGTH} autoComplete="new-password" autoFocus />
+          <Input id="rp-password" name="password" type="password" required minLength={MIN_PASSWORD_LENGTH} autoComplete="new-password" autoFocus />
         </div>
         <div className="space-y-2">
           <Label htmlFor="rp-confirm">Confirm password</Label>

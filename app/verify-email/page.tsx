@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { db } from '@/lib/db'
 import { users, emailVerificationTokens } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 
 interface Props {
   searchParams: Promise<{ token?: string }>
@@ -16,7 +16,7 @@ export default async function VerifyEmailPage({ searchParams }: Props) {
   }
 
   const record = await db.query.emailVerificationTokens.findFirst({
-    where: eq(emailVerificationTokens.token, token),
+    where: and(eq(emailVerificationTokens.token, token), eq(emailVerificationTokens.purpose, 'email_change')),
   })
 
   if (!record) {

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { MIN_PASSWORD_LENGTH } from '@/lib/auth/password-rules'
 
 export function SignupForm() {
   const [error, setError] = useState<string | null>(null)
@@ -40,7 +41,7 @@ export function SignupForm() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
-            <Input id="password" name="password" type="password" minLength={6} required />
+            <Input id="password" name="password" type="password" minLength={MIN_PASSWORD_LENGTH} required />
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
         </CardContent>

@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { authAdapter } from '@/lib/auth'
 import { config } from '@/lib/config'
+import { MIN_PASSWORD_LENGTH } from '@/lib/auth/password-rules'
 
 export async function signIn(formData: FormData) {
   const result = await authAdapter.signIn(
@@ -17,9 +18,11 @@ export async function signUp(formData: FormData) {
   if (config.registration !== 'open') {
     return { error: 'Registration is not open on this instance.' }
   }
+  const password = String(formData.get('password') ?? '')
+  if (password.length < MIN_PASSWORD_LENGTH) return { error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` }
   const result = await authAdapter.signUp(
     formData.get('email') as string,
-    formData.get('password') as string,
+    password,
     formData.get('name') as string,
   )
   if (result?.error) return result
@@ -41,18 +44,18 @@ export async function acceptInvite(token: string, formData: FormData) {
   const bcrypt = (await import('bcryptjs')).default
   const { db } = await import('@/lib/db')
   const { emailVerificationTokens, users } = await import('@/lib/db/schema')
-  const { eq, and, gt } = await import('drizzle-orm')
+  const { eq, sql } = await import('drizzle-orm')
 
-  const row = await db.query.emailVerificationTokens.findFirst({
-    where: and(eq(emailVerificationTokens.token, token), gt(emailVerificationTokens.expiresAt, new Date())),
-  })
+  const { findInvite } = await import('@/lib/auth/invites')
+  const row = await findInvite(token)
   if (!row) return { error: 'This invite link is invalid or has expired.' }
 
   const password = formData.get('password') as string
-  if (!password || password.length < 8) return { error: 'Password must be at least 8 characters.' }
+  if (!password || password.length < MIN_PASSWORD_LENGTH) return { error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` }
 
   const passwordHash = await bcrypt.hash(password, 10)
-  await db.update(users).set({ passwordHash }).where(eq(users.id, row.userId))
+  // Replaces the temporary password, so any session made with it ends.
+  await db.update(users).set({ passwordHash, sessionVersion: sql`${users.sessionVersion} + 1` }).where(eq(users.id, row.userId))
   await db.delete(emailVerificationTokens).where(eq(emailVerificationTokens.id, row.id))
 
   const user = await db.query.users.findFirst({ where: eq(users.id, row.userId) })

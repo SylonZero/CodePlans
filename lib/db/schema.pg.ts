@@ -61,6 +61,9 @@ export const users = pgTable('users', {
   featureFlags: jsonb('feature_flags').notNull().default({}),
   // bcrypt hash; null until the person sets a password.
   passwordHash: text('password_hash'),
+  // Bumped when the password changes or is reset; sessions issued under an
+  // older value stop working (lib/auth/local.ts).
+  sessionVersion: integer('session_version').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -509,6 +512,8 @@ export const emailVerificationTokens = pgTable('email_verification_tokens', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   newEmail: text('new_email').notNull(),
+  // An invite (set a first password) or an email change (confirm the new address).
+  purpose: text('purpose').$type<'invite' | 'email_change'>().notNull().default('email_change'),
   token: text('token').notNull().unique(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
