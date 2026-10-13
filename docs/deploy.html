@@ -155,7 +155,8 @@
       <div><h3>"…is not on a persistent volume"</h3><p>The service is on SQLite without a volume, so CodePlans refuses to start rather than lose your data on the next deploy. Attach a volume at <code>/data</code> (the log names the exact path), or switch to Postgres.</p></div>
       <div><h3>No [setup] line in the logs</h3><p>It only appears while the instance has no accounts. If someone already claimed it, sign in instead. Otherwise restart or redeploy the service and look again.</p></div>
       <div><h3>The health check keeps failing</h3><p>Look further up the log. A failed migration or a missing <code>AUTH_SECRET</code> on Postgres stops the server on purpose and says why. The previous deploy keeps running meanwhile.</p></div>
-      <div><h3>Sign-in fails on a custom domain</h3><p>Set <code>AUTH_URL</code> to the public address, e.g. <code>https://codeplans.yourteam.com</code>. Platform domains are detected automatically.</p></div>
+      <div><h3>Sign-in fails on a custom domain</h3><p>Set <code>AUTH_URL</code> to the public address, e.g. <code>https://codeplans.yourteam.com</code>. Platform domains are detected automatically. Serving more than one domain? Leave <code>AUTH_URL</code> unset and set <code>AUTH_TRUST_HOST=true</code>.</p></div>
+      <div><h3>Signed out everywhere</h3><p>Expected after a password change or reset: every other session of that account ends. Sign in again with the new password.</p></div>
       <div><h3>Someone can't sign up</h3><p>That's the invite-only default. Invite them from the <strong>Team</strong> page, or set <code>REGISTRATION=open</code> to let anyone who can reach the server join.</p></div>
       <div><h3>Every setting</h3><p>The <a href="self-host.html#config">self-host page</a> and the <a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/deploying.md">deployment guide</a> list every environment variable, backups and health checks.</p></div>
     </div>

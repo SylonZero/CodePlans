@@ -112,6 +112,7 @@
     <div class="section-label">Configuration</div>
     <h2>Accounts &amp; environment variables</h2>
     <p class="section-sub">An instance is one workspace with its own email and password accounts. <code>REGISTRATION</code> decides how people get in.</p>
+    <div class="feature-row" style="border-top:0;padding-top:0;margin-bottom:16px"><div class="row-text"><h3 style="margin-bottom:8px">Signing in</h3><p>Passwords are at least 8 characters, stored as bcrypt hashes. <strong>Forgot password?</strong> on the sign-in page emails a link to choose a new one; it works once, for an hour, and the page answers the same whether or not the address has an account. Without <code>RESEND_API_KEY</code> the link is written to the server log for whoever runs the instance.</p><p>Changing or resetting a password signs that account out everywhere else, so a lost laptop or a leaked session stops working at once.</p></div><div class="row-media"><figure class="shot "><a href="screenshots/signin.png" aria-label="Open full size: The sign-in page"><img src="screenshots/signin.png" alt="The sign-in page" width="2880" height="1800" loading="lazy"></a></figure></div></div>
 
     <div class="config-grid">
       <div class="config-card">
@@ -179,7 +180,7 @@
           <tr>
             <td class="env-var">AUTH_URL</td>
             <td class="env-default">detected</td>
-            <td class="env-desc">Public URL of the server. Detected on Railway, Fly.io and Render; set it for custom domains and other hosts. Not needed for <code>localhost</code> dev.</td>
+            <td class="env-desc">Public URL of the server. Detected on Railway, Fly.io and Render; set it for custom domains and other hosts. Not needed for <code>localhost</code> dev. To serve several domains, leave it unset and set <code>AUTH_TRUST_HOST=true</code>: each request's host is used instead.</td>
           </tr>
           <tr>
             <td class="env-var">ADMIN_EMAIL / ADMIN_PASSWORD</td>
@@ -204,7 +205,7 @@
           <tr>
             <td class="env-var">RESEND_API_KEY</td>
             <td class="env-default">—</td>
-            <td class="env-desc">Resend API key for transactional email and the fallback notification channel. Without this, verification URLs are logged to the server console — fine for local dev.</td>
+            <td class="env-desc">Resend API key for invites, password resets, email changes and the fallback notification channel. Without this, those links are logged to the server console — fine for local dev.</td>
           </tr>
           <tr>
             <td class="env-var">RESEND_FROM_EMAIL</td>

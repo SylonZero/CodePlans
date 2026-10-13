@@ -29,7 +29,7 @@ the server and adds the CodePlans [agent skills](agent-skills.md):
 `/plugin marketplace add SylonZero/CodePlans`, then
 `/plugin install codeplans@codeplans`.
 
-## The tool catalog (74 tools)
+## The tool catalog (75 tools)
 
 **Read** (any key):
 

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CodePlans — AI agents</title>
-  <meta name="description" content="The CodePlans MCP server: 74 tools for coding agents." />
+  <meta name="description" content="The CodePlans MCP server: 75 tools for coding agents." />
   <link rel="stylesheet" href="assets/site.css" />
 </head>
 <body>
@@ -18,10 +18,10 @@
     </div>
   </div>
 </nav>
-<section class="page-hero"><div class="container"><div class="crumb"><a href="index.html">CodePlans</a> / AI agents</div><h1>The system of record your coding agents read — and write</h1><p class="hero-sub">CodePlans records what shipped, where and why. Connect a coding agent over MCP (74 tools) and the record builds itself as the work happens.</p><div class="links"><a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/ai-agents.md">AI agents guide</a><a href="https://github.com/SylonZero/CodePlans/blob/master/docs/specs/mcp-server-spec.md">MCP server spec</a></div></div></section>
+<section class="page-hero"><div class="container"><div class="crumb"><a href="index.html">CodePlans</a> / AI agents</div><h1>The system of record your coding agents read — and write</h1><p class="hero-sub">CodePlans records what shipped, where and why. Connect a coding agent over MCP (75 tools) and the record builds itself as the work happens.</p><div class="links"><a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/ai-agents.md">AI agents guide</a><a href="https://github.com/SylonZero/CodePlans/blob/master/docs/specs/mcp-server-spec.md">MCP server spec</a></div></div></section>
 <main>
 <section class="section"><div class="container"><div class="feature-grid">
-  <div class="feature-card"><div class="feature-icon" style="background:rgba(96,165,250,.12)">📖</div><h3>Agents read the map</h3><p>Before touching an asset, an agent pulls its history, open debt, dependencies, active specs and delivery coverage. <code>get_asset_record</code> separates current intent from delivered capabilities.</p></div>
+  <div class="feature-card"><div class="feature-icon" style="background:rgba(96,165,250,.12)">📖</div><h3>Agents read the map</h3><p>Before touching an asset, an agent pulls its history, open debt, dependencies, active specs and delivery coverage. <code>get_asset_record</code> separates current intent from delivered capabilities, and <code>search</code> finds any product, asset, plan, task, work item, spec or release by text.</p></div>
   <div class="feature-card"><div class="feature-icon" style="background:rgba(251,146,60,.12)">✍️</div><h3>Agents write the record</h3><p>As plans complete, agents mark tasks done, update branch and PR status, file the debt they discover, and record a design note on each asset they changed, with an agent badge.</p></div>
   <div class="feature-card"><div class="feature-icon" style="background:rgba(74,222,128,.12)">💬</div><h3>Agents join the loop</h3><p>Agents request reviews, read and add comments, and start a session with <code>get_my_work</code>: "what's waiting on me?". There is deliberately no tool to approve a review.</p></div>
   <div class="feature-card"><div class="feature-icon" style="background:rgba(167,139,250,.12)">📝</div><h3>AI drafts, humans decide</h3><p>With an Anthropic API key configured, CodePlans drafts release notes and design notes from delivered work. Drafts always land in an editor; nothing is auto-published.</p></div>
@@ -32,7 +32,25 @@
   <div><span class="cmd">claude mcp add</span> <span class="arg">--transport http codeplans http://localhost:3000/api/mcp/mcp \</span></div>
   <div><span class="arg">&nbsp;&nbsp;--header "Authorization: Bearer cpk_your_key"</span></div>
 </div>
-<p style="margin-top:16px">See the <a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/ai-agents.md">AI agents guide</a> for the 74-tool catalog, and the <a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/logging-work.md">/codeplans-log</a> and <a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/capturing-docs.md">/codeplans-capture</a> skills.</p></div></section>
+<p style="margin-top:16px">See the <a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/ai-agents.md">AI agents guide</a> for the 75-tool catalog and the recommended agent workflows.</p></div></section><section class="section"><div class="container"><div class="section-label">Agent skills</div><h2>Teach your agent the workflows</h2>
+<p class="section-sub">CodePlans publishes agent skills: short instructions that turn its workflows into one-line requests like <em>log this in CodePlans</em>. In Claude Code, the plugin installs them and connects the MCP server; it asks for your CodePlans URL and an API key.</p>
+<div class="code-block">
+  <div><span class="comment"># Claude Code: skills and the MCP connection</span></div>
+  <div><span class="cmd">/plugin marketplace add</span> <span class="arg">SylonZero/CodePlans</span></div>
+  <div><span class="cmd">/plugin install</span> <span class="arg">codeplans@codeplans</span></div>
+  <br>
+  <div><span class="comment"># Any agent (Codex, Cursor, Copilot…): skills only</span></div>
+  <div><span class="cmd">npx skills add</span> <span class="arg">SylonZero/CodePlans</span></div>
+</div>
+<div class="feature-grid" style="margin-top:24px">
+  <div class="feature-card"><h3>/codeplans-context</h3><p>Before a change: owners, dependents, history, design notes, specs, debt and open issues for the assets involved.</p></div>
+  <div class="feature-card"><h3>/codeplans-log</h3><p>After a session: the plan, tasks, branch and PR status, and the debt and follow-ups found along the way.</p></div>
+  <div class="feature-card"><h3>/codeplans-spec</h3><p>Read, write, revise or supersede a spec and link it to the assets, work items and plans it governs.</p></div>
+  <div class="feature-card"><h3>/codeplans-close-plan</h3><p>Complete a plan, record design notes on the changed assets, and graduate delivered features into the asset record.</p></div>
+  <div class="feature-card"><h3>/codeplans-release</h3><p>Create a release, attach its plans, stamp asset versions and ship it.</p></div>
+  <div class="feature-card"><h3>/codeplans-model, /codeplans-capture, /codeplans-my-work</h3><p>Model a repo as assets, import an existing docs folder, and see what's waiting on you.</p></div>
+</div>
+<p style="margin-top:16px">See the <a href="https://github.com/SylonZero/CodePlans/blob/master/docs/guides/agent-skills.md">agent skills guide</a>. Skills that write ask before anything people would want to check: completing a plan, shipping a release, or writing a proposed model.</p></div></section>
 </main>
 <div class="container"><div class="page-nav"><a href="my-work.html"><span>← Previous</span>My Work</a><a class="next" href="self-host.html"><span>Next →</span>Self-host</a></div></div>
 <footer>

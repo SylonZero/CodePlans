@@ -7,7 +7,7 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![Tests](https://img.shields.io/badge/Tests-483_passing-brightgreen?logo=vitest&logoColor=white)](tests/)
 [![CI](https://github.com/SylonZero/CodePlans/actions/workflows/test.yml/badge.svg)](https://github.com/SylonZero/CodePlans/actions/workflows/test.yml)
-[![MCP tools](https://img.shields.io/badge/MCP-74_tools-8B5CF6)](docs/guides/ai-agents.md)
+[![MCP tools](https://img.shields.io/badge/MCP-75_tools-8B5CF6)](docs/guides/ai-agents.md)
 [![Docs](https://img.shields.io/badge/Docs-GitHub_Pages-4ade80)](https://sylonzero.github.io/CodePlans)
 [![Deploy](https://img.shields.io/badge/Deploy-Railway_%7C_Fly.io_%7C_Docker-0B0D0E?logo=docker&logoColor=white)](docs/guides/deploying.md)
 
@@ -103,7 +103,7 @@ See the [reviews guide](docs/guides/reviews-and-comments.md), [My Work guide](do
 | Analytics wired to real data (velocity, effort accuracy, debt by product) | ✅ Available |
 | Activity feed | ✅ Available |
 | GitHub, GitLab, Jira, Asana & Linear integrations (pull-only mirror into work items) | ✅ Available |
-| MCP server — 74 tools incl. native specs with version history, reviews & comments, responsibilities, product/asset/dependency management, model refactoring (move_asset), releases, design notes & the asset record | ✅ Available |
+| MCP server — 75 tools incl. text search, native specs with version history, reviews & comments, responsibilities, product/asset/dependency management, model refactoring (move_asset), releases, design notes & the asset record | ✅ Available |
 | Milestone-linked plans with mirrored tasks (mixed mode) | ✅ Available |
 | PR auto-linking (plan-asset PR status refreshed on sync) | ✅ Available |
 | Releases — delivery grouping with per-asset version stamps & derived release notes | ✅ Available |
@@ -153,7 +153,8 @@ else gets in:
 **Forgot password** on the sign-in page emails a link to choose a new
 password. It works once, for one hour, and the page answers the same whether
 or not the address has an account. Without `RESEND_API_KEY` the link is
-written to the server log instead, for whoever runs the instance.
+written to the server log instead, for whoever runs the instance. Changing
+or resetting a password signs that account out everywhere else.
 
 Commercial/hosted-only features are built as an optional private module the
 app loads at startup, never as forked or hidden code in this repo. See the
