@@ -1,6 +1,6 @@
 # Capturing a Docs Corpus into CodePlans
 
-The third skill in the trio: `/codeplans-model` maps structure,
+One of the [CodePlans agent skills](agent-skills.md): `/codeplans-model` maps structure,
 `/codeplans-log` records live session work, and **`/codeplans-capture`** reads
 an existing `/docs` folder and captures its *ongoing state* — plans in flight,
 parked remediation items, unscheduled ideas — as CodePlans records, each linked
@@ -25,11 +25,10 @@ asset associations omit relationshipType. Read `get_spec` to reuse the linked
 plan/item IDs and update those records instead of creating duplicates. Never
 write `specUrl` on a plan or work item: those fields are deprecated/read-only.
 
-For `/codeplans-capture` installations maintained outside this repository,
-replace the previous “set specUrl” / “match records by specUrl” instructions
-with this workflow. This repository carries the capture guide, not the
-externally installed skill file. Existing legacy records should be migrated
-with the [dry-run import script](using-specs.md#migrating-existing-urls) first.
+If you installed an older `/codeplans-capture` by hand that sets or matches
+records by `specUrl`, replace it with the published skill (see the end of
+this guide). Existing legacy records should be migrated with the
+[dry-run import script](using-specs.md#migrating-existing-urls) first.
 
 ## Mapping conventions
 
@@ -57,9 +56,10 @@ items are noise.
 Volume guard: the skill proposes the full delta with counts before writing,
 and offers a load-bearing subset first when the delta exceeds ~40 records.
 
-Save as `~/.claude/skills/codeplans-capture/SKILL.md` and run
-`/codeplans-capture` in the repo (see the skill text in the
-[modeling guide's](modeling-monorepos.md) companion repo, or copy from the
-CodePlans README discussion). Adjust the folder mapping table in the skill to
-your own docs conventions — the one above matches a
-`codeplans/ + remediation-backlog/ + specs/` layout.
+Install it with the other [CodePlans agent skills](agent-skills.md)
+(`npx skills add SylonZero/CodePlans --skill codeplans-capture`, or the
+Claude Code plugin) and run `/codeplans-capture` in the repo. The mapping
+table above matches a `codeplans/ + remediation-backlog/ + specs/` layout;
+the skill asks when your layout differs, or you can edit the table in your
+installed copy of
+[`SKILL.md`](../../plugins/codeplans/skills/codeplans-capture/SKILL.md).

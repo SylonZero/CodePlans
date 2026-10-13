@@ -24,6 +24,11 @@ claude mcp add --transport http codeplans http://localhost:3000/api/mcp/mcp \
 Works identically against a local SQLite instance or a hosted deployment —
 the server lives inside the Next.js app.
 
+In Claude Code you can instead install the `codeplans` plugin, which connects
+the server and adds the CodePlans [agent skills](agent-skills.md):
+`/plugin marketplace add SylonZero/CodePlans`, then
+`/plugin install codeplans@codeplans`.
+
 ## The tool catalog (74 tools)
 
 **Read** (any key):
@@ -155,11 +160,11 @@ become capabilities merely because they were linked. See the
 lack version stamps). The release notes derive themselves from the work items
 the plans delivered.
 
-Two companion skills automate the bootstrap cases: `/codeplans-capture`
-(turn an existing docs folder into plans and work items — see
-[Capturing a Docs Corpus](capturing-docs.md)) and `/codeplans-log`
-(record a finished coding session — see
-[Logging Work via Claude](logging-work.md)).
+Each of these workflows is also published as an agent skill
+(`/codeplans-context`, `/codeplans-log`, `/codeplans-spec`,
+`/codeplans-close-plan`, `/codeplans-release` and more). Install them with
+`npx skills add SylonZero/CodePlans`, or in Claude Code as a plugin that also
+connects the MCP server. See [Agent Skills](agent-skills.md).
 
 ## AI drafting
 

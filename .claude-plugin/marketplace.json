@@ -1,0 +1,14 @@
+{
+  "name": "codeplans",
+  "owner": { "name": "The team at MindStaq" },
+  "metadata": {
+    "description": "Agent skills and the MCP connection for CodePlans."
+  },
+  "plugins": [
+    {
+      "name": "codeplans",
+      "source": "./plugins/codeplans",
+      "description": "Connect Claude Code to CodePlans and work with its planning record: model a repo, load context before a change, log work, manage specs, close plans and ship releases."
+    }
+  ]
+}

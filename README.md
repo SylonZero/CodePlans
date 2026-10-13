@@ -440,6 +440,15 @@ In VS Code's Copilot Chat instead, add the same URL/header under a `"servers"` e
 }
 ```
 
+**Agent skills** — CodePlans publishes [agent skills](docs/guides/agent-skills.md) for its workflows (`/codeplans-model`, `/codeplans-context`, `/codeplans-log`, `/codeplans-spec`, `/codeplans-close-plan`, `/codeplans-release`, `/codeplans-my-work`, `/codeplans-capture`). In Claude Code, the plugin installs them and connects the MCP server in one go; it asks for your CodePlans URL and API key:
+
+```text
+/plugin marketplace add SylonZero/CodePlans
+/plugin install codeplans@codeplans
+```
+
+For any other agent (or Claude Code without the plugin), install the skills with `npx skills add SylonZero/CodePlans` and connect the server as above.
+
 Your agent can then read specs, plans, work items, and tech debt and (with a write-scope key) create, revise, supersede, and link specs, model products, assets, and dependencies, manage plans end-to-end (create, target assets, activate/complete), file work items, manage tasks, and record branch/PR status on plan assets. Keys act as your user, so org access rules and mirrored-field protections apply unchanged. See [`docs/specs/mcp-server-spec.md`](docs/specs/mcp-server-spec.md).
 
 ---
