@@ -515,6 +515,16 @@ export const emailVerificationTokens = sqliteTable('email_verification_tokens', 
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 })
 
+// Forgot-password links. Only a SHA-256 of the emailed token is stored; a
+// link works once, for an hour, and a new request replaces older ones.
+export const passwordResetTokens = sqliteTable('password_reset_tokens', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  tokenHash: text('token_hash').notNull().unique(),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+})
+
 // Native, product-owned specifications. Bodies are canonical GFM from TipTap.
 export const specs = sqliteTable('specs', {
   // Explicit attribution; null means the actor was not recorded (never infer from owner).

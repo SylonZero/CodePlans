@@ -239,6 +239,13 @@
       "when": 1791000000000,
       "tag": "0033_work_item_intake",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1791100000000,
+      "tag": "0034_password_reset_tokens",
+      "breakpoints": true
     }
   ]
 }

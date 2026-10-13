@@ -107,7 +107,7 @@ export async function readSessionCookies(request: NextRequest): Promise<{ valid:
 
 function isAuthRoute(pathname: string) {
   return pathname.startsWith('/login') || pathname.startsWith('/signup') || pathname.startsWith('/accept-invite')
-    || pathname.startsWith('/setup')
+    || pathname.startsWith('/setup') || pathname.startsWith('/forgot-password') || pathname.startsWith('/reset-password')
 }
 
 export const localAdapter: AuthAdapter = {
