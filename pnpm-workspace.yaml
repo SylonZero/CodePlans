@@ -26,7 +26,25 @@ overrides:
   '@tiptap/extension-underline': 3.27.0
   '@tiptap/extensions': 3.27.0
   '@tiptap/pm': 3.27.0
+  # typescript-eslint suite (via eslint-config-next): pinned to a release past the deploy's minimum release age
+  'typescript-eslint': 8.71.1
+  '@typescript-eslint/eslint-plugin': 8.71.1
+  '@typescript-eslint/parser': 8.71.1
+  '@typescript-eslint/project-service': 8.71.1
+  '@typescript-eslint/scope-manager': 8.71.1
+  '@typescript-eslint/tsconfig-utils': 8.71.1
+  '@typescript-eslint/type-utils': 8.71.1
+  '@typescript-eslint/types': 8.71.1
+  '@typescript-eslint/typescript-estree': 8.71.1
+  '@typescript-eslint/utils': 8.71.1
+  '@typescript-eslint/visitor-keys': 8.71.1
 
 # esbuild (via tsx/vite dev tooling) needs its postinstall to fetch the platform binary
 onlyBuiltDependencies:
   - esbuild
+
+# unrs-resolver (via eslint-config-next) gets its native binding from an optional
+# dependency; its postinstall is only a fallback, so skip it explicitly instead of
+# leaving it as an unapproved build script
+ignoredBuiltDependencies:
+  - unrs-resolver
