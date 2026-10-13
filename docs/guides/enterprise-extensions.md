@@ -69,6 +69,9 @@ const extraNavItems = getEnterpriseHooks().navItems() // [] unless enabled
 | `handleApi(req)` | `/api/ee/<path>`, which skips the session redirect | `null` (404) |
 | `workspaceNotice()` | Dashboard layout: a banner above every page | `null` |
 | `health()` | `/api/health`: whether the app is healthy, for deployments where a bare health check has no database of its own | `null` (query the current database) |
+| `publicUrl()` | `getBaseUrl()` in `lib/email.ts`: the base of links in invites, email verification and notifications, for the current workspace (background jobs included) | `null` (use `AUTH_URL`) |
+| `sharedEmail()` | Email sent with the server's `RESEND_API_KEY`: workspace notifications without their own key (`lib/db/notification-settings.ts`) and invites. Fixes the From address per workspace, hides the server key on the settings page, and makes a custom From address need the workspace's own key | `null` (`RESEND_FROM_EMAIL`) |
+| `inviteGate(ctx)` | `inviteMemberAction`, before a member is invited. Return `{ allowed: false, reason }` to refuse; the reason is shown to the admin | `{ allowed: true }` |
 
 `reviewGate` receives plain data — product, subject, transition, actor and
 actor kind, the product's workflow level, whether an approval covers the

@@ -33,7 +33,7 @@ async function run<T extends object>(fn: () => Promise<T>, path = '/settings/not
   }
 }
 
-export async function saveEmailChannelAction(input: { apiKey?: string; fromAddress: string; replyTo?: string }) {
+export async function saveEmailChannelAction(input: { apiKey?: string; fromAddress?: string; replyTo?: string }) {
   return run(async () => { const { actor, organizationId } = await me(); await saveEmailChannel(organizationId, input, actor); return {} })
 }
 

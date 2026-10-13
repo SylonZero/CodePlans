@@ -172,8 +172,10 @@ export async function processDeliveries(opts: { ids?: string[]; limit?: number }
       const [claimed] = await db.update(notificationDeliveries).set({ status: 'sending', attempts, nextAttemptAt: new Date() })
         .where(and(eq(notificationDeliveries.id, d.id), eq(notificationDeliveries.status, 'pending'))).returning({ id: notificationDeliveries.id })
       if (!claimed) continue
-      if (!channels.has(d.channelId)) channels.set(d.channelId, await resolveChannelById(d.channelId))
-      const channel = channels.get(d.channelId)
+      // Keyed by workspace too: the server email channel's From address depends on it.
+      const channelKey = `${d.organizationId}:${d.channelId}`
+      if (!channels.has(channelKey)) channels.set(channelKey, await resolveChannelById(d.channelId, d.organizationId))
+      const channel = channels.get(channelKey)
       if (!channel) {
         await db.update(notificationDeliveries).set({ status: 'skipped', lastError: 'The channel was removed, paused or has no key' }).where(eq(notificationDeliveries.id, d.id))
         result.skipped++

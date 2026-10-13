@@ -17,6 +17,7 @@ import { notifyIntegrationError } from '@/lib/db/notification-rules'
 import { renderEmail, renderSlack } from '@/lib/notify/templates'
 import { validateWebhookUrl } from '@/lib/notify/transports'
 import { GET as cronGET } from '@/app/api/cron/notifications/route'
+import { registerEnterpriseHooks, resetEnterpriseHooks } from '@/lib/ee/registry'
 
 const ERIN = 'user-erin-d' // editor, code owner of the API asset
 const HOOK = 'https://hooks.slack.com/services/T000/B000/secretsecret'
@@ -40,6 +41,7 @@ beforeEach(async () => {
   await setAssetOwners(F.assetApi, [ERIN], { id: F.alice })
 })
 afterEach(async () => {
+  resetEnterpriseHooks()
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()
   await clearTables()
@@ -116,6 +118,54 @@ describe('channels', () => {
     expect(validateWebhookUrl('http://localhost:4010/slack')).toBeNull()
     expect(validateWebhookUrl('https://chat.internal/hooks/abc')).toBeNull()
     expect(validateWebhookUrl('file:///etc/passwd')).not.toBeNull()
+  })
+})
+
+describe('shared email (a hosted service)', () => {
+  const SERVER_KEY = 're_server_key_123456789'
+  const hosted = () => {
+    vi.stubEnv('RESEND_API_KEY', SERVER_KEY)
+    registerEnterpriseHooks({
+      sharedEmail: () => ({ from: (name) => `${name} via CodePlans <notifications@codeplans.ai>` }),
+      publicUrl: () => 'https://acme.codeplans.app',
+    })
+  }
+
+  it('sends from a fixed address with the server key, and never shows the key', async () => {
+    hosted()
+    const view = (await listChannels(F.org)).email
+    expect(view).toMatchObject({ configured: true, source: 'platform', secretHint: null, config: { fromAddress: 'Acme Inc via CodePlans <notifications@codeplans.ai>' } })
+    expect(JSON.stringify(view)).not.toContain('re_')
+
+    await reviewForErin()
+    const [mail] = emails()
+    expect(mail.auth).toBe(`Bearer ${SERVER_KEY}`)
+    expect(mail.body.from).toBe('Acme Inc via CodePlans <notifications@codeplans.ai>')
+    expect(mail.body.html).toContain('https://acme.codeplans.app/')
+  })
+
+  it('keeps only the reply-to without a key of their own', async () => {
+    hosted()
+    await saveEmailChannel(F.org, { fromAddress: 'Support <support@codeplans.ai>', replyTo: 'eng@example.com' }, alice)
+    const [row] = await (db as any).select().from(notificationChannels).where(eq(notificationChannels.kind, 'email_resend'))
+    expect(row.config).toEqual({ replyTo: 'eng@example.com' })
+    expect((await listChannels(F.org)).email).toMatchObject({ source: 'platform', secretHint: null })
+    expect(await resolveChannel(F.org, 'email_resend')).toMatchObject({
+      secret: SERVER_KEY, config: { fromAddress: 'Acme Inc via CodePlans <notifications@codeplans.ai>', replyTo: 'eng@example.com' },
+    })
+    // A From address set before the service shared its email is ignored too.
+    await (db as any).update(notificationChannels).set({ config: { fromAddress: 'Support <support@codeplans.ai>' } })
+    expect((await resolveChannel(F.org, 'email_resend'))!.config.fromAddress).toBe('Acme Inc via CodePlans <notifications@codeplans.ai>')
+  })
+
+  it('lets a workspace send from its own domain with its own key', async () => {
+    hosted()
+    await expect(saveEmailChannel(F.org, { apiKey: KEY, replyTo: '' }, alice)).rejects.toThrow(/sender/)
+    await connectBoth()
+    expect((await listChannels(F.org)).email).toMatchObject({ source: 'settings', config: { fromAddress: 'CodePlans <notify@example.com>' } })
+    // Saving again without retyping the key keeps their own From address.
+    await saveEmailChannel(F.org, { fromAddress: 'Eng <eng@example.com>' }, alice)
+    expect(await resolveChannel(F.org, 'email_resend')).toMatchObject({ secret: KEY, config: { fromAddress: 'Eng <eng@example.com>' } })
   })
 })
 

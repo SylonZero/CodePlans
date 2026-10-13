@@ -21,6 +21,12 @@ Keys and webhook URLs are encrypted at rest (AES-256-GCM, keyed from
 `AUTH_SECRET`) and never sent back to the browser. The page only shows a hint
 such as `re_…abcd`. **Pause** stops a channel without forgetting it.
 
+On a hosted CodePlans service, email works without any setup: it is sent by
+the service from a fixed address such as `Acme via CodePlans
+<notifications@codeplans.ai>`, and you can only set a reply-to. To send from
+your own domain, save your own Resend key with a From address on a domain you
+verified in Resend.
+
 ## Choosing events
 
 The **Events** table lists every event with an on/off switch and a column per

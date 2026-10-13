@@ -93,7 +93,37 @@ export type EnterpriseHooks = {
    * where a bare health-check request has no database of its own.
    */
   health: () => Promise<boolean> | null
+  /**
+   * The base URL (no trailing slash) for links in email and notifications sent
+   * for the current workspace, including from background jobs. Return null to
+   * use AUTH_URL, which the community default always does.
+   */
+  publicUrl: () => string | null
+  /**
+   * Email the server sends with its own RESEND_API_KEY on a workspace's behalf
+   * (notifications for workspaces without their own key, and invites). When
+   * set, that email uses this From address, the settings page doesn't show the
+   * server's key, and a workspace can change its From address only by saving
+   * its own Resend key. The community default is null: RESEND_FROM_EMAIL, and
+   * admins can change the From address freely.
+   */
+  sharedEmail: () => SharedEmail | null
+  /**
+   * Called before an admin invites someone to the workspace. Return
+   * `allowed: false` with a reason to refuse (e.g. a daily cap during a trial).
+   * The community default always allows.
+   */
+  inviteGate: (ctx: InviteGateContext) => InviteGateResult | Promise<InviteGateResult>
 }
+
+export type SharedEmail = {
+  /** The From header for a workspace, given its name (which may be empty). */
+  from: (workspaceName: string) => string
+}
+
+export type InviteGateContext = { email: string; invitedById: string }
+
+export type InviteGateResult = { allowed: boolean; reason?: string }
 
 export type WorkspaceDatabase = {
   url: string

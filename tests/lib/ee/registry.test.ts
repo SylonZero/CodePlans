@@ -17,6 +17,9 @@ describe('enterprise hook registry', () => {
     expect(await getEnterpriseHooks().handleApi({ request: new Request('http://localhost/api/ee/x'), path: ['x'], user: null })).toBeNull()
     expect(getEnterpriseHooks().workspaceNotice()).toBeNull()
     expect(getEnterpriseHooks().health()).toBeNull()
+    expect(getEnterpriseHooks().publicUrl()).toBeNull()
+    expect(getEnterpriseHooks().sharedEmail()).toBeNull()
+    expect(await getEnterpriseHooks().inviteGate({ email: 'a@b.co', invitedById: 'u' })).toEqual({ allowed: true })
   })
 
   it('runs an inEachWorkspace job exactly once by default', async () => {
