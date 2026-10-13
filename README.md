@@ -150,6 +150,11 @@ else gets in:
 | `open` | Anyone who can reach the server can sign up and joins the workspace as an editor. |
 | `closed` | No sign-up page at all. Accounts come only from invites, `/setup`, `ADMIN_EMAIL` or `pnpm db:seed`. |
 
+**Forgot password** on the sign-in page emails a link to choose a new
+password. It works once, for one hour, and the page answers the same whether
+or not the address has an account. Without `RESEND_API_KEY` the link is
+written to the server log instead, for whoever runs the instance.
+
 Commercial/hosted-only features are built as an optional private module the
 app loads at startup, never as forked or hidden code in this repo. See the
 [enterprise extensions guide](docs/guides/enterprise-extensions.md).

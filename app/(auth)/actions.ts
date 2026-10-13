@@ -60,3 +60,24 @@ export async function acceptInvite(token: string, formData: FormData) {
   if (result?.error) redirect('/login')
   redirect('/')
 }
+
+/** Forgot password: always reports success, so the page never reveals who has an account. */
+export async function requestPasswordResetAction(formData: FormData) {
+  const email = String(formData.get('email') ?? '')
+  const { after } = await import('next/server')
+  const { requestPasswordReset } = await import('@/lib/auth/password-reset')
+  // Look up and email after responding, so the response time says nothing either.
+  after(() => requestPasswordReset(email).catch((err) => console.error('[password-reset]', err)))
+  return { sent: true as const }
+}
+
+export async function resetPasswordAction(token: string, formData: FormData) {
+  const password = String(formData.get('password') ?? '')
+  if (password !== formData.get('confirm')) return { error: 'Passwords do not match.' }
+  const { resetPassword } = await import('@/lib/auth/password-reset')
+  const result = await resetPassword(token, password)
+  if ('error' in result) return result
+  const signedIn = await authAdapter.signIn(result.email, password)
+  if (signedIn?.error) redirect('/login')
+  redirect('/')
+}

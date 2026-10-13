@@ -514,6 +514,16 @@ export const emailVerificationTokens = pgTable('email_verification_tokens', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+// Forgot-password links. Only a SHA-256 of the emailed token is stored; a
+// link works once, for an hour, and a new request replaces older ones.
+export const passwordResetTokens = pgTable('password_reset_tokens', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  tokenHash: text('token_hash').notNull().unique(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 // Native, product-owned specifications. Bodies are canonical GFM from TipTap.
 export const specs = pgTable('specs', {
   // Explicit attribution; null means the actor was not recorded (never infer from owner).
