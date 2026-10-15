@@ -50,10 +50,33 @@ the version explicitly.
 |---|---|
 | **Open** (default) | Anyone with edit access can request a review and pick reviewers; nothing waits on one. |
 | **Guided** | Suggested reviewers are always added and required. Activating a spec or plan that no approval covers asks for confirmation. |
+| **Gated** | As Guided, but nothing goes ahead without an approval of the current version: a spec or plan can't be activated, and a plan's tasks can't be started, until one covers it. |
 
 Org owners and admins set the workspace default in **Settings**; org admins
-and a product's engineering managers can override it per product. Stricter
-enforcement can be added through the `reviewGate` extension hook (see
+and a product's engineering managers can override it per product.
+
+In a **Gated** product the rule holds everywhere: the app, the API and agents
+over MCP. A blocked change says why and points to the Review panel.
+
+- **Activation.** A spec or plan becomes active only when an approval covers
+  its current version. Editing it in the same change (a new spec body or plan
+  scope) counts as unapproved, since nobody has reviewed the new version.
+- **Task starts.** Moving a task out of *Not started*, to In progress or
+  Done, needs an approval covering the plan's current revision. This also
+  catches plans activated before the product became Gated, and plans whose
+  scope changed after approval: work already under way can finish, but new
+  work waits for re-approval. Moving a started task onto another plan counts
+  as starting it there. Tasks mirrored from a tracker follow the tracker.
+- **A team of one.** Nobody can approve their own change, except when no one
+  else can see the product: then requesting a review makes you the reviewer
+  (shown as *Self-review*), so you can approve it yourself. Once a teammate
+  joins, reviews go to them as usual.
+- **Getting unstuck.** There is no override. An org admin or the product's
+  engineering manager can switch the product to Guided, which is recorded in
+  its activity.
+
+Extensions can add rules of their own through the `reviewGate` hook, or
+limit which levels are offered (see
 [Enterprise extension points](enterprise-extensions.md)).
 
 ## Comments

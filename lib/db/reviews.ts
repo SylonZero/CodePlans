@@ -48,7 +48,8 @@ export type SuggestedReviewer = { userId: string; name: string; reason: ReviewRe
  *    or through its plans and work items. Both are required by default.
  *  - plans: code owners of each target asset (required) and the product's
  *    engineering managers (optional).
- * The requester is never suggested — nobody approves their own change.
+ * The requester is never suggested: nobody approves their own change, unless
+ * nobody else can see the product (see requestReview).
  */
 export async function suggestReviewers(subjectType: ReviewSubjectType, subjectId: string, requesterId?: string): Promise<SuggestedReviewer[]> {
   const subject = await resolveSubject(subjectType, subjectId)
@@ -95,9 +96,11 @@ export async function getOpenReview(subjectType: ReviewSubjectType, subjectId: s
 
 /**
  * Open a review on the subject's current version. In an open workflow the
- * requester picks reviewers (suggestions when none are given); in a guided
- * one the suggested reviewers are always added with their default required
- * flags, and the requester may add more.
+ * requester picks reviewers (suggestions when none are given); in a guided or
+ * gated one the suggested reviewers are always added with their default
+ * required flags, and the requester may add more. When nobody else can see
+ * the product, the requester reviews it themselves, so a team of one can
+ * still get work through a gated workflow.
  */
 export async function requestReview(input: z.input<typeof reviewRequestInput>, actor: ArtifactActor) {
   const data = reviewRequestInput.parse(input)
@@ -122,7 +125,10 @@ export async function requestReview(input: z.input<typeof reviewRequestInput>, a
     const required = level !== 'open' && existing ? existing.required || !!r.required : r.required ?? suggested?.required ?? false
     chosen.set(r.userId, { reason: suggested?.reason ?? existing?.reason ?? 'requested', required })
   }
-  if (chosen.size === 0) throw new Error('Choose at least one reviewer other than yourself')
+  if (chosen.size === 0) {
+    if (audience.size > 0 && [...audience].every((id) => id === actor.id)) chosen.set(actor.id, { reason: 'self', required: true })
+    else throw new Error('Choose at least one reviewer other than yourself')
+  }
 
   const review = await db.transaction(async (tx) => {
     const [row] = await tx.insert(reviews).values({
@@ -278,7 +284,14 @@ export type ReviewSummary = {
   history: ReviewView[]
   suggestions: SuggestedReviewer[]
   audience: { id: string; name: string }[]
-  viewer: { canRequest: boolean; canManage: boolean; isReviewer: boolean; decision: ReviewDecision | null }
+  viewer: {
+    canRequest: boolean
+    canManage: boolean
+    isReviewer: boolean
+    decision: ReviewDecision | null
+    /** Nobody else can see the product, so the viewer reviews their own work. */
+    alone: boolean
+  }
 }
 
 /** Everything the review panel on a spec or plan page needs, from the viewer's point of view. */
@@ -301,7 +314,11 @@ export async function getReviewSummary(subjectType: ReviewSubjectType, subjectId
     current, history: views.filter((v) => v !== current),
     suggestions: current ? [] : await suggestReviewers(subjectType, subjectId, viewerId),
     audience: audience.filter((u) => u.id !== viewerId).map((u) => ({ id: u.id, name: u.name })),
-    viewer: { canRequest: canWrite && !current, canManage: canWrite && !!current, isReviewer: !!me, decision: me && !me.outdated ? me.decision : me ? 'pending' : null },
+    viewer: {
+      canRequest: canWrite && !current, canManage: canWrite && !!current, isReviewer: !!me,
+      decision: me && !me.outdated ? me.decision : me ? 'pending' : null,
+      alone: audience.every((u) => u.id === viewerId),
+    },
   }
 }
 

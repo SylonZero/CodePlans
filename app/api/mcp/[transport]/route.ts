@@ -184,7 +184,7 @@ const handler = createMcpHandler(
       const { resolveComment } = await import('@/lib/db/comments')
       return json(await resolveComment(id, resolved, { id: uid(extra), kind: 'agent' }))
     })
-    server.tool('request_review', "Open a review on a spec or plan's current version. Without reviewerEmails, reviewers are suggested from responsibilities (area architects and code owners for specs; target code owners and engineering managers for plans); a guided workflow always adds them. Agents can request reviews and comment, but only people can approve. The note is rendered as markdown.", {
+    server.tool('request_review', "Open a review on a spec or plan's current version. Without reviewerEmails, reviewers are suggested from responsibilities (area architects and code owners for specs; target code owners and engineering managers for plans); a guided or gated workflow always adds them. In a gated product, specs and plans can't be activated, and plan tasks can't be started, until an approval covers the current version. Agents can request reviews and comment, but only people can approve. The note is rendered as markdown.", {
       subjectType: z.enum(['spec', 'code_plan']), subjectId: z.string(),
       reviewerEmails: z.array(z.string()).max(20).optional(), note: z.string().max(2000).optional(), dueAt: z.string().optional(),
     }, async ({ reviewerEmails, ...data }, extra) => {

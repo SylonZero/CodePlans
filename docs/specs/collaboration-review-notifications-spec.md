@@ -5,7 +5,7 @@
 CodePlans records *what* changed and *why*, but not *who is expected to act next*. This spec closes the engineering loop around assets with four connected pieces:
 
 1. **Responsibilities, not job titles.** Keep the org role (`owner | admin | editor | viewer`) as the *permission* axis. Add a separate, *scoped* responsibility axis: engineering manager and architect per product (new `product_members`), code owner per asset (existing `asset_owners`), and developer, which follows from task assignment and plan ownership. Responsibilities decide routing, review defaults, and what shows up in My Work. They never grant permissions.
-2. **Review as an attestation on a pinned revision.** A review request targets `(spec, version)` or `(plan, revision)`, not the mutable record. An approval of v3 says nothing about v4. When a spec is revised, earlier approvals become *stale*. Nothing silently carries them forward. This is the same pinning rule deliveries already follow, applied to review. Comments are threaded, can be anchored to text, and are pinned to the version they were written against. Reviews cover specs **and plans**. Plan review happens before any effort is spent, so it is the cheapest point to stop a misdirected change. Admins pick a workflow level per product: **Open** (default) or **Guided**. Stricter enforcement can be supplied through a narrow extension hook.
+2. **Review as an attestation on a pinned revision.** A review request targets `(spec, version)` or `(plan, revision)`, not the mutable record. An approval of v3 says nothing about v4. When a spec is revised, earlier approvals become *stale*. Nothing silently carries them forward. This is the same pinning rule deliveries already follow, applied to review. Comments are threaded, can be anchored to text, and are pinned to the version they were written against. Reviews cover specs **and plans**. Plan review happens before any effort is spent, so it is the cheapest point to stop a misdirected change. Admins pick a workflow level per product: **Open** (default), **Guided** or **Gated**. Extensions can add rules through a narrow hook.
 3. **My Work becomes a role-aware inbox.** It has three bands (*Needs you*, *In flight*, *Watching*), and each item says *why you are seeing it* ("you own `auth-service`"). The default lens depends on the user's responsibilities. The header bell, which is currently inert, reads from the same notification store.
 4. **An event catalog with admin-configured delivery.** Domain events go out through one outbox to in-app, email (Resend), and Slack. Admins choose which events are on and whether each goes to email, a Slack webhook, or both. Users can mute *email* for non-mandatory events. Credentials are an API key or webhook URL, encrypted with the existing `lib/integrations/secrets.ts`.
 
@@ -159,13 +159,14 @@ Small teams must not have to run a review process to use CodePlans. Admins pick 
 |---|---|
 | **Open** (default) | No approvals required. Anyone can request a review, and reviews work fully (pinned version, stale detection), but nothing waits on them. |
 | **Guided** | Reviewers are auto-added from responsibilities (code owners of a plan's target assets, the architect for a spec's area). Pending reviews appear in *Needs you*. Activating an unapproved spec or plan shows a warning but is allowed. |
+| **Gated** | As Guided, but blocking: a spec or plan can't be activated, and a plan's tasks can't be started (moved out of *Not started*), until an approval covers the current version or revision. An edit made in the same change counts as unapproved. When nobody else can see the product, the requester becomes the reviewer (reason `self`) so a team of one isn't stuck. There is no override; switching the product to Guided is the escape hatch. |
 
 ```ts
 // product_settings (new; org default in org_settings)
-workflow: { level: 'open' | 'guided' }
+workflow: { level: 'open' | 'guided' | 'gated' }
 ```
 
-**Extension hook.** Every activation path (server actions, the API, and the MCP tools, including task pickup) calls `getEnterpriseHooks().reviewGate({ subjectType, subjectId, transition, actorId, actorKind })`. The community default returns `{ allowed: true }`. An extension may return `{ allowed: false, reasons: [...] }`, which the caller surfaces verbatim. This follows the existing `lib/ee` rule of narrow hooks that return serializable data.
+**Extension hook.** Every activation path (server actions, the API, and the MCP tools, including task pickup) calls `getEnterpriseHooks().reviewGate({ subjectType, subjectId, transition, actorId, actorKind })`. The community default returns `{ allowed: true }`. An extension may return `{ allowed: false, reasons: [...] }`, which the caller surfaces verbatim, after the gated workflow's own reason when both apply. This follows the existing `lib/ee` rule of narrow hooks that return serializable data.
 
 **Split the two meanings of "review" in the wiki:**
 

@@ -16,6 +16,7 @@ import { db } from '@/lib/db'
 import { users, organizationMembers, organizations, emailVerificationTokens, integrations, products } from '@/lib/db/schema'
 import { eq, and, gt } from 'drizzle-orm'
 import { triageWorkItem, IntakeError } from '@/lib/db/intake'
+import { ReviewGateError } from '@/lib/db/workflow'
 import type { DeclineReason, TriageState } from '@/lib/db/schema.sqlite'
 import {
   updateIntegration,
@@ -433,6 +434,19 @@ export async function createTaskAction(codePlanId: string, formData: FormData) {
   revalidatePath(`/plans/${codePlanId}`)
 }
 
+/**
+ * Runs a task change, returning a review workflow block as `{ error }`:
+ * production builds hide the text of errors thrown from server actions.
+ */
+async function gated(fn: () => Promise<unknown>): Promise<{ error: string } | undefined> {
+  try {
+    await fn()
+  } catch (err) {
+    if (err instanceof ReviewGateError) return { error: err.message }
+    throw err
+  }
+}
+
 export async function updateTaskAction(id: string, formData: FormData) {
   await requireWriter({ taskId: id })
 
@@ -445,7 +459,7 @@ export async function updateTaskAction(id: string, formData: FormData) {
   const actualEffortRaw = formData.get('actualEffort') as string
   const assigneeId = formData.get('assigneeId') as string
 
-  await updateTask(id, {
+  const blocked = await gated(async () => updateTask(id, {
     title,
     description,
     status,
@@ -457,7 +471,8 @@ export async function updateTaskAction(id: string, formData: FormData) {
     percentComplete: formData.get('percentComplete') ? parseInt(formData.get('percentComplete') as string, 10) : undefined,
     startDate: (formData.get('startDate') as string) || undefined,
     endDate: (formData.get('endDate') as string) || undefined,
-  }, await currentEditor())
+  }, await currentEditor()))
+  if (blocked) return blocked
 
   revalidatePath('/plans/[id]', 'page')
   revalidatePath('/plans')
@@ -465,7 +480,8 @@ export async function updateTaskAction(id: string, formData: FormData) {
 
 export async function updateTaskStatusAction(id: string, status: 'not_started' | 'in_progress' | 'done') {
   await requireWriter({ taskId: id })
-  await updateTaskStatus(id, status, await currentEditor())
+  const blocked = await gated(async () => updateTaskStatus(id, status, await currentEditor()))
+  if (blocked) return blocked
   revalidatePath('/plans/[id]', 'page')
   revalidatePath('/plans')
 }
@@ -967,7 +983,8 @@ export async function updateTaskPriorityAction(id: string, priority: 'low' | 'me
 export async function moveTaskToPlanAction(id: string, codePlanId: string) {
   await requireWriter({ taskId: id }, { codePlanId })
   const { moveTaskToPlan } = await import('@/lib/db/mutations')
-  await moveTaskToPlan(id, codePlanId, await currentEditor())
+  const blocked = await gated(async () => moveTaskToPlan(id, codePlanId, await currentEditor()))
+  if (blocked) return blocked
   revalidatePath('/plans/[id]', 'page')
   revalidatePath('/plans')
 }

@@ -48,7 +48,7 @@ state and your permissions:
 | Status | Actions |
 |---|---|
 | Draft | Request review · Activate · Edit |
-| In review | Activate (asks first under a guided workflow while unapproved; becomes **Activate v*n*** once approved) · Edit |
+| In review | Activate (asks first under a guided workflow while unapproved, and is blocked under a gated one; becomes **Activate v*n*** once approved) · Edit |
 | Active | Edit · Archive · Supersede |
 | Archived | Restore to draft |
 

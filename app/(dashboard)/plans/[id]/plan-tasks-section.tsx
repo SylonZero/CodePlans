@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState, useTransition } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -82,9 +83,15 @@ function PlanBulkBar({
 }) {
   const [isPending, startTransition] = useTransition()
 
-  function apply(fn: (id: string) => Promise<void>) {
+  function apply(fn: (id: string) => Promise<{ error: string } | void>) {
     startTransition(async () => {
-      for (const id of selected) await fn(id)
+      // The review workflow may block some tasks (e.g. starting work on an unapproved plan in a gated product).
+      const errors = new Set<string>()
+      for (const id of selected) {
+        const result = await fn(id)
+        if (result?.error) errors.add(result.error)
+      }
+      for (const error of errors) toast.error(error)
       onClear()
     })
   }

@@ -43,9 +43,9 @@ export type CommentKind = 'comment' | 'suggestion' | 'question'
 export type CommentAnchor = { quote: string; prefix?: string; suffix?: string }
 export type ReviewSubjectType = 'spec' | 'code_plan'
 export type ReviewState = 'open' | 'changes_requested' | 'approved' | 'withdrawn' | 'stale'
-export type ReviewReason = 'architect' | 'code_owner' | 'eng_manager' | 'requested'
+// 'self': the author reviews their own work because nobody else can see the product.
+export type ReviewReason = 'architect' | 'code_owner' | 'eng_manager' | 'requested' | 'self'
 export type ReviewDecision = 'pending' | 'approved' | 'changes_requested' | 'commented'
-// Community levels are open and guided; 'gated' is recognized so an extension can enforce it.
 export type WorkflowLevel = 'open' | 'guided' | 'gated'
 export type ReleaseStatus = 'planned' | 'in_progress' | 'shipped' | 'abandoned'
 
