@@ -14,6 +14,7 @@ import { NOTIFICATION_CATALOG } from '@/lib/notification-catalog'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { getEnterpriseHooks } from '@/lib/ee/registry'
 
 interface Props {
   searchParams: Promise<{ emailVerified?: string; tab?: string }>
@@ -54,6 +55,39 @@ export default async function SettingsPage({ searchParams }: Props) {
     events: NOTIFICATION_CATALOG.filter((e) => orgAdmin || e.type !== 'integration.error').map((e) => ({ type: e.type, label: e.label, description: e.description, group: e.group, workspaceEmail: rule(e.type).enabled && rule(e.type).email })),
   }
 
+  // Workspace-wide settings live on their own tab, for org owners and admins.
+  const workspace = orgAdmin && profile.organizationId && org ? (
+    <>
+      <Card className="bg-card border-border">
+        <CardHeader>
+          <CardTitle>{org.name}</CardTitle>
+          <CardDescription>{org.memberCount} member{org.memberCount === 1 ? '' : 's'}. Invite people and change roles on the Team page.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <Button asChild variant="outline"><Link href="/team">Manage team</Link></Button>
+          {/* Workspace pages an extension adds, such as Billing in the hosted service */}
+          {getEnterpriseHooks().navItems().map((item) => (
+            <Button key={item.id} asChild variant="outline">
+              {/^https?:\/\//.test(item.href)
+                ? <a href={item.href} target="_blank" rel="noreferrer">{item.name}</a>
+                : <Link href={item.href}>{item.name}</Link>}
+            </Button>
+          ))}
+        </CardContent>
+      </Card>
+      {workflowDefault && <WorkflowPanel organizationId={profile.organizationId} level={workflowDefault} available={availableWorkflowLevels()} />}
+      <Card className="bg-card border-border">
+        <CardHeader>
+          <CardTitle>Workspace notifications</CardTitle>
+          <CardDescription>Connect email (Resend) and Slack, and choose which events notify on each channel. Each person can still opt out on their own Notifications tab.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild variant="outline"><Link href="/settings/notifications">Manage workspace notifications</Link></Button>
+        </CardContent>
+      </Card>
+    </>
+  ) : undefined
+
   return (
     <div className="space-y-6">
     <SettingsClient
@@ -72,21 +106,8 @@ export default async function SettingsPage({ searchParams }: Props) {
       emailPrefs={emailPrefs}
       mutes={await listMutes(authUser.id)}
       initialTab={tab}
+      workspace={workspace}
     />
-    {orgAdmin && (
-      <Card className="bg-card border-border">
-        <CardHeader>
-          <CardTitle>Workspace notifications</CardTitle>
-          <CardDescription>Connect email (Resend) and Slack, and choose which events notify on each channel.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button asChild variant="outline"><Link href="/settings/notifications">Manage workspace notifications</Link></Button>
-        </CardContent>
-      </Card>
-    )}
-    {orgAdmin && profile.organizationId && workflowDefault && (
-      <WorkflowPanel organizationId={profile.organizationId} level={workflowDefault} available={availableWorkflowLevels()} />
-    )}
     </div>
   )
 }

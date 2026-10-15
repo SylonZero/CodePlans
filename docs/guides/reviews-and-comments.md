@@ -75,7 +75,7 @@ the version explicitly.
 | **Guided** | Suggested reviewers are always added and required. Activating a spec or plan that no approval covers asks for confirmation. |
 | **Gated** | As Guided, but nothing goes ahead without an approval of the current version: a spec or plan can't be activated, and a plan's tasks can't be started, until one covers it. |
 
-Org owners and admins set the workspace default in **Settings**; org admins
+Org owners and admins set the workspace default in **Settings → Workspace**; org admins
 and a product's engineering managers can override it per product.
 
 In a **Gated** product the rule holds everywhere: the app, the API and agents

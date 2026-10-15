@@ -11,7 +11,7 @@ import { ApiKeysPanel, type ApiKeyRow } from './api-keys-panel'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { User, Bell, Shield, Key, KeyRound, Upload } from 'lucide-react'
+import { User, Bell, Shield, Key, KeyRound, Upload, Building2 } from 'lucide-react'
 import type { UserRole } from '@/lib/types'
 import { updateProfileAction, changePasswordAction, requestEmailChangeAction, cancelEmailChangeAction } from '../actions'
 import { setEmailPreferenceAction, setMutedAction } from './notifications/actions'
@@ -36,6 +36,8 @@ interface Props {
   emailPrefs?: EmailPrefs
   mutes?: MuteRow[]
   initialTab?: string
+  /** Workspace-wide settings, for org owners and admins only (rendered on the server). */
+  workspace?: React.ReactNode
 }
 
 type MuteRow = { subjectType: 'product' | 'asset'; subjectId: string; name: string; context: string | null; href: string }
@@ -304,8 +306,8 @@ function ProfileTab({ user, org, pendingEmailChange, emailJustVerified }: Props)
 
       <Card className="bg-card border-border">
         <CardHeader>
-          <CardTitle>Organization</CardTitle>
-          <CardDescription>Your organization details and membership</CardDescription>
+          <CardTitle>Workspace membership</CardTitle>
+          <CardDescription>The workspace you belong to and your role in it</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
@@ -403,18 +405,18 @@ function SecurityTab() {
   )
 }
 
-const TABS = ['profile', 'notifications', 'security', 'api-keys']
+const TABS = ['profile', 'notifications', 'security', 'api-keys', 'workspace']
 
-export function SettingsClient({ user, org, pendingEmailChange, emailJustVerified, apiKeys = [], emailPrefs, mutes = [], initialTab }: Props) {
+export function SettingsClient({ user, org, pendingEmailChange, emailJustVerified, apiKeys = [], emailPrefs, mutes = [], initialTab, workspace }: Props) {
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground">Manage your account and preferences</p>
+        <p className="text-muted-foreground">Your account and preferences{workspace ? ', and settings for the whole workspace' : ''}</p>
       </div>
 
-      <Tabs defaultValue={initialTab && TABS.includes(initialTab) ? initialTab : 'profile'} className="space-y-6">
-        <TabsList className="bg-muted">
+      <Tabs defaultValue={initialTab && TABS.includes(initialTab) && (initialTab !== 'workspace' || workspace) ? initialTab : 'profile'} className="space-y-6">
+        <TabsList className="h-auto flex-wrap bg-muted">
           <TabsTrigger value="profile" className="gap-2">
             <User className="h-4 w-4" />
             Profile
@@ -431,7 +433,15 @@ export function SettingsClient({ user, org, pendingEmailChange, emailJustVerifie
             <KeyRound className="h-4 w-4" />
             API Keys
           </TabsTrigger>
+          {workspace && (
+            <TabsTrigger value="workspace" className="gap-2">
+              <Building2 className="h-4 w-4" />
+              Workspace
+            </TabsTrigger>
+          )}
         </TabsList>
+
+        {workspace && <TabsContent value="workspace" className="space-y-6">{workspace}</TabsContent>}
 
         <TabsContent value="api-keys" className="space-y-6">
           <ApiKeysPanel keys={apiKeys} />
