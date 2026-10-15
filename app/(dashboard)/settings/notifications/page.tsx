@@ -19,7 +19,7 @@ export default async function WorkspaceNotificationsPage() {
 
   const header = (
     <div className="space-y-2">
-      <Link href="/settings" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+      <Link href="/settings?tab=workspace" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4" /> Settings
       </Link>
       <h1 className="text-2xl font-bold tracking-tight">Workspace notifications</h1>

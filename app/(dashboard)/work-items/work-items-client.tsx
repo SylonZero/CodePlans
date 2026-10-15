@@ -6,16 +6,15 @@ import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { TRIAGE_LABELS } from '@/lib/intake-labels'
 import { triageStyles } from './triage-block'
-import { Filter, Plus, Circle, Play, CheckCircle2, Wrench, ExternalLink, List, Layers, ArrowDown, ArrowUp, ArrowUpDown, Tag, Check, X, ChevronDown } from 'lucide-react'
+import { Filter, Plus, Circle, Play, CheckCircle2, Wrench, ExternalLink, List, Layers, ArrowDown, ArrowUp, ArrowUpDown, Tag, X } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { timeAgo } from '@/components/comments-panel'
 import {
   SEVERITIES, PAGE_SIZES, parseListView, writeListView, matchesListView, sortItems, nextSort, tagCounts, normalizePageSize,
@@ -164,6 +163,23 @@ export function WorkItemsClient({
   })
   const sortedItems = sortItems(filteredItems, listView)
   const hasExternal = items.some((i) => i.origin === 'external')
+
+  const clearFilters = () => {
+    setTypeFilter('all'); setAssetFilter('all'); setAreaFilter('all'); setSourceFilter('all'); setMineOnly(false)
+    updateListView({ severities: [], tags: [] })
+  }
+  const sourceLabel = (v: string) => v === 'internal' ? 'Internal' : v === 'external' ? 'External reports' : `External · ${TRIAGE_LABELS[v.split(':')[1] as keyof typeof TRIAGE_LABELS]}`
+  // Everything narrowing the list besides the status tabs, as removable chips.
+  const activeFilters: { key: string; label: string; clear: () => void; className?: string; icon?: React.ReactNode }[] = [
+    ...(mineOnly ? [{ key: 'mine', label: 'Owned by me', clear: () => setMineOnly(false) }] : []),
+    ...(typeFilter !== 'all' ? [{ key: 'type', label: typeLabel(typeFilter), clear: () => setTypeFilter('all'), className: typeStyles[typeFilter] }] : []),
+    ...listView.severities.map((sv) => ({ key: `sev:${sv}`, label: sv, className: cn('capitalize border-transparent', severityStyles[sv]),
+      clear: () => updateListView({ severities: listView.severities.filter((x) => x !== sv) }) })),
+    ...(assetFilter !== 'all' ? [{ key: 'asset', label: assetFilter === UNASSIGNED_ASSET ? 'No asset' : assetFilterOptions.known.find(([id]) => id === assetFilter)?.[1] ?? 'Asset', clear: () => setAssetFilter('all') }] : []),
+    ...(areaFilter !== 'all' ? [{ key: 'area', label: areaFilter === UNASSIGNED_AREA ? 'No area' : areaFilter, clear: () => setAreaFilter('all') }] : []),
+    ...(sourceFilter !== 'all' ? [{ key: 'source', label: sourceLabel(sourceFilter), clear: () => setSourceFilter('all') }] : []),
+    ...listView.tags.map((t) => ({ key: `tag:${t}`, label: t, icon: <Tag className="h-3 w-3" />, clear: () => toggleTag(t) })),
+  ]
   const pageItems = sortedItems.slice(page * pageSize, (page + 1) * pageSize)
 
   const openStatuses: WorkItemStatus[] = ['open', 'planned', 'in_progress']
@@ -239,8 +255,8 @@ export function WorkItemsClient({
         </Card>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center mb-6">
+      {/* Filters: status and "mine" inline; the rest in one panel, shown as chips when set */}
+      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center">
         <Tabs value={statusFilter} onValueChange={(v) => { setStatusFilter(v as WorkItemStatus | 'all'); setPage(0) }} className="w-full sm:w-auto">
           <TabsList className="bg-muted">
             <TabsTrigger value="all">All</TabsTrigger>
@@ -250,71 +266,24 @@ export function WorkItemsClient({
             <TabsTrigger value="resolved">Resolved</TabsTrigger>
           </TabsList>
         </Tabs>
-        {currentUserId && (
-          <label className="flex items-center gap-2 text-sm cursor-pointer select-none whitespace-nowrap">
-            <Switch checked={mineOnly} onCheckedChange={(v) => { setMineOnly(v); setPage(0) }} />
-            <span className="text-muted-foreground">Owned by me</span>
-          </label>
-        )}
-        <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-          <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v as WorkItemType | 'all'); setPage(0) }}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="All Types" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
-              {TYPES.map((t) => (
-                <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={assetFilter} onValueChange={(v) => { setAssetFilter(v); setPage(0) }}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="All Assets" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Assets</SelectItem>
-              {assetFilterOptions.known.map(([id, name]) => (
-                <SelectItem key={id} value={id}>{name}</SelectItem>
-              ))}
-              {assetFilterOptions.hasUnassigned && (
-                <SelectItem value={UNASSIGNED_ASSET}>No asset</SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-          <Select value={areaFilter} onValueChange={(v) => { setAreaFilter(v); setPage(0) }}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="All Areas" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Areas</SelectItem>
-              {areaFilterOptions.known.map((area) => (
-                <SelectItem key={area} value={area}>{area}</SelectItem>
-              ))}
-              {areaFilterOptions.hasUnassigned && (
-                <SelectItem value={UNASSIGNED_AREA}>No area</SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-          <SeverityFilter value={listView.severities} onChange={(severities) => updateListView({ severities })} />
-          {allTags.length > 0 && <TagFilter tags={allTags} value={listView.tags} onToggle={toggleTag} onClear={() => updateListView({ tags: [] })} />}
-          {hasExternal && (
-            <Select value={sourceFilter} onValueChange={(v) => { setSourceFilter(v); setPage(0) }}>
-              <SelectTrigger className="w-[170px]" aria-label="Source and triage">
-                <SelectValue placeholder="All sources" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All sources</SelectItem>
-                <SelectItem value="internal">Internal</SelectItem>
-                <SelectItem value="external">External reports</SelectItem>
-                {(['untriaged', 'accepted', 'needs_info', 'declined'] as const).map((t) => (
-                  <SelectItem key={t} value={`external:${t}`}>External · {TRIAGE_LABELS[t]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <div className="flex items-center gap-2 sm:ml-auto">
+          {currentUserId && (
+            <label className="mr-1 flex cursor-pointer select-none items-center gap-2 whitespace-nowrap text-sm">
+              <Switch checked={mineOnly} onCheckedChange={(v) => { setMineOnly(v); setPage(0) }} />
+              <span className="text-muted-foreground">Owned by me</span>
+            </label>
           )}
-          <div className="flex border border-border rounded-md">
+          <FiltersPanel
+            count={activeFilters.length - (mineOnly ? 1 : 0)}
+            type={typeFilter} onType={(v) => { setTypeFilter(v); setPage(0) }}
+            severities={listView.severities} onSeverities={(severities) => updateListView({ severities })}
+            asset={assetFilter} assetOptions={assetFilterOptions} onAsset={(v) => { setAssetFilter(v); setPage(0) }}
+            area={areaFilter} areaOptions={areaFilterOptions} onArea={(v) => { setAreaFilter(v); setPage(0) }}
+            source={hasExternal ? sourceFilter : null} onSource={(v) => { setSourceFilter(v); setPage(0) }}
+            tags={allTags} selectedTags={listView.tags} onToggleTag={toggleTag} onClearTags={() => updateListView({ tags: [] })}
+            onClearAll={clearFilters}
+          />
+          <div className="ml-auto flex rounded-md border border-border sm:ml-0">
             <Button variant={view === 'list' ? 'secondary' : 'ghost'} size="icon" className="h-9 w-9 rounded-r-none" title="List view" onClick={() => setView('list')}>
               <List className="h-4 w-4" />
             </Button>
@@ -325,24 +294,18 @@ export function WorkItemsClient({
         </div>
       </div>
 
-      {(listView.severities.length > 0 || listView.tags.length > 0) && view === 'list' && (
-        <div className="-mt-3 mb-4 flex flex-wrap items-center gap-1.5 text-xs" aria-label="Active filters">
-          {listView.severities.map((sv) => (
-            <button key={sv} type="button" onClick={() => updateListView({ severities: listView.severities.filter((x) => x !== sv) })}
-              className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 capitalize', severityStyles[sv])} aria-label={`Remove severity ${sv}`}>
-              {sv}<X className="h-3 w-3" />
+      {activeFilters.length > 0 && view === 'list' ? (
+        <div className="mb-4 flex flex-wrap items-center gap-1.5 text-xs" aria-label="Active filters">
+          {activeFilters.map((f) => (
+            <button key={f.key} type="button" onClick={f.clear} aria-label={`Remove filter ${f.label}`}
+              className={cn('inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5', f.className)}>
+              {f.icon}{f.label}<X className="h-3 w-3" />
             </button>
           ))}
-          {listView.tags.map((t) => (
-            <button key={t} type="button" onClick={() => toggleTag(t)}
-              className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5" aria-label={`Remove tag ${t}`}>
-              <Tag className="h-3 w-3" />{t}<X className="h-3 w-3" />
-            </button>
-          ))}
-          <button type="button" className="ml-1 text-muted-foreground underline-offset-2 hover:underline" onClick={() => updateListView({ severities: [], tags: [] })}>Clear</button>
+          <button type="button" className="ml-1 text-muted-foreground underline-offset-2 hover:underline" onClick={clearFilters}>Clear all</button>
           <span className="text-muted-foreground">· {filteredItems.length} of {items.length}</span>
         </div>
-      )}
+      ) : <div className="mb-3" />}
 
       {view === 'debt' ? (
         <DebtRegister items={items} assetDebtInfo={assetDebtInfo} onOpen={openPanel} />
@@ -497,64 +460,128 @@ function SortHead({ field, label, view, onSort, className }: {
   )
 }
 
-function SeverityFilter({ value, onChange }: { value: ListView['severities']; onChange: (v: ListView['severities']) => void }) {
+/** Tags as toggles, most-used first, with a search box once there are many. */
+function TagPicker({ tags, selected, onToggle, onClear }: {
+  tags: { tag: string; count: number }[]; selected: string[]; onToggle: (tag: string) => void; onClear: () => void
+}) {
+  const [query, setQuery] = useState('')
+  const q = query.trim().toLowerCase()
+  const shown = tags.filter(({ tag }) => !q || tag.toLowerCase().includes(q))
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="outline" className="h-9 w-[150px] justify-between font-normal" aria-label="Severity filter">
-          <span className={cn('truncate', !value.length && 'text-muted-foreground')}>
-            {value.length === 0 ? 'All Severities' : value.length === 1 ? <span className="capitalize">{value[0]}</span> : `${value.length} severities`}
-          </span>
-          <ChevronDown className="h-4 w-4 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-48 p-2">
-        {SEVERITIES.map((sv) => (
-          <label key={sv} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted">
-            <Checkbox checked={value.includes(sv)} onCheckedChange={(c) => onChange(c ? [...value, sv] : value.filter((x) => x !== sv))} />
-            <Badge variant="secondary" className={cn('text-xs capitalize', severityStyles[sv])}>{sv}</Badge>
-          </label>
-        ))}
-        {value.length > 0 && <Button variant="ghost" size="sm" className="mt-1 w-full" onClick={() => onChange([])}>Clear</Button>}
-      </PopoverContent>
-    </Popover>
+    <div className="space-y-2">
+      {tags.length > 8 && <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search tags…" aria-label="Search tags" className="h-8" />}
+      <div className="flex max-h-36 flex-wrap gap-1.5 overflow-y-auto" role="group" aria-label="Tags">
+        {shown.map(({ tag, count }) => {
+          const on = selected.includes(tag)
+          return (
+            <button key={tag} type="button" aria-pressed={on} onClick={() => onToggle(tag)}
+              className={cn('inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs transition-colors',
+                on ? 'border-transparent bg-brand text-black' : 'border-border text-muted-foreground hover:text-foreground')}>
+              {tag}<span className={cn(on ? 'text-black/60' : 'text-muted-foreground/70')}>{count}</span>
+            </button>
+          )
+        })}
+        {!shown.length && <p className="text-xs text-muted-foreground">No matching tags</p>}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Shows items with any selected tag.{selected.length > 0 && <> <button type="button" className="underline" onClick={onClear}>Clear tags</button></>}
+      </p>
+    </div>
   )
 }
 
-function TagFilter({ tags, value, onToggle, onClear }: {
-  tags: { tag: string; count: number }[]
-  value: string[]
-  onToggle: (tag: string) => void
-  onClear: () => void
+type AssetFilterOptions = { known: [string, string][]; hasUnassigned: boolean }
+type AreaFilterOptions = { known: string[]; hasUnassigned: boolean }
+
+/** Type, severity, asset, area, source and tags in one panel, so the toolbar stays on one line. */
+function FiltersPanel(p: {
+  count: number
+  type: WorkItemType | 'all'; onType: (v: WorkItemType | 'all') => void
+  severities: ListView['severities']; onSeverities: (v: ListView['severities']) => void
+  asset: string; assetOptions: AssetFilterOptions; onAsset: (v: string) => void
+  area: string; areaOptions: AreaFilterOptions; onArea: (v: string) => void
+  /** null when no item came from outside, so there's nothing to tell apart. */
+  source: string | null; onSource: (v: string) => void
+  tags: { tag: string; count: number }[]; selectedTags: string[]; onToggleTag: (tag: string) => void; onClearTags: () => void
+  onClearAll: () => void
 }) {
+  const field = (label: string, control: React.ReactNode) => (
+    <div className="space-y-1.5">
+      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
+      {control}
+    </div>
+  )
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="h-9 w-[150px] justify-between font-normal" aria-label="Tag filter">
-          <span className={cn('flex min-w-0 items-center gap-1.5', !value.length && 'text-muted-foreground')}>
-            <Tag className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">{value.length === 0 ? 'All Tags' : value.length === 1 ? value[0] : `${value.length} tags`}</span>
-          </span>
-          <ChevronDown className="h-4 w-4 opacity-50" />
+        <Button variant="outline" className="h-9 gap-2 font-normal" aria-label={p.count ? `Filters, ${p.count} active` : 'Filters'}>
+          <Filter className="h-4 w-4" />Filters
+          {p.count > 0 && <span className="rounded-full bg-brand px-1.5 text-xs font-medium text-black">{p.count}</span>}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-64 p-0">
-        <Command>
-          <CommandInput placeholder="Search tags…" />
-          <CommandList className="max-h-72">
-            <CommandEmpty>No matching tags</CommandEmpty>
-            {tags.map(({ tag, count }) => (
-              <CommandItem key={tag} value={tag} onSelect={() => onToggle(tag)}>
-                <Check className={cn('h-4 w-4', value.includes(tag) ? 'opacity-100' : 'opacity-0')} />
-                <span className="truncate">{tag}</span>
-                <span className="ml-auto text-xs text-muted-foreground">{count}</span>
-              </CommandItem>
-            ))}
-          </CommandList>
-        </Command>
-        <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
-          Shows items with any selected tag.{value.length > 0 && <> <button type="button" className="underline" onClick={onClear}>Clear</button></>}
-        </p>
+      <PopoverContent align="end" collisionPadding={16}
+        className="max-h-[var(--radix-popover-content-available-height)] w-[min(22rem,calc(100vw-2rem))] space-y-4 overflow-y-auto p-4">
+        <div className="grid grid-cols-2 gap-3">
+          {field('Type', (
+            <Select value={p.type} onValueChange={(v) => p.onType(v as WorkItemType | 'all')}>
+              <SelectTrigger className="h-8 w-full" aria-label="Type"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All types</SelectItem>
+                {TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          ))}
+          {p.source !== null && field('Source', (
+            <Select value={p.source} onValueChange={p.onSource}>
+              <SelectTrigger className="h-8 w-full" aria-label="Source and triage"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All sources</SelectItem>
+                <SelectItem value="internal">Internal</SelectItem>
+                <SelectItem value="external">External reports</SelectItem>
+                {(['untriaged', 'accepted', 'needs_info', 'declined'] as const).map((t) => (
+                  <SelectItem key={t} value={`external:${t}`}>External · {TRIAGE_LABELS[t]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ))}
+          {field('Asset', (
+            <Select value={p.asset} onValueChange={p.onAsset}>
+              <SelectTrigger className="h-8 w-full" aria-label="Asset"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All assets</SelectItem>
+                {p.assetOptions.known.map(([id, name]) => <SelectItem key={id} value={id}>{name}</SelectItem>)}
+                {p.assetOptions.hasUnassigned && <SelectItem value={UNASSIGNED_ASSET}>No asset</SelectItem>}
+              </SelectContent>
+            </Select>
+          ))}
+          {field('Area', (
+            <Select value={p.area} onValueChange={p.onArea}>
+              <SelectTrigger className="h-8 w-full" aria-label="Area"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All areas</SelectItem>
+                {p.areaOptions.known.map((area) => <SelectItem key={area} value={area}>{area}</SelectItem>)}
+                {p.areaOptions.hasUnassigned && <SelectItem value={UNASSIGNED_AREA}>No area</SelectItem>}
+              </SelectContent>
+            </Select>
+          ))}
+        </div>
+        {field('Severity', (
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Severity">
+            {SEVERITIES.map((sv) => {
+              const on = p.severities.includes(sv)
+              return (
+                <button key={sv} type="button" aria-pressed={on}
+                  onClick={() => p.onSeverities(on ? p.severities.filter((x) => x !== sv) : [...p.severities, sv])}
+                  className={cn('rounded-full border px-2.5 py-0.5 text-xs capitalize transition-colors',
+                    on ? cn('border-transparent', severityStyles[sv]) : 'border-border text-muted-foreground hover:text-foreground')}>
+                  {sv}
+                </button>
+              )
+            })}
+          </div>
+        ))}
+        {p.tags.length > 0 && field('Tags', <TagPicker tags={p.tags} selected={p.selectedTags} onToggle={p.onToggleTag} onClear={p.onClearTags} />)}
+        {p.count > 0 && <Button variant="ghost" size="sm" className="w-full" onClick={p.onClearAll}>Clear all filters</Button>}
       </PopoverContent>
     </Popover>
   )

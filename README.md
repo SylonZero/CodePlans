@@ -254,7 +254,7 @@ Point `DATABASE_URL` at any Postgres database (`postgresql://…`), set
 | `GITHUB_PUBLIC_TOKEN` | — | Optional personal token used by the read-only `import_github_issues` MCP tool to raise GitHub's anonymous rate limit (no scopes needed) |
 | `ALLOW_EPHEMERAL_DB` | — | On Railway, Fly.io and Render, SQLite refuses to start unless its folder is on a volume (otherwise every deploy wipes it). `true` allows it for a throwaway trial |
 | `ALLOWED_DEV_ORIGINS` | — | Comma-separated hosts allowed to access Next.js dev resources (needed when running on a remote server) |
-| `RESEND_API_KEY` | — | Resend API key for transactional email and the fallback notification email channel. Without this, verification URLs are logged to the server console (dev only). Admins can also connect Resend in **Settings → Manage workspace notifications**. |
+| `RESEND_API_KEY` | — | Resend API key for transactional email and the fallback notification email channel. Without this, verification URLs are logged to the server console (dev only). Admins can also connect Resend in **Settings → Workspace → Manage workspace notifications**. |
 | `RESEND_FROM_EMAIL` | `CodePlans <noreply@codeplans.ai>` | From address used in outgoing emails |
 | `RESEND_API_URL` | `https://api.resend.com` | Send notification email through a Resend-compatible relay |
 | `NOTIFY_WEBHOOK_ALLOWED_HOSTS` | — | Extra hosts allowed for the notification webhook (only `hooks.slack.com` by default) |
