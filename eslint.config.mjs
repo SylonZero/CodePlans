@@ -17,5 +17,5 @@ export default defineConfig([
       'react-hooks/purity': 'warn',
     },
   },
-  globalIgnores(['.next/**', 'out/**', 'build/**', 'next-env.d.ts', 'refs/**', 'coverage/**', 'docs/**', 'lib/db/migrations/**', 'plugins/**']),
+  globalIgnores(['.next/**', 'out/**', 'build/**', 'next-env.d.ts', 'refs/**', 'coverage/**', 'docs/**', 'lib/db/migrations/**', 'plugins/**', 'cli/dist/**']),
 ])
