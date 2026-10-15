@@ -120,16 +120,22 @@ export async function getMyWork(userId: string, opts: { productId?: string } = {
     })
   }
 
-  // Changes requested on things I asked to have reviewed or authored.
-  const blocked = productIds.length ? await db.select().from(reviews).where(and(inArray(reviews.productId, productIds), eq(reviews.state, 'changes_requested'))) : []
-  for (const r of blocked) {
+  // Changes requested on things I asked to have reviewed or authored, by any
+  // reviewer: an optional reviewer's request doesn't change the review's state,
+  // but it still needs an answer.
+  const openReviews = productIds.length ? await listOpenReviews(userId, { productIds }) : []
+  for (const r of openReviews) {
+    const askers = r.participants.filter((p) => p.decision === 'changes_requested' && !p.outdated)
+    if (!askers.length) continue
     const subject = r.subjectType === 'spec'
       ? await db.query.specs.findFirst({ where: eq(specs.id, r.subjectId) }).then((s) => s && { title: s.title, owner: s.createdById })
       : await db.query.codePlans.findFirst({ where: eq(codePlans.id, r.subjectId) }).then((p) => p && { title: p.title, owner: p.ownerId ?? p.creatorId })
     if (!subject || (r.requestedById !== userId && subject.owner !== userId)) continue
-    needsYou.push({ key: `changes:${r.id}`, kind: 'changes_requested', verb: 'Address feedback', title: subject.title, detail: 'Changes requested in review',
+    const optional = askers.every((p) => !p.required)
+    needsYou.push({ key: `changes:${r.id}`, kind: 'changes_requested', verb: 'Address feedback', title: subject.title,
+      detail: `Changes requested by ${askers.map((p) => p.name).join(', ')}${optional ? ` (optional reviewer${askers.length === 1 ? '' : 's'})` : ''}`,
       url: `${r.subjectType === 'spec' ? '/specs' : '/plans'}/${r.subjectId}#review`, reason: r.requestedById === userId ? 'requester' : 'author',
-      productName: productName.get(r.productId), urgent: true, lenses: ['developer', 'architect'] })
+      productName: productName.get(r.productId), urgent: !optional, lenses: ['developer', 'architect'] })
   }
 
   // Event items: mentions, replies, assignments.

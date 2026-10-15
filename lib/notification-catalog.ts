@@ -50,7 +50,7 @@ export const NOTIFICATION_CATALOG: CatalogEntry[] = [
   { type: 'release.shipped', group: 'releases', label: 'Release shipped', description: 'A release including your assets shipped', defaults: IES },
   { type: 'capability.graduated', group: 'releases', label: 'Capability graduated', description: 'Shipped work was recorded against an asset you own', defaults: I },
   { type: 'asset.design_note', group: 'releases', label: 'Design note', description: 'A design note was added to an asset you own', defaults: I },
-  { type: 'responsibility.assigned', group: 'workspace', label: 'Responsibility', description: 'You were made engineering manager or architect on a product', defaults: IE },
+  { type: 'responsibility.assigned', group: 'workspace', label: 'Responsibility', description: 'You were made engineering manager or architect on a product, or code owner of an asset', defaults: IE },
   { type: 'integration.error', group: 'workspace', label: 'Integration error', description: 'A connected tool failed to sync (sent to workspace admins)', defaults: IE, mandatory: true },
 ]
 

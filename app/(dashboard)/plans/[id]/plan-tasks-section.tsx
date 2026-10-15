@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Circle, Play, CheckCircle2, Clock, List, LayoutGrid, ExternalLink } from 'lucide-react'
 import type { Task, TaskStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { ActivationNotice, type ApprovalNeeds } from '@/components/activation-notice'
 
 const PAGE_SIZE = 25
 
@@ -143,12 +144,15 @@ export function PlanTasksSection({
   planTitle = '',
   members = [],
   otherPlans = [],
+  startBlocked = null,
 }: {
   tasks: Task[]
   planId: string
   planTitle?: string
   members?: MemberOption[]
   otherPlans?: PlanOption[]
+  /** The review workflow won't let this plan's tasks start yet. */
+  startBlocked?: { byWorkflow: boolean; reasons: string[]; needs: ApprovalNeeds } | null
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   // The open task is in the URL (?task=<id>) so My Work and notification links can deep-link.
@@ -194,6 +198,10 @@ export function PlanTasksSection({
         members={members}
         onClose={() => setOpenTaskId(null)}
       />
+      {startBlocked && (
+        <ActivationNotice tone="blocked" needs={startBlocked.needs} otherReasons={startBlocked.reasons}
+          title={startBlocked.byWorkflow ? 'Tasks can’t start yet: the product uses a gated review workflow and no approval covers this plan’s current version.' : 'Starting tasks is blocked.'} />
+      )}
       <div className="flex justify-end">
         <div className="flex border border-border rounded-md">
           <Button variant={view === 'list' ? 'secondary' : 'ghost'} size="icon" className="h-8 w-8 rounded-r-none" title="List view" onClick={() => setView('list')}>

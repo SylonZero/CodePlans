@@ -492,7 +492,7 @@ const handler = createMcpHandler(
         const asset = await createAsset(args, { id: uid(extra), kind: 'agent' })
         if (ownerEmails !== undefined) {
           const ownerIds = await Promise.all(ownerEmails.map((e) => resolveAssigneeEmail(uid(extra), e)))
-          await setAssetOwners(asset.id, ownerIds)
+          await setAssetOwners(asset.id, ownerIds, { id: uid(extra), kind: 'agent' })
         }
         return json(asset)
       },
@@ -521,7 +521,7 @@ const handler = createMcpHandler(
         if (!options.some((a) => a.id === id)) return json({ error: 'Asset not found or not accessible' })
         if (ownerEmails !== undefined) {
           const ownerIds = await Promise.all(ownerEmails.map((e) => resolveAssigneeEmail(uid(extra), e)))
-          await setAssetOwners(id, ownerIds)
+          await setAssetOwners(id, ownerIds, { id: uid(extra), kind: 'agent' })
         }
         return json(await updateAsset(id, data, { id: uid(extra), kind: 'agent' }))
       },

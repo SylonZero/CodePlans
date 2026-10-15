@@ -4,11 +4,14 @@ import { db } from '@/lib/db'
 import { users, organizationMembers, productSettings, specs, codePlans, workItems, comments } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { createSpec, updateSpec, linkSpec, supersedeSpec } from '@/lib/db/specs'
-import { setAssetOwners, addPlanAsset, graduateWorkItem } from '@/lib/db/mutations'
+import { setAssetOwners, addPlanAsset, graduateWorkItem, createAsset } from '@/lib/db/mutations'
+import { listNotifications } from '@/lib/db/notifications'
+import { getMyWork } from '@/lib/db/my-work'
 import { addProductMember } from '@/lib/db/responsibilities'
 import {
-  suggestReviewers, requestReview, decideReview, withdrawReview, addReviewers, getReviewSummary, listOpenReviews,
+  suggestReviewers, requestReview, decideReview, withdrawReview, addReviewers, removeReviewer, getReviewSummary, listOpenReviews,
 } from '@/lib/db/reviews'
+import { reviewParticipants, assetOwners } from '@/lib/db/schema'
 import { lastApprovedVersion } from '@/lib/db/review-state'
 
 const ERIN = 'user-erin' // editor, code owner of the API asset
@@ -70,9 +73,12 @@ describe('requesting a review', () => {
     const spec = await apiSpec()
     await expect(requestReview({ subjectType: 'spec', subjectId: spec.id }, { id: DAVE })).rejects.toThrow('view-only')
     await expect(requestReview({ subjectType: 'spec', subjectId: spec.id, reviewers: [{ userId: F.alice }] }, { id: F.alice })).rejects.toThrow('at least one reviewer')
-    await requestReview({ subjectType: 'spec', subjectId: spec.id, reviewers: [{ userId: DAVE }] }, { id: F.alice })
+    // Reviewers need edit access: a viewer can't be asked.
+    await expect(requestReview({ subjectType: 'spec', subjectId: spec.id, reviewers: [{ userId: DAVE }] }, { id: F.alice })).rejects.toThrow('at least one reviewer')
+    await requestReview({ subjectType: 'spec', subjectId: spec.id, reviewers: [{ userId: ERIN, required: false }] }, { id: F.alice })
     const s = await getReviewSummary('spec', spec.id, F.alice)
-    expect(s.current?.participants).toEqual([expect.objectContaining({ name: 'Dave', reason: 'requested', required: false })])
+    expect(s.current?.participants).toEqual([expect.objectContaining({ name: 'Erin', reason: 'code_owner', required: false })])
+    expect(s.audience.map((u) => u.name)).not.toContain('Dave')
   })
 
   it('always adds suggested reviewers as required in a guided workflow', async () => {
@@ -81,7 +87,7 @@ describe('requesting a review', () => {
     await requestReview({ subjectType: 'spec', subjectId: spec.id, reviewers: [{ userId: DAVE }, { userId: ERIN, required: false }] }, { id: F.alice })
     const s = await getReviewSummary('spec', spec.id, F.alice)
     expect(s.workflowLevel).toBe('guided')
-    expect(s.current?.participants.map((p) => [p.name, p.required])).toEqual([['Bob', true], ['Erin', true], ['Dave', false]])
+    expect(s.current?.participants.map((p) => [p.name, p.required])).toEqual([['Bob', true], ['Erin', true]])
   })
 })
 
@@ -158,7 +164,7 @@ describe('closing reviews', () => {
   it('withdraws a review and returns the spec to draft', async () => {
     const spec = await apiSpec()
     const review = await requestReview({ subjectType: 'spec', subjectId: spec.id }, { id: F.alice })
-    await expect(withdrawReview(review.id, { id: DAVE })).rejects.toThrow('view-only')
+    await expect(withdrawReview(review.id, { id: DAVE })).rejects.toThrow('Only the person who requested')
     await withdrawReview(review.id, { id: F.alice })
     expect((await specRow(spec.id)).status).toBe('draft')
     await expect(decideReview(review.id, 'approved', undefined, { id: F.bob })).rejects.toThrow('closed')
@@ -174,10 +180,11 @@ describe('closing reviews', () => {
   it('adds reviewers to an open review and lists what awaits each person', async () => {
     const spec = await apiSpec()
     const review = await requestReview({ subjectType: 'spec', subjectId: spec.id, reviewers: [{ userId: F.bob, required: true }] }, { id: F.alice })
-    await addReviewers(review.id, [{ userId: DAVE }], { id: F.alice })
-    expect((await listOpenReviews(DAVE, { awaitingUserId: DAVE })).map((r) => r.subjectTitle)).toEqual(['Token API'])
-    await decideReview(review.id, 'commented', 'Reads fine', { id: DAVE })
-    expect(await listOpenReviews(DAVE, { awaitingUserId: DAVE })).toEqual([])
+    expect((await addReviewers(review.id, [{ userId: DAVE }], { id: F.alice })).added).toEqual([])
+    expect((await addReviewers(review.id, [{ userId: ERIN }], { id: F.alice })).added).toEqual([ERIN])
+    expect((await listOpenReviews(ERIN, { awaitingUserId: ERIN })).map((r) => r.subjectTitle)).toEqual(['Token API'])
+    await decideReview(review.id, 'commented', 'Reads fine', { id: ERIN })
+    expect(await listOpenReviews(ERIN, { awaitingUserId: ERIN })).toEqual([])
     expect(await listOpenReviews(F.carol)).toEqual([])
   })
 
@@ -210,5 +217,77 @@ describe('graduation pins the approved version', () => {
     expect(await graduateWorkItem('wi-grad2', undefined, { id: F.alice }, { sourceSpecVersion: 9 })).toHaveProperty('error')
     const ok = await graduateWorkItem('wi-grad2', undefined, { id: F.alice }, { sourceSpecVersion: 1 })
     expect((ok as any).capability.sourceSpecVersion).toBe(1)
+  })
+})
+
+describe('managing a review', () => {
+  it('lets the requester, author, engineering managers and admins manage it, but not other reviewers', async () => {
+    const spec = await apiSpec()
+    const review = await requestReview({ subjectType: 'spec', subjectId: spec.id }, { id: F.bob })
+    expect((await getReviewSummary('spec', spec.id, ERIN)).viewer.canManage).toBe(false)
+    expect((await getReviewSummary('spec', spec.id, F.bob)).viewer.canManage).toBe(true)
+    await expect(withdrawReview(review.id, { id: ERIN })).rejects.toThrow('Only the person who requested')
+    await expect(addReviewers(review.id, [{ userId: F.alice }], { id: ERIN })).rejects.toThrow('Only the person who requested')
+    // Alice is both the spec's author and an org owner.
+    await expect(addReviewers(review.id, [{ userId: F.alice }], { id: F.alice })).resolves.toEqual({ added: [F.alice] })
+  })
+
+  it('keeps required reviewers from responsibilities in a guided workflow, and always keeps one reviewer', async () => {
+    await (db as any).insert(productSettings).values({ productId: F.productShared, workflowLevel: 'guided' })
+    const spec = await apiSpec()
+    const review = await requestReview({ subjectType: 'spec', subjectId: spec.id }, { id: F.alice })
+    await expect(removeReviewer(review.id, ERIN, { id: F.alice })).rejects.toThrow("can't be removed")
+    await (db as any).update(productSettings).set({ workflowLevel: 'open' })
+    await removeReviewer(review.id, ERIN, { id: F.alice })
+    await expect(removeReviewer(review.id, F.bob, { id: F.alice })).rejects.toThrow('at least one reviewer')
+  })
+
+  it('notifies only the reviewers added to an open review', async () => {
+    const spec = await apiSpec()
+    const review = await requestReview({ subjectType: 'spec', subjectId: spec.id, reviewers: [{ userId: F.bob, required: true }] }, { id: F.alice })
+    const requestsFor = async (userId: string) => (await listNotifications(userId)).filter((n) => n.eventType === 'review.requested').length
+    expect(await requestsFor(F.bob)).toBe(1)
+    await addReviewers(review.id, [{ userId: ERIN }], { id: F.alice })
+    expect(await requestsFor(ERIN)).toBe(1)
+    expect(await requestsFor(F.bob)).toBe(1)
+  })
+
+  it('needs edit access to record a decision', async () => {
+    const spec = await apiSpec()
+    const review = await requestReview({ subjectType: 'spec', subjectId: spec.id, reviewers: [{ userId: F.bob }] }, { id: F.alice })
+    await (db as any).insert(reviewParticipants).values({ reviewId: review.id, userId: DAVE, reason: 'requested', required: false })
+    await expect(decideReview(review.id, 'approved', undefined, { id: DAVE })).rejects.toThrow('needs edit access')
+  })
+
+  it("shows an optional reviewer's change request to the author, though the review stays open", async () => {
+    const spec = await apiSpec()
+    const review = await requestReview({ subjectType: 'spec', subjectId: spec.id, reviewers: [{ userId: F.bob, required: true }, { userId: ERIN, required: false }] }, { id: F.alice })
+    await decideReview(review.id, 'changes_requested', 'Name the token scopes', { id: ERIN })
+    expect((await getReviewSummary('spec', spec.id, F.alice)).current?.state).toBe('open')
+    const item = (await getMyWork(F.alice)).needsYou.find((i) => i.kind === 'changes_requested')
+    expect(item).toMatchObject({ verb: 'Address feedback', title: 'Token API', detail: 'Changes requested by Erin (optional reviewer)' })
+  })
+})
+
+describe('code owners', () => {
+  const ownersOf = async (assetId: string) => (await db.select().from(assetOwners).where(eq(assetOwners.assetId, assetId))).map((o) => o.userId)
+
+  it("can be changed only by an org admin or the product's engineering manager", async () => {
+    await expect(setAssetOwners(F.assetApi, [ERIN, F.bob], { id: F.bob })).rejects.toThrow('change code owners')
+    await addProductMember({ productId: F.productShared, userId: F.bob, responsibility: 'eng_manager' }, { id: F.alice })
+    await setAssetOwners(F.assetApi, [ERIN, F.bob], { id: F.bob })
+    expect((await ownersOf(F.assetApi)).sort()).toEqual([ERIN, F.bob].sort())
+  })
+
+  it('lets whoever creates an asset name its first owners', async () => {
+    const asset = await createAsset({ productId: F.productShared, name: 'Queue', type: 'service', description: '', tags: [] }, { id: ERIN })
+    await setAssetOwners(asset.id, [ERIN], { id: ERIN })
+    await expect(setAssetOwners(asset.id, [ERIN, F.bob], { id: ERIN })).rejects.toThrow('change code owners')
+  })
+
+  it('tells people when they become a code owner', async () => {
+    await setAssetOwners(F.assetApi, [ERIN, F.bob], { id: F.alice })
+    const notes = (await listNotifications(F.bob)).filter((n) => n.eventType === 'responsibility.assigned' && n.title.includes('code owner'))
+    expect(notes.map((n) => n.title)).toEqual(['Alice made you code owner of API Service'])
   })
 })

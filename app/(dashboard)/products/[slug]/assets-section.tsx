@@ -132,11 +132,14 @@ export function AssetsSection({
   productId,
   productSlug,
   members = [],
+  canManageOwners = false,
 }: {
   assets: Asset[]
   productId: string
   productSlug: string
   members?: MemberOption[]
+  /** Org owners/admins and the product's engineering managers set code owners. */
+  canManageOwners?: boolean
 }) {
   const [openAsset, setOpenAsset] = useState<Asset | null>(null)
   const [showArchived, setShowArchived] = useState(false)
@@ -212,7 +215,7 @@ export function AssetsSection({
       <Sheet open={!!currentAsset} onOpenChange={(o) => { if (!o) setOpenAsset(null) }}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
           {currentAsset && (
-            <AssetEditor key={currentAsset.id} asset={currentAsset} productSlug={productSlug} members={members} onDeleted={() => setOpenAsset(null)} />
+            <AssetEditor key={currentAsset.id} asset={currentAsset} productSlug={productSlug} members={members} canManageOwners={canManageOwners} onDeleted={() => setOpenAsset(null)} />
           )}
         </SheetContent>
       </Sheet>
@@ -305,11 +308,13 @@ function AssetEditor({
   asset,
   productSlug,
   members,
+  canManageOwners,
   onDeleted,
 }: {
   asset: Asset
   productSlug: string
   members: MemberOption[]
+  canManageOwners: boolean
   onDeleted: () => void
 }) {
   const [isPending, startTransition] = useTransition()
@@ -322,11 +327,15 @@ function AssetEditor({
   const owners = asset.owners ?? []
   const ownerIds = new Set(owners.map((o) => o.id))
   const addableMembers = members.filter((m) => !ownerIds.has(m.id))
+  // Whoever creates an asset may name its first owners; after that, owners decide
+  // who must review changes, so only an org admin or the product's engineering manager changes them.
+  const canEditOwners = canManageOwners || owners.length === 0
 
   function saveOwners(userIds: string[]) {
     startTransition(async () => {
-      await setAssetOwnersAction(asset.id, productSlug, userIds)
-      toast.success('Owners updated')
+      const result = await setAssetOwnersAction(asset.id, productSlug, userIds)
+      if (result?.error) toast.error(result.error)
+      else toast.success('Code owners updated')
     })
   }
 
@@ -458,9 +467,9 @@ function AssetEditor({
         <p className="text-xs text-muted-foreground">{isPending ? 'Saving…' : 'Changes save automatically'}</p>
       </form>
 
-      {/* Owners — routing and visibility (like code owners), not permissions */}
+      {/* Code owners: they're asked to review plans and specs that change this asset; not permissions */}
       <div className="px-4 space-y-2">
-        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Owners</p>
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Code owners</p>
         {owners.length > 0 ? (
           <ul className="space-y-1.5">
             {owners.map((owner) => (
@@ -469,26 +478,31 @@ function AssetEditor({
                   <OwnerAvatars owners={[owner]} max={1} />
                   <span className="truncate">{owner.name}</span>
                 </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                  title="Remove owner"
-                  disabled={isPending}
-                  onClick={() => saveOwners(owners.filter((o) => o.id !== owner.id).map((o) => o.id))}
-                >
-                  <X className="h-3.5 w-3.5" />
-                </Button>
+                {canEditOwners && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                    title="Remove code owner"
+                    disabled={isPending}
+                    onClick={() => saveOwners(owners.filter((o) => o.id !== owner.id).map((o) => o.id))}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                )}
               </li>
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-muted-foreground">No owners yet — assign someone to route work here.</p>
+          <p className="text-sm text-muted-foreground">No code owners yet. Assign someone to review changes to this asset.</p>
         )}
-        {addableMembers.length > 0 && (
+        {!canEditOwners && (
+          <p className="text-xs text-muted-foreground">Only an org owner or admin, or this product&apos;s engineering manager, can change code owners.</p>
+        )}
+        {canEditOwners && addableMembers.length > 0 && (
           <div className="flex items-center gap-2">
             <Select value={addOwnerId} onValueChange={setAddOwnerId}>
-              <SelectTrigger className="h-8 flex-1 text-sm"><SelectValue placeholder="Add an owner…" /></SelectTrigger>
+              <SelectTrigger className="h-8 flex-1 text-sm"><SelectValue placeholder="Add a code owner…" /></SelectTrigger>
               <SelectContent>
                 {addableMembers.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
               </SelectContent>

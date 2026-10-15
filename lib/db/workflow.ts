@@ -87,6 +87,8 @@ export type ActivationCheck = {
   allowed: boolean
   /** Why the transition is blocked: a gated workflow, or an extension. */
   reasons: string[]
+  /** The gated workflow blocked it (its reason comes first); any other reasons are an extension's. */
+  blockedByWorkflow: boolean
   /** Shown before proceeding in a guided workflow when nothing approved the current content. */
   warning: string | null
   level: WorkflowLevel
@@ -129,7 +131,7 @@ export async function checkActivation(input: {
   const subject = input.subjectType === 'spec'
     ? await db.query.specs.findFirst({ where: eq(specs.id, input.subjectId) }).then((s) => s && { productId: s.productId, authorId: s.createdById, noun: 'spec' })
     : await db.query.codePlans.findFirst({ where: eq(codePlans.id, input.subjectId) }).then((p) => p && { productId: p.productId, authorId: p.creatorId, noun: 'plan' })
-  if (!subject) return { allowed: true, reasons: [], warning: null, level: 'open', approved: false }
+  if (!subject) return { allowed: true, reasons: [], blockedByWorkflow: false, warning: null, level: 'open', approved: false }
   const [{ level }, approvedNow, codeOwnerIds] = await Promise.all([
     getWorkflowLevel(subject.productId),
     isApprovedNow(input.subjectType, input.subjectId),
@@ -141,7 +143,8 @@ export async function checkActivation(input: {
     actorId: input.actor.id, actorKind: input.actor.kind ?? 'user', workflowLevel: level, approved, codeOwnerIds, authorId: subject.authorId,
   })
   const reasons: string[] = []
-  if (level === 'gated' && !approved) {
+  const blockedByWorkflow = level === 'gated' && !approved
+  if (blockedByWorkflow) {
     reasons.push(input.transition === 'activate'
       ? `This product uses a gated review workflow, so the ${subject.noun} needs an approval covering its current version before it can be activated. Request a review from its Review panel.`
       : 'This product uses a gated review workflow, so the plan needs an approval covering its current revision before its tasks can start. Request a review from the plan\'s Review panel.')
@@ -151,7 +154,7 @@ export async function checkActivation(input: {
   const warning = allowed && level !== 'open' && !approved && input.transition === 'activate'
     ? `This ${subject.noun} has no approval covering its current version. The product uses a ${level} review workflow.`
     : null
-  return { allowed, reasons, warning, level, approved }
+  return { allowed, reasons, blockedByWorkflow, warning, level, approved }
 }
 
 /** Throws with the extension's reasons when a transition is blocked. */

@@ -14,6 +14,7 @@ import { checkActivation } from '@/lib/db/workflow'
 import { MarkdownContent } from '@/components/markdown-content'
 import { db } from '@/lib/db'
 import { assets, codePlans, workItems } from '@/lib/db/schema'
+import { approvalNeeds } from '@/lib/review-needs'
 import { inArray } from 'drizzle-orm'
 
 /** Display names for a spec's link targets (all in the spec's product, which the viewer can already see). */
@@ -50,10 +51,13 @@ export default async function SpecPage({ params, searchParams }: {
     approvedNow: review.approvedNow, lastApprovedVersion: review.lastApprovedVersion,
     openReview: open ? {
       total: open.participants.length,
-      waiting: open.participants.filter((p) => p.decision !== 'approved' || p.outdated).length,
+      // Waiting means not yet decided on this version; a decision of any kind counts as an answer.
+      waiting: open.participants.filter((p) => p.decision === 'pending' || p.outdated).length,
       changesRequested: open.state === 'changes_requested',
+      changesRequestedBy: open.participants.filter((p) => p.decision === 'changes_requested' && !p.outdated).map((p) => p.name),
     } : null,
-    activation: activation ? { allowed: activation.allowed, warning: activation.warning, reasons: activation.reasons } : null,
+    activation: activation ? { allowed: activation.allowed, warning: activation.warning, reasons: activation.reasons, blockedByWorkflow: activation.blockedByWorkflow, level: activation.level } : null,
+    needs: approvalNeeds(review),
   }
 
   const requested = v ? Number.parseInt(v, 10) : undefined

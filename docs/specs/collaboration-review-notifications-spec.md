@@ -168,6 +168,8 @@ workflow: { level: 'open' | 'guided' | 'gated' }
 
 **Extension hook.** Every activation path (server actions, the API, and the MCP tools, including task pickup) calls `getEnterpriseHooks().reviewGate({ subjectType, subjectId, transition, actorId, actorKind })`. The community default returns `{ allowed: true }`. An extension may return `{ allowed: false, reasons: [...] }`, which the caller surfaces verbatim, after the gated workflow's own reason when both apply. This follows the existing `lib/ee` rule of narrow hooks that return serializable data.
 
+**Who manages a review.** The requester, the subject's author, the product's engineering managers and org owners/admins add or remove reviewers and withdraw. A review keeps at least one reviewer, and in guided/gated the reviewers a responsibility made required can't be removed. Reviewers need edit access. Code owners, which decide who is required, are changed by the same people who assign other responsibilities (the asset's creator may name its first owners), and changes are audited and notified.
+
 **Split the two meanings of "review" in the wiki:**
 
 - `needsReview` → originally kept as a separate import-triage signal. **Superseded:** imports now start `in_review` and the column was dropped (migration 0030), so there is one "needs checking" signal, not two.

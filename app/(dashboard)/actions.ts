@@ -273,8 +273,13 @@ export async function restoreAssetAction(id: string, productSlug: string) {
 }
 
 export async function setAssetOwnersAction(assetId: string, productSlug: string, userIds: string[]) {
-  const authUser = await requireWriter({ assetId })
-  await setAssetOwners(assetId, userIds, await currentEditor())
+  await requireWriter({ assetId })
+  try {
+    await setAssetOwners(assetId, userIds, await currentEditor())
+  } catch (err) {
+    if (err instanceof ForbiddenError) return { error: err.message }
+    throw err
+  }
   revalidatePath(`/products/${productSlug}`)
   revalidatePath(`/assets/${assetId}`)
   revalidatePath('/my-work')

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -46,6 +46,7 @@ import {
 } from '../../actions'
 import type { CodePlanDetail } from '@/lib/db/queries'
 import type { TeamMember } from '@/lib/types'
+import { ActivationNotice, type ApprovalNeeds } from '@/components/activation-notice'
 
 const PLAN_TYPES = [
   { value: 'feature', label: 'Feature' },
@@ -66,12 +67,12 @@ interface Props {
   teamMembers: TeamMember[]
 }
 
-export function PlanStatusButtons({ plan, activationWarning = null, activationBlocked = null }: {
+export type PlanActivation = { allowed: boolean; warning: string | null; reasons: string[]; blockedByWorkflow: boolean; level: string }
+
+export function PlanStatusButtons({ plan, activation = null }: {
   plan: CodePlanDetail
-  /** Guided workflow: nothing approved the current revision. Confirm before activating. */
-  activationWarning?: string | null
-  /** An extension blocked activation; shown instead of the button action. */
-  activationBlocked?: string | null
+  /** From checkActivation, for editors of a draft plan. Explained by PlanActivationNotice. */
+  activation?: PlanActivation | null
 }) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -80,30 +81,16 @@ export function PlanStatusButtons({ plan, activationWarning = null, activationBl
     const res = await activatePlanAction(plan.id)
     if (res?.error) { setError(res.error); toast.error(res.error) }
   })
+  const blocked = plan.status === 'draft' && !!activation && !activation.allowed
+  const needsConfirm = plan.status === 'draft' && !blocked && !!activation?.warning
 
   return (
     <>
-      {plan.status === 'draft' && (activationWarning || activationBlocked ? (
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button disabled={isPending}>{isPending ? 'Activating…' : 'Activate Plan'}</Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>{activationBlocked ? 'Activation is blocked' : 'Activate without an approval?'}</AlertDialogTitle>
-              <AlertDialogDescription>{activationBlocked ?? `${activationWarning} Request a review from the Overview tab, or activate anyway.`}</AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>{activationBlocked ? 'Close' : 'Cancel'}</AlertDialogCancel>
-              {!activationBlocked && <AlertDialogAction onClick={activate}>Activate anyway</AlertDialogAction>}
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      ) : (
-        <Button disabled={isPending} onClick={activate}>
-          {isPending ? 'Activating…' : 'Activate Plan'}
+      {plan.status === 'draft' && (
+        <Button disabled={isPending || blocked} onClick={() => (needsConfirm ? window.dispatchEvent(new CustomEvent('plan-activation:confirm')) : activate())}>
+          {isPending ? 'Activating…' : needsConfirm ? 'Activate Plan…' : 'Activate Plan'}
         </Button>
-      ))}
+      )}
       {plan.status === 'active' && (
         <Button
           variant="secondary"
@@ -116,6 +103,35 @@ export function PlanStatusButtons({ plan, activationWarning = null, activationBl
       {error && <span role="alert" className="text-sm text-destructive">{error}</span>}
     </>
   )
+}
+
+/**
+ * Under the plan's header: why activation is blocked (gated workflow or an
+ * extension), or, after Activate in a guided workflow, the warning to confirm.
+ */
+export function PlanActivationNotice({ plan, activation, needs }: { plan: CodePlanDetail; activation: PlanActivation | null; needs: ApprovalNeeds }) {
+  const [isPending, startTransition] = useTransition()
+  const [confirming, setConfirming] = useState(false)
+  useEffect(() => {
+    const open = () => setConfirming(true)
+    window.addEventListener('plan-activation:confirm', open)
+    return () => window.removeEventListener('plan-activation:confirm', open)
+  }, [])
+  if (plan.status !== 'draft' || !activation) return null
+  const activate = () => startTransition(async () => {
+    const res = await activatePlanAction(plan.id)
+    if (res?.error) toast.error(res.error)
+    else setConfirming(false)
+  })
+  if (!activation.allowed) {
+    return <ActivationNotice tone="blocked" needs={needs}
+      title={activation.blockedByWorkflow ? 'This plan can’t be activated yet: the product uses a gated review workflow.' : 'Activation is blocked.'}
+      otherReasons={activation.blockedByWorkflow ? activation.reasons.slice(1) : activation.reasons} />
+  }
+  return confirming
+    ? <ActivationNotice tone="warning" needs={needs} pending={isPending} onActivateAnyway={activate}
+      title={`Activate without an approval? The product uses a ${activation.level} review workflow.`} />
+    : null
 }
 
 export function DeletePlanButton({

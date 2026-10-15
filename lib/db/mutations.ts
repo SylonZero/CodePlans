@@ -4,7 +4,7 @@ import { requireSpec, reviseSpec, specAssetAnchors, refreshSpecAssetLinks, audit
 import { logAudit } from './audit'
 import { bumpPlanRevision, decisionIsCurrent, lastApprovedVersion, onSubjectRevised, subjectVersion } from './review-state'
 import { assertActivationAllowed } from './workflow'
-import { productIdFor } from './authz'
+import { ForbiddenError, productIdFor } from './authz'
 import { externalRefColumns, IntakeError, type ExternalRef } from './intake'
 import {
   products,
@@ -215,13 +215,35 @@ export async function restoreAsset(id: string, actor?: ArtifactActor) {
   return restored ?? null
 }
 
-/** Replace the full owner set for an asset. */
+export const CODE_OWNERS_FORBIDDEN = "Only an org owner/admin or this product's engineering manager can change code owners."
+
+/**
+ * Replace the full owner set for an asset. Code owners decide who must review
+ * changes to it, so changing them takes the same standing as assigning other
+ * responsibilities (an org owner/admin or the product's engineering manager),
+ * except naming the first owners of an asset you created. Each owner added or
+ * removed is recorded, and people added are told. Without an actor (seeding,
+ * system jobs) no check applies.
+ */
 export async function setAssetOwners(assetId: string, userIds: string[], actor?: ArtifactActor) {
-  await db.delete(assetOwners).where(eq(assetOwners.assetId, assetId))
+  const asset = await db.query.assets.findFirst({ where: eq(assets.id, assetId) })
+  if (!asset) return
+  const before = (await db.select({ userId: assetOwners.userId }).from(assetOwners).where(eq(assetOwners.assetId, assetId))).map((r) => r.userId)
   const unique = [...new Set(userIds)]
+  const added = unique.filter((id) => !before.includes(id))
+  const removed = before.filter((id) => !unique.includes(id))
+  if (!added.length && !removed.length) return
+  if (actor) {
+    const { canManageResponsibilities } = await import('./responsibilities')
+    const firstOwnersOfOwnAsset = before.length === 0 && asset.createdById === actor.id
+    if (!firstOwnersOfOwnAsset && !(await canManageResponsibilities(actor.id, asset.productId))) throw new ForbiddenError(CODE_OWNERS_FORBIDDEN)
+  }
+  await db.delete(assetOwners).where(eq(assetOwners.assetId, assetId))
   if (unique.length > 0) {
     await db.insert(assetOwners).values(unique.map((userId) => ({ assetId, userId, ...createdBy(actor) })))
   }
+  for (const userId of added) await logAudit({ entityType: 'asset', entityId: assetId, event: 'owner_added', actor, productId: asset.productId, payload: { userId, name: asset.name } })
+  for (const userId of removed) await logAudit({ entityType: 'asset', entityId: assetId, event: 'owner_removed', actor, productId: asset.productId, payload: { userId, name: asset.name } })
 }
 
 /**
