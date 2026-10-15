@@ -38,7 +38,7 @@ beforeEach(async () => {
   await seedFixtures()
   await (db as any).insert(users).values({ id: ERIN, email: 'erin-d@test.local', name: 'Erin', billingTier: 'free', role: 'editor', organizationId: F.org, featureFlags: {} })
   await (db as any).insert(organizationMembers).values({ id: 'm-erin-d', organizationId: F.org, userId: ERIN, role: 'editor', joinedAt: new Date() })
-  await setAssetOwners(F.assetApi, [ERIN], { id: F.alice })
+  await setAssetOwners(F.assetApi, [ERIN])
 })
 afterEach(async () => {
   resetEnterpriseHooks()

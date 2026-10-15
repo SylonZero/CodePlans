@@ -10,7 +10,7 @@ import type { WorkflowLevel } from '@/lib/db/schema.sqlite'
 export const WORKFLOW_COPY: Record<WorkflowLevel, { label: string; description: string }> = {
   open: { label: 'Open', description: 'Anyone can request a review; nothing waits on one.' },
   guided: { label: 'Guided', description: 'Reviewers are added from responsibilities automatically, and activating unapproved work asks for confirmation.' },
-  gated: { label: 'Gated', description: 'Specs and plans need approval before they become active.' },
+  gated: { label: 'Gated', description: 'Reviewers are added from responsibilities automatically, and specs and plans need an approval of their current version before they become active or their tasks start.' },
 }
 
 export function WorkflowCard({ productId, productSlug, level, inherited, orgDefault, available, canManage }: {

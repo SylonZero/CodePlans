@@ -15,7 +15,7 @@ import type { ReviewSummary, ReviewView, ParticipantView } from '@/lib/db/review
 import type { ReviewReason, ReviewState } from '@/lib/db/schema.sqlite'
 
 export const REASON_LABELS: Record<ReviewReason, string> = {
-  architect: 'Architect', code_owner: 'Code owner', eng_manager: 'Eng manager', requested: 'Requested',
+  architect: 'Architect', code_owner: 'Code owner', eng_manager: 'Eng manager', requested: 'Requested', self: 'Self-review',
 }
 
 export const REVIEW_STATE_LABELS: Record<ReviewState, string> = {
@@ -69,7 +69,12 @@ function CurrentReview({ review, summary, currentUserId, path }: { review: Revie
   const { pending, error, run } = useRun(path)
   const [note, setNote] = useState('')
   const [adding, setAdding] = useState('')
+  const [confirmWithdraw, setConfirmWithdraw] = useState(false)
   const me = review.participants.find((p) => p.userId === currentUserId)
+  // A review keeps at least one reviewer, and in a guided or gated workflow the
+  // reviewers a responsibility made required stay (the server enforces both).
+  const removable = (p: ReviewView['participants'][number]) => review.participants.length > 1
+    && !(summary.workflowLevel !== 'open' && p.required && p.reason !== 'requested')
   const addable = summary.audience.filter((u) => !review.participants.some((p) => p.userId === u.id) && u.id !== review.requestedById)
   return <div className="space-y-4">
     <p className="text-sm text-muted-foreground">
@@ -84,7 +89,7 @@ function CurrentReview({ review, summary, currentUserId, path }: { review: Revie
         <Badge variant="outline" className="h-5 px-1.5 text-[10px]">{REASON_LABELS[p.reason]}</Badge>
         {p.required && <span className="text-[10px] uppercase tracking-wide text-muted-foreground">required</span>}
         <span className="ml-auto"><Decision p={p} /></span>
-        {summary.viewer.canManage && p.decision === 'pending' && <button type="button" aria-label={`Remove ${p.name}`} disabled={pending}
+        {summary.viewer.canManage && p.decision === 'pending' && removable(p) && <button type="button" aria-label={`Remove ${p.name}`} disabled={pending}
           className="text-muted-foreground hover:text-foreground" onClick={() => run(() => removeReviewerAction(review.id, p.userId, path))}><X className="h-3.5 w-3.5" /></button>}
       </li>)}
     </ul>
@@ -107,7 +112,13 @@ function CurrentReview({ review, summary, currentUserId, path }: { review: Revie
         </Select>
         <Button size="sm" variant="outline" disabled={!adding || pending} onClick={() => run(() => addReviewersAction(review.id, [{ userId: adding }], path), () => setAdding(''))}>Add</Button>
       </>}
-      <Button size="sm" variant="ghost" className="ml-auto text-muted-foreground" disabled={pending} onClick={() => run(() => withdrawReviewAction(review.id, path))}>Withdraw review</Button>
+      {confirmWithdraw
+        ? <span className="ml-auto flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Withdraw this review? Decisions so far are kept in its history.</span>
+          <Button size="sm" variant="destructive" disabled={pending} onClick={() => run(() => withdrawReviewAction(review.id, path), () => setConfirmWithdraw(false))}>Withdraw</Button>
+          <Button size="sm" variant="ghost" disabled={pending} onClick={() => setConfirmWithdraw(false)}>Cancel</Button>
+        </span>
+        : <Button size="sm" variant="ghost" className="ml-auto text-muted-foreground" disabled={pending} onClick={() => setConfirmWithdraw(true)}>Withdraw review</Button>}
     </div>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
   </div>
@@ -125,11 +136,15 @@ function RequestForm({ summary, path }: { summary: ReviewSummary; path: string }
   const extras = Object.keys(chosen).filter((id) => !summary.suggestions.some((s) => s.userId === id))
   const others = summary.audience.filter((u) => !(u.id in chosen))
   const selected = Object.entries(chosen).filter(([, v]) => v.on)
+  // Nobody else can see the product: the requester reviews their own work.
+  const selfReview = summary.viewer.alone
 
   return <div className="space-y-3">
-    {summary.suggestions.length > 0
-      ? <p className="text-sm text-muted-foreground">{guided ? 'This product uses a guided workflow, so these reviewers are always included.' : 'Suggested from responsibilities:'}</p>
-      : <p className="text-sm text-muted-foreground">No architect or code owner is assigned for this yet. Choose reviewers below.</p>}
+    {selfReview
+      ? <p className="text-sm text-muted-foreground">You&apos;re the only member who can see this product, so you&apos;ll review it yourself. Invite teammates to have someone else review it.</p>
+      : summary.suggestions.length > 0
+        ? <p className="text-sm text-muted-foreground">{guided ? `This product uses a ${summary.workflowLevel} workflow, so these reviewers are always included.` : 'Suggested from responsibilities:'}</p>
+        : <p className="text-sm text-muted-foreground">No architect or code owner is assigned for this yet. Choose reviewers below.</p>}
     <ul className="space-y-1.5">
       {summary.suggestions.map((s) => <li key={s.userId} className="flex flex-wrap items-center gap-2 text-sm">
         <input type="checkbox" aria-label={`Include ${s.name}`} checked={chosen[s.userId]?.on ?? false} disabled={guided}
@@ -161,7 +176,7 @@ function RequestForm({ summary, path }: { summary: ReviewSummary; path: string }
       <Input aria-label="Note to reviewers" placeholder="Note to reviewers (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
       <Input aria-label="Due date" type="date" value={due} onChange={(e) => setDue(e.target.value)} />
     </div>
-    <Button disabled={pending || selected.length === 0} onClick={() => run(() => requestReviewAction({
+    <Button disabled={pending || (selected.length === 0 && !selfReview)} onClick={() => run(() => requestReviewAction({
       subjectType: summary.subjectType, subjectId: summary.subjectId,
       reviewers: selected.map(([userId, v]) => ({ userId, required: v.required })),
       note: note || undefined, dueAt: due || undefined,
@@ -181,6 +196,8 @@ export function ReviewPanel({ summary, currentUserId, path, noun }: { summary: R
       requestAnimationFrame(() => document.getElementById('review')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
     }
     window.addEventListener('review:request', onRequest)
+    // Arriving from a block on another tab (e.g. Tasks): open the request form.
+    if (window.location.hash === '#request-review') onRequest()
     return () => window.removeEventListener('review:request', onRequest)
   }, [])
   const current = summary.current

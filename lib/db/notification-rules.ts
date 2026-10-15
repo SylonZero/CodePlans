@@ -131,7 +131,9 @@ async function reviewDraft(e: AuditEvent, who: string, title: string): Promise<D
   const owners = [...(review.requestedById ? [{ userId: review.requestedById, reason: 'requester' }] : []), ...(await subjectAuthor(e.entityType, e.entityId))]
   switch (e.event) {
     case 'review_requested': {
-      const parts = await db.select().from(reviewParticipants).where(eq(reviewParticipants.reviewId, reviewId))
+      // A review that gained reviewers notifies only the people added.
+      const added = e.payload.added as string[] | undefined
+      const parts = (await db.select().from(reviewParticipants).where(eq(reviewParticipants.reviewId, reviewId))).filter((p) => !added || added.includes(p.userId))
       return { eventType: 'review.requested', title: `${who} asked you to review ${title}${v}`, broadcastTitle: `${who} requested a review of ${title}${v}`, summary: review.note ?? '',
         recipients: parts.map((p) => ({ userId: p.userId, reason: p.reason === 'requested' ? 'reviewer' : p.reason })) }
     }
@@ -230,6 +232,13 @@ async function draftFor(e: AuditEvent): Promise<Draft | null> {
       return { eventType: graduated ? 'capability.graduated' : 'asset.design_note',
         title: graduated ? `${who} graduated "${title}" into ${asset.name}'s record` : `${who} added a design note to ${asset.name}: ${title}`,
         recipients: [...(await codeOwnersOf([asset.id])), ...(graduated ? await architectsFor(e.productId, null) : [])] }
+    }
+    case 'asset:owner_added': {
+      const to = e.payload.userId as string | undefined
+      const asset = await db.query.assets.findFirst({ where: eq(assets.id, e.entityId) })
+      const member = to ? (await db.query.users.findFirst({ where: eq(users.id, to) }))?.name ?? 'someone' : ''
+      return to && asset ? { eventType: 'responsibility.assigned', title: `${who} made you code owner of ${asset.name}`, broadcastTitle: `${who} made ${member} code owner of ${asset.name}`,
+        summary: 'You will be asked to review plans and specs that change it.', recipients: [{ userId: to, reason: 'code_owner' }] } : null
     }
     case 'product:member_added': {
       const to = e.payload.userId as string | undefined

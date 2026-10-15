@@ -19,7 +19,7 @@ import type { EnterpriseHooks } from './types'
 const defaultHooks: EnterpriseHooks = {
   navItems: () => [],
   reviewGate: () => ({ allowed: true, reasons: [] }),
-  workflowLevels: () => ['open', 'guided'],
+  workflowLevels: () => ['open', 'guided', 'gated'],
   workspaceDatabase: () => null,
   inEachWorkspace: (_kind, job) => job(),
   routeRequest: () => null,

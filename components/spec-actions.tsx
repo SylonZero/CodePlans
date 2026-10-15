@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { setSpecStatusAction } from '@/app/(dashboard)/specs/actions'
+import { ActivationNotice, type ApprovalNeeds } from '@/components/activation-notice'
 
 export type SpecActionState = {
   specId: string
@@ -18,9 +19,11 @@ export type SpecActionState = {
   approvedNow: boolean
   lastApprovedVersion: number | null
   /** The open review, if any: how many reviewers still need to (re)decide. */
-  openReview: { waiting: number; total: number; changesRequested: boolean } | null
+  openReview: { waiting: number; total: number; changesRequested: boolean; changesRequestedBy: string[] } | null
   /** From checkActivation, for editors of a spec that isn't active. */
-  activation: { allowed: boolean; warning: string | null; reasons: string[] } | null
+  activation: { allowed: boolean; warning: string | null; reasons: string[]; blockedByWorkflow: boolean; level: string } | null
+  /** What an approval still needs, for the activation notice. */
+  needs: ApprovalNeeds
 }
 
 /** Ask the editor or review panel on this page to open (they listen for these). */
@@ -45,7 +48,11 @@ function explain(s: SpecActionState) {
     case 'draft': return s.approvedNow ? `${v} is approved. Activate it when it's ready.` : 'Request a review, or activate it when it’s ready.'
     case 'in_review':
       if (s.openReview?.changesRequested) return 'Changes were requested. Revise the content, then ask the reviewers to look again.'
-      if (s.openReview) return `Waiting on ${s.openReview.waiting} of ${s.openReview.total} reviewer${s.openReview.total === 1 ? '' : 's'}.`
+      if (s.openReview) {
+        const waiting = `Waiting on ${s.openReview.waiting} of ${s.openReview.total} reviewer${s.openReview.total === 1 ? '' : 's'}.`
+        const by = s.openReview.changesRequestedBy
+        return by.length ? `${by.join(', ')} requested changes. ${s.openReview.waiting ? waiting : ''}`.trim() : waiting
+      }
       if (s.approvedNow) return `${v} is approved and ready to activate.`
       return s.imported
         ? 'Imported from git. Check the content and classification, then activate it or ask for a review.'
@@ -114,15 +121,14 @@ export function SpecActionBar({ state }: { state: SpecActionState }) {
           </div>
         )}
       </div>
-      {blocked && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{s.activation!.reasons.join(' ') || 'Blocked by the review workflow.'}</p>}
+      {blocked && (
+        <ActivationNotice tone="blocked" needs={s.needs}
+          title={s.activation!.blockedByWorkflow ? 'This spec can’t be activated yet: the product uses a gated review workflow.' : 'Activation is blocked.'}
+          otherReasons={s.activation!.blockedByWorkflow ? s.activation!.reasons.slice(1) : s.activation!.reasons} />
+      )}
       {confirming && (
-        <div role="alertdialog" aria-label="Confirm activation" className="flex flex-col gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
-          <span>{s.activation?.warning}</span>
-          <span className="flex shrink-0 gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>Cancel</Button>
-            <Button size="sm" disabled={pending} onClick={() => move('active')}>Activate anyway</Button>
-          </span>
-        </div>
+        <ActivationNotice tone="warning" needs={s.needs} pending={pending} onActivateAnyway={() => move('active')}
+          title={`Activate without an approval? The product uses a ${s.activation?.level ?? 'guided'} review workflow.`} />
       )}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       {s.canEdit && s.status !== 'superseded' && <p className="text-xs text-muted-foreground">Changing the status doesn’t create a new version; only revising the title or text does.</p>}

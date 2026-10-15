@@ -20,7 +20,7 @@ beforeEach(async () => {
   await seedFixtures()
   await (db as any).insert(users).values({ id: ERIN, email: 'erin-mw@test.local', name: 'Erin', billingTier: 'free', role: 'editor', organizationId: F.org, featureFlags: {} })
   await (db as any).insert(organizationMembers).values({ id: 'm-erin-mw', organizationId: F.org, userId: ERIN, role: 'editor', joinedAt: new Date() })
-  await setAssetOwners(F.assetApi, [ERIN], { id: F.alice })
+  await setAssetOwners(F.assetApi, [ERIN])
   await addProductMember({ productId: F.productShared, userId: F.alice, responsibility: 'eng_manager' }, { id: F.alice })
   await addProductMember({ productId: F.productShared, userId: F.bob, responsibility: 'architect', area: 'api' }, { id: F.alice })
 })
@@ -139,7 +139,7 @@ describe('lens panels', () => {
 
 describe('getOwnedAssets', () => {
   it('only returns owned assets in products the user can see, and respects the product scope', async () => {
-    await setAssetOwners(F.assetDb, [F.carol], { id: F.alice })
+    await setAssetOwners(F.assetDb, [F.carol])
     expect(await getOwnedAssets(F.carol)).toEqual([])
     expect((await getOwnedAssets(ERIN)).map((a) => a.name)).toEqual(['API Service'])
     expect(await getOwnedAssets(ERIN, { productId: F.productCarol })).toEqual([])

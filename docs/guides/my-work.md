@@ -55,7 +55,7 @@ incomplete, it asks the person who can complete it:
 | An upcoming release with an asset missing a version stamp | That asset's code owners and the product's engineering managers |
 | A resolved feature not graduated into its asset's record after a week | The asset's code owners |
 | An active plan built on a spec that has changed since its last approval | Plan owner and the product's architects |
-| An active spec with no approval covering it, in a guided product | Spec author |
+| An active spec with no approval covering it, in a guided or gated product | Spec author |
 
 ## Notifications
 

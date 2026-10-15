@@ -184,7 +184,9 @@ export async function updateSpec(id: string, input: z.input<typeof specUpdateInp
   await assertSpecProductWrite(userId, old.productId)
   const actor = { id: userId, kind: actorKind }
   if (input.status === 'active' && old.status !== 'active') {
-    await assertActivationAllowed({ subjectType: 'spec', subjectId: id, transition: 'activate', actor })
+    // A title or body edit in the same change makes a new version, which no approval covers yet.
+    const changesContent = (input.title !== undefined && input.title !== old.title) || (input.body !== undefined && input.body !== old.body)
+    await assertActivationAllowed({ subjectType: 'spec', subjectId: id, transition: 'activate', actor, changesContent })
   }
   const { spec, contentChanged, changed } = await db.transaction((tx) => reviseSpec(tx, id, input, undefined, actor))
   if (!changed) return spec

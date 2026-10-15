@@ -148,7 +148,14 @@ function TaskEditor({ task, members, onDeleted }: { task: TaskRow; members: Memb
     if (!isSelectChange && snapshot === lastSaved.current) return
     lastSaved.current = snapshot
     startTransition(async () => {
-      await updateTaskAction(task.id, fd)
+      const result = await updateTaskAction(task.id, fd)
+      if (result?.error) {
+        // Blocked by the review workflow: put the status back and let the next save retry.
+        toast.error(result.error)
+        setStatus(task.status)
+        lastSaved.current = ''
+        return
+      }
       toast.success('Saved')
     })
   }
@@ -326,7 +333,8 @@ function TaskForm({
     startTransition(async () => {
       try {
         if (isEdit) {
-          await updateTaskAction(task.id, fd)
+          const result = await updateTaskAction(task.id, fd)
+          if (result?.error) { setError(result.error); return }
         } else {
           await createTaskAction(planId, fd)
         }

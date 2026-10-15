@@ -103,7 +103,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         </TabsList>
 
         <TabsContent value="assets" className="space-y-6">
-          <AssetsSection assets={product.assets} productId={product.id} productSlug={slug} members={memberList} />
+          <AssetsSection assets={product.assets} productId={product.id} productSlug={slug} members={memberList} canManageOwners={canManagePeople && !product.archivedAt} />
         </TabsContent>
 
         <TabsContent value="dependencies" className="space-y-6">

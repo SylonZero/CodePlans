@@ -22,12 +22,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Calendar, Users, AlertCircle } from 'lucide-react'
 import type { CodePlanStatus, CodePlanType } from '@/lib/types'
 import { cn, formatDate } from '@/lib/utils'
-import { PlanStatusButtons, PlanEditSheet, AddTaskDialog, DeletePlanButton } from './plan-actions'
+import { PlanStatusButtons, PlanActivationNotice, PlanEditSheet, AddTaskDialog, DeletePlanButton } from './plan-actions'
 import { ReviewPanel, ReviewStatusBadge } from '@/components/review-panel'
 import { CommentsPanel } from '@/components/comments-panel'
 import { getReviewSummary } from '@/lib/db/reviews'
 import { listComments, getProductAudience } from '@/lib/db/comments'
 import { checkActivation } from '@/lib/db/workflow'
+import { approvalNeeds } from '@/lib/review-needs'
 import { canWriteProduct } from '@/lib/db/authz'
 
 const statusStyles: Record<CodePlanStatus, string> = {
@@ -81,6 +82,11 @@ export default async function PlanDetailPage({ params, searchParams }: {
   const activation = canEdit && plan.status === 'draft'
     ? await checkActivation({ subjectType: 'code_plan', subjectId: id, transition: 'activate', actor: { id: user.id } })
     : null
+  // An active plan whose tasks can't start yet (gated workflow, or an extension).
+  const taskStart = canEdit && plan.status === 'active'
+    ? await checkActivation({ subjectType: 'code_plan', subjectId: id, transition: 'start_task', actor: { id: user.id } })
+    : null
+  const needs = approvalNeeds(review)
   const openThreads = threads.filter((t) => !t.resolvedAt).length
   const otherPlans = allPlans
     .filter((p) => p.id !== id && p.status !== 'completed' && p.status !== 'cancelled')
@@ -149,7 +155,7 @@ export default async function PlanDetailPage({ params, searchParams }: {
             connections={orgIntegrations.map((c) => ({ id: c.id, name: c.name, provider: c.provider }))}
           />
           <PlanEditSheet plan={plan} members={teamMembers.map((m) => ({ id: m.userId, name: m.user.name }))} />
-          <PlanStatusButtons plan={plan} activationWarning={activation?.warning ?? null} activationBlocked={activation && !activation.allowed ? activation.reasons.join(' ') || 'Blocked by the review workflow.' : null} />
+          <PlanStatusButtons plan={plan} activation={activation} />
           <DeletePlanButton
             planId={plan.id}
             planTitle={plan.title}
@@ -159,6 +165,8 @@ export default async function PlanDetailPage({ params, searchParams }: {
           />
         </div>
       </div>
+
+      <PlanActivationNotice plan={plan} activation={activation} needs={needs} />
 
       {/* Progress & Stats */}
       <div className="grid gap-6 md:grid-cols-4">
@@ -268,6 +276,9 @@ export default async function PlanDetailPage({ params, searchParams }: {
 
         <TabsContent value="tasks" className="mt-4">
           <PlanTasksSection
+            startBlocked={taskStart && !taskStart.allowed && plan.tasks.some((t) => t.status === 'not_started')
+              ? { reasons: taskStart.blockedByWorkflow ? taskStart.reasons.slice(1) : taskStart.reasons, byWorkflow: taskStart.blockedByWorkflow, needs }
+              : null}
             tasks={plan.tasks}
             planId={plan.id}
             planTitle={plan.title}

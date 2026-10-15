@@ -9,7 +9,7 @@ describe('enterprise hook registry', () => {
   it('defaults every hook to a no-op', async () => {
     expect(getEnterpriseHooks().navItems()).toEqual([])
     expect(await getEnterpriseHooks().reviewGate({} as never)).toEqual({ allowed: true, reasons: [] })
-    expect(getEnterpriseHooks().workflowLevels()).toEqual(['open', 'guided'])
+    expect(getEnterpriseHooks().workflowLevels()).toEqual(['open', 'guided', 'gated'])
     expect(getEnterpriseHooks().workspaceDatabase()).toBeNull()
     expect(getEnterpriseHooks().routeRequest({ host: 'localhost', pathname: '/', search: '' })).toBeNull()
     expect(getEnterpriseHooks().sessionScope()).toBeNull()
