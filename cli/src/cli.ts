@@ -2,12 +2,14 @@
 // node:util parseArgs; the runner adds --json, --profile and --help, turns
 // errors into messages on stderr and exit codes, and creates the client lazily
 // (login and help never need one).
+import { readFileSync } from 'node:fs'
 import { parseArgs, type ParseArgsConfig } from 'node:util'
 import { Client, CliError, EXIT, type FetchLike } from './client.js'
 import { configPath, resolveConnection, type Connection, type Env } from './config.js'
 import { createOut, paint, table, type Out, type Sink } from './output.js'
 
-export const VERSION = '0.1.0'
+/** From the package's own package.json (one level up from both src/ and dist/), so it can't drift. */
+export const VERSION: string = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version
 
 type Options = NonNullable<ParseArgsConfig['options']>
 export type Values = Record<string, string | boolean | string[] | undefined>
