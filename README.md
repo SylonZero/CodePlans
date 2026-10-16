@@ -277,6 +277,7 @@ CodePlans/
 │       ├── team/               # Team & org management
 │       ├── analytics/          # Analytics
 │       └── settings/           # User settings
+├── cli/                        # The codeplans command-line tool (npm: @codeplans/cli)
 ├── components/
 │   ├── app-shell.tsx           # Sidebar + header layout
 │   ├── dashboard/              # Dashboard widgets
@@ -456,6 +457,18 @@ In VS Code's Copilot Chat instead, add the same URL/header under a `"servers"` e
 For any other agent (or Claude Code without the plugin), install the skills with `npx skills add SylonZero/CodePlans` and connect the server as above.
 
 Your agent can then read specs, plans, work items, and tech debt and (with a write-scope key) create, revise, supersede, and link specs, model products, assets, and dependencies, manage plans end-to-end (create, target assets, activate/complete), file work items, manage tasks, and record branch/PR status on plan assets. Keys act as your user, so org access rules and mirrored-field protections apply unchanged. See [`docs/specs/mcp-server-spec.md`](docs/specs/mcp-server-spec.md).
+
+### Command-line tool
+
+`codeplans` uses the same endpoint and API keys from your terminal: see what's waiting on you, script plans and tasks, and set up products, assets, dependencies and responsibilities from a manifest with `codeplans apply`.
+
+```bash
+npm install -g @codeplans/cli
+codeplans login --url https://acme.codeplans.app --key cpk_…
+codeplans me
+```
+
+See the [CLI guide](docs/guides/cli.md).
 
 ---
 

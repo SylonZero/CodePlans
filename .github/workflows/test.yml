@@ -26,3 +26,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - name: Build and pack the CLI
+        run: |
+          pnpm cli:pack
+          node cli/dist/index.js --version
