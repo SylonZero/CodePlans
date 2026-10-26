@@ -4,7 +4,7 @@ import { resolveDbSsl, sqliteFilePath } from '@/lib/runtime-env'
 import { getEnterpriseHooks } from '@/lib/ee/registry'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import type * as PgSchema from './schema.pg'
-import { BUSY_TIMEOUT_PRAGMA, queueWrites, WriteQueue } from './sqlite-writes'
+import { queueWrites, WriteQueue } from './sqlite-writes'
 
 // TypeScript always sees db as the postgres type for full IDE / type-check support.
 // In SQLite mode the runtime object is a libsql Drizzle instance but the column names
@@ -33,12 +33,13 @@ function createDb(rawUrl: string): Handle {
       mkdirSync(dirname(file), { recursive: true })
     }
     // DATABASE_AUTH_TOKEN is only needed for a hosted libsql server (Turso).
-    let client = createClient({ url, authToken: process.env.DATABASE_AUTH_TOKEN || undefined })
-    // WAL allows concurrent readers alongside a writer; busy_timeout retries
-    // instead of immediately throwing SQLITE_BUSY when another process holds
-    // the write lock.
+    // `timeout` is the busy timeout (ms) for every connection in libsql's
+    // pool: a write retries instead of failing with SQLITE_BUSY while another
+    // process holds the lock.
+    let client = createClient({ url, authToken: process.env.DATABASE_AUTH_TOKEN || undefined, timeout: 5000 })
+    // WAL allows concurrent readers alongside a writer. It's stored in the
+    // database file, so setting it on one connection covers them all.
     client.execute('PRAGMA journal_mode=WAL')
-    client.execute(BUSY_TIMEOUT_PRAGMA)
     // A hosted libsql server (Turso) arbitrates writes itself.
     const writes = url === ':memory:' || /^file:/i.test(url) ? new WriteQueue() : null
     if (writes) client = queueWrites(client, writes)

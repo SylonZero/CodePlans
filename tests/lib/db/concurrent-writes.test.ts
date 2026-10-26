@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest'
+import { readdirSync } from 'node:fs'
 import { sql, eq, inArray } from 'drizzle-orm'
 import { runMigrations, seedFixtures, clearTables, F } from '@/tests/helpers/db'
 import { db } from '@/lib/db'
@@ -10,13 +11,15 @@ import { NestedWriteError, WriteQueue } from '@/lib/db/sqlite-writes'
 
 // Regression for parallel MCP writes against a SQLite file: writes that arrived
 // while a transaction was open failed with SQLITE_BUSY, because connections
-// libsql opens after a transaction had no busy timeout.
+// libsql opened after a transaction had no busy timeout, and each transaction
+// left its connection open until garbage collection.
 
 beforeAll(runMigrations)
 beforeEach(seedFixtures)
 afterEach(clearTables)
 const d = db as any
 const busyTimeout = async () => ((await d.all(sql`PRAGMA busy_timeout`)) as { timeout: number }[])[0].timeout
+const openFiles = () => readdirSync(process.platform === 'linux' ? '/proc/self/fd' : '/dev/fd').length
 const item = (title: string) =>
   createWorkItem({ productId: F.productShared, type: 'bug', title, description: '', severity: 'low', tags: [] }, F.alice, 'agent')
 
@@ -24,6 +27,16 @@ describe('parallel writes on SQLite', () => {
   it('keeps the busy timeout on the connection libsql opens after a transaction', async () => {
     await d.transaction(async (tx: any) => tx.select().from(users))
     expect(await busyTimeout()).toBe(5000)
+  })
+
+  it.skipIf(process.platform === 'win32')('returns transaction connections instead of leaving them open', async () => {
+    await d.transaction(async (tx: any) => tx.select().from(users))
+    const before = openFiles()
+    for (let i = 0; i < 100; i++) {
+      await d.transaction(async (tx: any) => tx.update(users).set({ name: `Alice ${i}` }).where(eq(users.id, F.alice)))
+    }
+    // libsql 0.17 kept about two files open per transaction (~200 here).
+    expect(openFiles() - before).toBeLessThan(10)
   })
 
   it('persists a parallel batch of creates and spec links', async () => {
