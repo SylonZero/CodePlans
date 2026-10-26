@@ -4,13 +4,18 @@ import { resolveDbSsl, sqliteFilePath } from '@/lib/runtime-env'
 import { getEnterpriseHooks } from '@/lib/ee/registry'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import type * as PgSchema from './schema.pg'
+import { queueWrites, WriteQueue } from './sqlite-writes'
 
 // TypeScript always sees db as the postgres type for full IDE / type-check support.
 // In SQLite mode the runtime object is a libsql Drizzle instance but the column names
 // and table names are identical, so all queries work correctly.
 type Db = PostgresJsDatabase<typeof PgSchema>
 
-function createDb(rawUrl: string): Db {
+// `writes` is set for a local SQLite file, where writes must run one at a time
+// (see lib/db/sqlite-writes.ts).
+type Handle = { instance: Db; writes: WriteQueue | null }
+
+function createDb(rawUrl: string): Handle {
   if (config.db.provider === 'sqlite') {
     const { createClient } = require('@libsql/client') as typeof import('@libsql/client')
     const { drizzle } = require('drizzle-orm/libsql') as typeof import('drizzle-orm/libsql')
@@ -28,18 +33,23 @@ function createDb(rawUrl: string): Db {
       mkdirSync(dirname(file), { recursive: true })
     }
     // DATABASE_AUTH_TOKEN is only needed for a hosted libsql server (Turso).
-    const client = createClient({ url, authToken: process.env.DATABASE_AUTH_TOKEN || undefined })
-    // WAL allows concurrent readers alongside a writer; busy_timeout retries
-    // instead of immediately throwing SQLITE_BUSY when a write lock is held.
+    // `timeout` is the busy timeout (ms) for every connection in libsql's
+    // pool: a write retries instead of failing with SQLITE_BUSY while another
+    // process holds the lock.
+    let client = createClient({ url, authToken: process.env.DATABASE_AUTH_TOKEN || undefined, timeout: 5000 })
+    // WAL allows concurrent readers alongside a writer. It's stored in the
+    // database file, so setting it on one connection covers them all.
     client.execute('PRAGMA journal_mode=WAL')
-    client.execute('PRAGMA busy_timeout=5000')
-    return drizzle(client, { schema }) as unknown as PostgresJsDatabase<typeof PgSchema>
+    // A hosted libsql server (Turso) arbitrates writes itself.
+    const writes = url === ':memory:' || /^file:/i.test(url) ? new WriteQueue() : null
+    if (writes) client = queueWrites(client, writes)
+    return { instance: drizzle(client, { schema }) as unknown as PostgresJsDatabase<typeof PgSchema>, writes }
   } else {
     const postgres = require('postgres') as typeof import('postgres')
     const { drizzle } = require('drizzle-orm/postgres-js') as typeof import('drizzle-orm/postgres-js')
     const schema = require('./schema.pg') as typeof PgSchema
     const client = postgres(rawUrl, { ssl: resolveDbSsl(rawUrl, process.env.DB_SSL) ? 'require' : false, prepare: false })
-    return drizzle(client, { schema })
+    return { instance: drizzle(client, { schema }), writes: null }
   }
 }
 
@@ -47,15 +57,15 @@ function createDb(rawUrl: string): Db {
 // them before any SQL runs.
 const WRITE_METHODS = new Set<PropertyKey>(['insert', 'update', 'delete', 'transaction', 'run', 'execute', 'batch'])
 
-const opened = new Map<string, Db>()
+const opened = new Map<string, Handle>()
 
-function openDb(url: string): Db {
-  let instance = opened.get(url)
-  if (!instance) {
-    instance = createDb(url)
-    opened.set(url, instance)
+function openDb(url: string): Handle {
+  let handle = opened.get(url)
+  if (!handle) {
+    handle = createDb(url)
+    opened.set(url, handle)
   }
-  return instance
+  return handle
 }
 
 /**
@@ -64,10 +74,10 @@ function openDb(url: string): Db {
  * through the `workspaceDatabase` hook (lib/ee/types.ts); it is opened once and
  * reused.
  */
-function currentDb(): { instance: Db; readOnly: string | null } {
+function currentDb(): Handle & { readOnly: string | null } {
   const workspace = getEnterpriseHooks().workspaceDatabase()
-  if (!workspace) return { instance: openDb(config.db.url), readOnly: null }
-  return { instance: openDb(workspace.url), readOnly: workspace.readOnly ?? null }
+  if (!workspace) return { ...openDb(config.db.url), readOnly: null }
+  return { ...openDb(workspace.url), readOnly: workspace.readOnly ?? null }
 }
 
 /** Thrown when a read-only workspace tries to change data. */
@@ -83,9 +93,12 @@ export class ReadOnlyDatabaseError extends Error {
 // database, opened on first use, so behavior is the same as a plain instance.
 export const db: Db = new Proxy({} as Db, {
   get(_target, prop) {
-    const { instance, readOnly } = currentDb()
+    const { instance, writes, readOnly } = currentDb()
     if (readOnly && WRITE_METHODS.has(prop)) {
       return () => { throw new ReadOnlyDatabaseError(readOnly) }
+    }
+    if (writes && prop === 'transaction') {
+      return (...args: Parameters<Db['transaction']>) => writes.transaction(() => instance.transaction(...args))
     }
     const value = Reflect.get(instance, prop, instance)
     return typeof value === 'function' ? value.bind(instance) : value
