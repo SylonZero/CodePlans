@@ -30,7 +30,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Create release
@@ -46,3 +46,16 @@ jobs:
           else
             gh release create "$TAG" --verify-tag --title "${TITLE:-$TAG}" --notes "$NOTES"
           fi
+
+  # Releases made here use the workflow token, which doesn't trigger other
+  # workflows, so the CLI is published from here explicitly.
+  cli:
+    needs: publish
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-cli.yml
+    with:
+      tag: ${{ inputs.tag }}
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

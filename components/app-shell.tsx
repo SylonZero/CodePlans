@@ -336,7 +336,7 @@ export function AppShell({ children, user, orgName, products, selectedProductId,
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link href="/settings">Profile Settings</Link>
+                  <Link href="/settings">Settings</Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem

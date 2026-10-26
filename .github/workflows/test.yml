@@ -13,11 +13,11 @@ jobs:
       DATABASE_URL: ':memory:'
       AUTH_SECRET: ci-only-secret-at-least-32-bytes-long
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
         with:
           version: 10
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -26,3 +26,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - name: Build and pack the CLI
+        run: |
+          pnpm cli:pack
+          node cli/dist/index.js --version

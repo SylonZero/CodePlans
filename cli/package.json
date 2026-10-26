@@ -1,0 +1,30 @@
+{
+  "name": "@codeplans/cli",
+  "version": "0.7.7",
+  "description": "Command-line tool for CodePlans: script workspace setups, work with code plans, tasks and work items from your terminal.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "codeplans": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && chmod +x dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SylonZero/CodePlans.git",
+    "directory": "cli"
+  },
+  "homepage": "https://github.com/SylonZero/CodePlans/blob/master/docs/guides/cli.md",
+  "keywords": ["codeplans", "cli", "mcp", "planning", "architecture"]
+}

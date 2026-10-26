@@ -7,7 +7,7 @@ a URL.
 
 ## Connecting channels
 
-Workspace owners and admins open **Settings → Manage workspace notifications**
+Workspace owners and admins open **Settings → Workspace → Manage workspace notifications**
 (`/settings/notifications`).
 
 | Channel | What you enter | Notes |
