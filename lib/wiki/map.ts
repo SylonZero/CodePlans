@@ -175,27 +175,33 @@ export function reachEdge(
 
 export const MAP = {
   pad: 20,
-  header: 44,
-  colW: 220,
-  colGap: 96,
+  header: 36,
+  colW: 210,
+  colGap: 76,
   nodeH: 60,
   nodeGap: 18,
+  /** Product band label strip and the space between bands. */
+  bandHeader: 34,
+  bandGap: 22,
   /** Same-column arcs bow out past the last column. */
   trail: 90,
 }
 
 export type MapLayout = {
-  columns: { key: string; label: string; x: number; count: number }[]
+  columns: { key: string; x: number; count: number }[]
+  /** One band per product when grouped by product; otherwise a single unlabelled band. */
+  bands: { key: string; label: string; y: number; height: number }[]
   positions: Map<string, { x: number; y: number }>
   width: number
   height: number
 }
 
 /**
- * Deterministic column layout: one column per layer (taxonomy order) or per
- * product (the wiki's product first), rows ordered by two barycenter sweeps so
- * connected assets sit near each other. Nothing is stored; the same records
- * always produce the same map.
+ * Deterministic grid: one column per layer (taxonomy order, unknown layers
+ * last) and, when grouped by product, one horizontal band per product (the
+ * wiki's product first). Within each cell, two barycenter sweeps order assets
+ * by their neighbours' rows so connected assets sit near each other. Nothing
+ * is stored; the same records always produce the same map.
  */
 export function layoutMap(
   nodes: Pick<
@@ -206,26 +212,39 @@ export function layoutMap(
   group: MapGroup,
   currentProductId?: string,
 ): MapLayout {
-  const keyOf = (n: (typeof nodes)[number]) =>
-    group === 'layer' ? n.layer : n.productId
-  const byKey = new Map<string, typeof nodes>()
-  for (const n of [...nodes].sort(
+  const sorted = [...nodes].sort(
     (a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id),
-  ))
-    byKey.set(keyOf(n), [...(byKey.get(keyOf(n)) ?? []), n])
-  const label = (key: string) =>
-    group === 'layer'
-      ? key
-      : (byKey.get(key)?.[0].productName ?? key)
+  )
   const taxonomy = LAYER_TAXONOMY as readonly string[]
-  const keys = [...byKey.keys()].sort((a, b) =>
-    group === 'layer'
-      ? (taxonomy.includes(a) ? taxonomy.indexOf(a) : 99) -
-          (taxonomy.includes(b) ? taxonomy.indexOf(b) : 99) ||
-        a.localeCompare(b)
-      : Number(b === currentProductId) - Number(a === currentProductId) ||
-        label(a).localeCompare(label(b)) ||
-        a.localeCompare(b),
+  const layers = [...new Set(sorted.map((n) => n.layer))].sort(
+    (a, b) =>
+      (taxonomy.includes(a) ? taxonomy.indexOf(a) : 99) -
+        (taxonomy.includes(b) ? taxonomy.indexOf(b) : 99) ||
+      a.localeCompare(b),
+  )
+  const productName = new Map(sorted.map((n) => [n.productId, n.productName]))
+  const bandKeys =
+    group === 'product'
+      ? [...productName.keys()].sort(
+          (a, b) =>
+            Number(b === currentProductId) - Number(a === currentProductId) ||
+            productName.get(a)!.localeCompare(productName.get(b)!) ||
+            a.localeCompare(b),
+        )
+      : ['']
+  const bandOf = (n: (typeof nodes)[number]) =>
+    group === 'product' ? n.productId : ''
+  const cells = new Map<string, typeof nodes>()
+  const cellKey = (band: string, layer: string) => `${band}\u0000${layer}`
+  for (const n of sorted) {
+    const k = cellKey(bandOf(n), n.layer)
+    cells.set(k, [...(cells.get(k) ?? []), n])
+  }
+  const bandRows = bandKeys.map((b) =>
+    Math.max(1, ...layers.map((l) => cells.get(cellKey(b, l))?.length ?? 0)),
+  )
+  const bandOffset = bandKeys.map((_, i) =>
+    bandRows.slice(0, i).reduce((s, r) => s + r, 0),
   )
   const neighbors = new Map<string, string[]>()
   for (const e of edges) {
@@ -233,50 +252,77 @@ export function layoutMap(
     neighbors.set(e.target, [...(neighbors.get(e.target) ?? []), e.source])
   }
   const row = new Map<string, number>()
-  for (const k of keys) byKey.get(k)!.forEach((n, i) => row.set(n.id, i))
+  const place = () =>
+    bandKeys.forEach((b, bi) =>
+      layers.forEach((l) =>
+        cells
+          .get(cellKey(b, l))
+          ?.forEach((n, i) => row.set(n.id, bandOffset[bi] + i)),
+      ),
+    )
+  place()
   for (let sweep = 0; sweep < 2; sweep++)
-    for (const k of keys) {
-      const bary = (id: string) => {
-        const ns = (neighbors.get(id) ?? []).filter((n) => row.has(n))
-        return ns.length
-          ? ns.reduce((s, n) => s + row.get(n)!, 0) / ns.length
-          : row.get(id)!
+    for (const l of layers)
+      for (const b of bandKeys) {
+        const cell = cells.get(cellKey(b, l))
+        if (!cell) continue
+        const bary = (id: string) => {
+          const ns = (neighbors.get(id) ?? []).filter((n) => row.has(n))
+          return ns.length
+            ? ns.reduce((s, n) => s + row.get(n)!, 0) / ns.length
+            : row.get(id)!
+        }
+        const scores = new Map(cell.map((n) => [n.id, bary(n.id)]))
+        cell.sort(
+          (x, y) =>
+            scores.get(x.id)! - scores.get(y.id)! ||
+            x.name.localeCompare(y.name) ||
+            x.id.localeCompare(y.id),
+        )
+        place()
       }
-      const col = byKey.get(k)!
-      const scores = new Map(col.map((n) => [n.id, bary(n.id)]))
-      col.sort(
-        (a, b) =>
-          scores.get(a.id)! - scores.get(b.id)! ||
-          a.name.localeCompare(b.name) ||
-          a.id.localeCompare(b.id),
-      )
-      col.forEach((n, i) => row.set(n.id, i))
+  const labelled = group === 'product'
+  const rowH = MAP.nodeH + MAP.nodeGap
+  let y = MAP.pad + MAP.header
+  const bands = bandKeys.map((key, i) => {
+    const height =
+      (labelled ? MAP.bandHeader : 0) + bandRows[i] * rowH - MAP.nodeGap
+    const band = {
+      key,
+      label: labelled ? productName.get(key)! : '',
+      y,
+      height,
     }
+    y += height + (labelled ? MAP.bandGap : MAP.nodeGap)
+    return band
+  })
   const positions = new Map<string, { x: number; y: number }>()
-  const columns = keys.map((key, c) => {
+  const columns = layers.map((key, c) => {
     const x = MAP.pad + c * (MAP.colW + MAP.colGap)
-    byKey.get(key)!.forEach((n, r) =>
-      positions.set(n.id, {
-        x,
-        y: MAP.pad + MAP.header + r * (MAP.nodeH + MAP.nodeGap),
+    let count = 0
+    bandKeys.forEach((b, bi) =>
+      cells.get(cellKey(b, key))?.forEach((n, r) => {
+        count++
+        positions.set(n.id, {
+          x,
+          y: bands[bi].y + (labelled ? MAP.bandHeader : 0) + r * rowH,
+        })
       }),
     )
-    return { key, label: label(key), x, count: byKey.get(key)!.length }
+    return { key, x, count }
   })
-  const rows = Math.max(0, ...columns.map((c) => c.count))
   return {
     columns,
+    bands,
     positions,
     width:
       MAP.pad * 2 +
-      keys.length * MAP.colW +
-      Math.max(0, keys.length - 1) * MAP.colGap +
+      layers.length * MAP.colW +
+      Math.max(0, layers.length - 1) * MAP.colGap +
       MAP.trail,
-    height:
-      MAP.pad * 2 +
-      MAP.header +
-      rows * (MAP.nodeH + MAP.nodeGap) -
-      (rows ? MAP.nodeGap : 0),
+    height: nodes.length
+      ? y - (labelled ? MAP.bandGap : MAP.nodeGap) + MAP.pad
+      : MAP.pad * 2 + MAP.header,
   }
 }
 

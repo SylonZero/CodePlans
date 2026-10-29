@@ -95,13 +95,34 @@ describe('map layout', () => {
     expect(layout.positions.get('api')!.y).toBeLessThan(
       layout.positions.get('worker')!.y,
     )
+    expect(layout.bands).toHaveLength(1)
+    expect(layout.bands[0].label).toBe('')
+  })
+  it('stacks one non-overlapping band per product over shared layer columns, wiki product first', () => {
     const byProduct = layoutMap(
-      [node('a', 'backend', 'zeta'), node('b', 'backend', 'alpha')],
-      [],
+      [
+        node('a', 'backend', 'zeta'),
+        node('a2', 'backend', 'zeta'),
+        node('b', 'backend', 'alpha'),
+        node('c', 'frontend', 'alpha'),
+      ],
+      [{ source: 'c', target: 'a' }],
       'product',
       'zeta',
     )
-    expect(byProduct.columns.map((c) => c.label)).toEqual(['ZETA', 'ALPHA'])
+    expect(byProduct.bands.map((b) => b.label)).toEqual(['ZETA', 'ALPHA'])
+    expect(byProduct.columns.map((c) => c.key)).toEqual([
+      'frontend',
+      'backend',
+    ])
+    const [zeta, alpha] = byProduct.bands
+    expect(alpha.y).toBeGreaterThanOrEqual(zeta.y + zeta.height)
+    for (const id of ['a', 'a2'])
+      expect(byProduct.positions.get(id)!.y).toBeLessThan(alpha.y)
+    expect(byProduct.positions.get('b')!.y).toBe(
+      byProduct.positions.get('c')!.y,
+    )
+    expect(byProduct.height).toBeGreaterThan(alpha.y + alpha.height)
   })
 })
 

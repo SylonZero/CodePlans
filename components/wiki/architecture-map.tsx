@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Box, Database, Globe, Library, Server } from 'lucide-react'
 import { kindLabels, wikiHref, type WikiKind } from '@/lib/wiki/model'
 import {
@@ -61,6 +61,8 @@ function detail(n: WikiMapNode, lens: MapLens) {
 }
 const plural = (n: number, word: string) =>
   `${n} ${word}${n === 1 ? '' : 's'}`
+const MIN_ZOOM = 0.5
+const ZOOM_STEP = 0.15
 
 function Segmented<T extends string>({
   label,
@@ -90,39 +92,40 @@ function Segmented<T extends string>({
   )
 }
 
-export function ArchitectureMap({
-  map,
-  initial,
-}: {
-  map: WikiMapData
-  initial: {
-    focus?: string
-    reach: MapReach
-    scope: MapScope
-    group?: MapGroup
-    lens: MapLens
-  }
-}) {
+export function ArchitectureMap({ map }: { map: WikiMapData }) {
   const router = useRouter()
+  // Read from the live URL, not server props: Back restores a cached payload
+  // that predates the URL updates made while exploring.
+  const params = useSearchParams()
+  const pick = <T extends string>(key: string, options: readonly T[]) =>
+    options.find((o) => o === params.get(key))
   const nodeById = useMemo(
     () => new Map(map.nodes.map((n) => [n.id, n])),
     [map.nodes],
   )
-  const initialFocus = initial.focus ? nodeById.get(initial.focus) : undefined
+  const initialFocus = nodeById.get(params.get('focus') ?? '')
   const [focus, setFocus] = useState<string | null>(initialFocus?.id ?? null)
-  const [reach, setReach] = useState<MapReach>(initial.reach)
-  const [scope, setScope] = useState<MapScope>(
-    initialFocus && initialFocus.productId !== map.product.id
+  const [reach, setReach] = useState<MapReach>(
+    () => pick('reach', ['upstream', 'downstream'] as const) ?? 'direct',
+  )
+  const [scope, setScope] = useState<MapScope>(() =>
+    (initialFocus && initialFocus.productId !== map.product.id) ||
+    params.get('scope') === 'all'
       ? 'all'
-      : initial.scope,
+      : 'product',
   )
-  const [groupChoice, setGroupChoice] = useState<MapGroup | undefined>(
-    initial.group,
+  const [groupChoice, setGroupChoice] = useState<MapGroup | undefined>(() =>
+    pick('group', ['product', 'layer'] as const),
   )
-  const [lens, setLens] = useState<MapLens>(initial.lens)
+  const [lens, setLens] = useState<MapLens>(
+    () => pick('lens', ['activity', 'debt'] as const) ?? 'health',
+  )
   const [query, setQuery] = useState('')
   const [hover, setHover] = useState<string | null>(null)
+  const [zoom, setZoom] = useState<number | 'fit'>('fit')
+  const [canvasWidth, setCanvasWidth] = useState<number | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+  const canvasRef = useRef<HTMLDivElement>(null)
   const nodeRefs = useRef(new Map<string, HTMLButtonElement>())
   const group: MapGroup =
     scope === 'all' ? (groupChoice ?? 'product') : 'layer'
@@ -158,6 +161,10 @@ export function ArchitectureMap({
     [focus, hover, map.edges],
   )
   const highlight = depth ?? hoverSet
+  const fit = canvasWidth
+    ? Math.min(1, Math.max(MIN_ZOOM, (canvasWidth - 2) / layout.width))
+    : 1
+  const scale = zoom === 'fit' ? fit : zoom
   const q = query.trim().toLocaleLowerCase()
   const matches = useMemo(
     () =>
@@ -198,11 +205,21 @@ export function ArchitectureMap({
   }, [query])
 
   useEffect(() => {
+    const el = canvasRef.current
+    if (!el) return
+    const observer = new ResizeObserver(([entry]) =>
+      setCanvasWidth(entry.contentRect.width),
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
     if (focus)
       nodeRefs.current
         .get(focus)
         ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-  }, [focus, layout])
+  }, [focus, layout, scale])
 
   const select = (id: string) => {
     const n = nodeById.get(id)
@@ -293,11 +310,11 @@ export function ArchitectureMap({
         />
         {scope === 'all' && (
           <Segmented
-            label="Columns"
+            label="Group"
             value={group}
             options={[
-              ['product', 'Product'],
-              ['layer', 'Layer'],
+              ['product', 'By product'],
+              ['layer', 'Layers only'],
             ]}
             onChange={setGroupChoice}
           />
@@ -312,9 +329,44 @@ export function ArchitectureMap({
           ]}
           onChange={setLens}
         />
+        <div
+          className="wiki-map-segment wiki-map-zoom"
+          role="group"
+          aria-label="Zoom"
+        >
+          <span>Zoom</span>
+          <button
+            type="button"
+            aria-label="Zoom out"
+            disabled={scale <= MIN_ZOOM}
+            onClick={() => setZoom(Math.max(MIN_ZOOM, scale - ZOOM_STEP))}
+          >
+            −
+          </button>
+          <button
+            type="button"
+            aria-pressed={zoom === 'fit'}
+            onClick={() => setZoom(zoom === 'fit' ? 1 : 'fit')}
+            title={
+              zoom === 'fit' ? 'Show at full size' : 'Fit the map to the width'
+            }
+          >
+            {zoom === 'fit' ? 'Fit · ' : ''}
+            {Math.round(scale * 100)}%
+          </button>
+          <button
+            type="button"
+            aria-label="Zoom in"
+            disabled={scale >= 1.5}
+            onClick={() => setZoom(Math.min(1.5, scale + ZOOM_STEP))}
+          >
+            +
+          </button>
+        </div>
       </div>
       <div className="wiki-map-body">
         <div
+          ref={canvasRef}
           className="wiki-map-canvas"
           role="group"
           aria-label="Architecture map"
@@ -324,128 +376,156 @@ export function ArchitectureMap({
         >
           {visible.length ? (
             <div
-              className="wiki-map-stage"
-              style={{ width: layout.width, height: layout.height }}
-              onClick={(e) => {
-                if (e.target === e.currentTarget) setFocus(null)
+              style={{
+                width: layout.width * scale,
+                height: layout.height * scale,
               }}
             >
-              <svg
-                width={layout.width}
-                height={layout.height}
-                aria-hidden
-                className="wiki-map-edges"
+              <div
+                className="wiki-map-stage"
+                style={{
+                  width: layout.width,
+                  height: layout.height,
+                  transform: scale === 1 ? undefined : `scale(${scale})`,
+                }}
+                onClick={(e) => {
+                  if (e.target === e.currentTarget) setFocus(null)
+                }}
               >
-                <defs>
-                  {['idle', 'active'].map((s) => (
-                    <marker
-                      key={s}
-                      id={`wiki-map-arrow-${s}`}
-                      viewBox="0 0 8 8"
-                      refX="7"
-                      refY="4"
-                      markerWidth="7"
-                      markerHeight="7"
-                      orient="auto-start-reverse"
+                {layout.bands
+                  .filter((b) => b.label)
+                  .map((b) => (
+                    <div
+                      key={b.key}
+                      className="wiki-map-band"
+                      data-current={b.key === map.product.id || undefined}
+                      style={{
+                        left: MAP.pad - 10,
+                        top: b.y - 8,
+                        width: layout.width - MAP.pad * 2 - MAP.trail + 20,
+                        height: b.height + 16,
+                      }}
                     >
-                      <path d="M 0 0 L 8 4 L 0 8 z" className={s} />
-                    </marker>
+                      {b.label}
+                    </div>
                   ))}
-                </defs>
-                {visibleEdges.map((e) => {
-                  const s = layout.positions.get(e.source),
-                    t = layout.positions.get(e.target)
-                  if (!s || !t) return null
-                  const on = focus
-                    ? reachEdge(e, focus, reach, depth!)
-                    : hover
-                      ? e.source === hover || e.target === hover
-                      : false
-                  const state = on ? 'active' : highlight ? 'dim' : 'idle'
+                <svg
+                  width={layout.width}
+                  height={layout.height}
+                  aria-hidden
+                  className="wiki-map-edges"
+                >
+                  <defs>
+                    {['idle', 'active'].map((s) => (
+                      <marker
+                        key={s}
+                        id={`wiki-map-arrow-${s}`}
+                        viewBox="0 0 8 8"
+                        refX="7"
+                        refY="4"
+                        markerWidth="7"
+                        markerHeight="7"
+                        orient="auto-start-reverse"
+                      >
+                        <path d="M 0 0 L 8 4 L 0 8 z" className={s} />
+                      </marker>
+                    ))}
+                  </defs>
+                  {visibleEdges.map((e) => {
+                    const s = layout.positions.get(e.source),
+                      t = layout.positions.get(e.target)
+                    if (!s || !t) return null
+                    const on = focus
+                      ? reachEdge(e, focus, reach, depth!)
+                      : hover
+                        ? e.source === hover || e.target === hover
+                        : false
+                    const state = on ? 'active' : highlight ? 'dim' : 'idle'
+                    return (
+                      <path
+                        key={e.id}
+                        d={edgePath(s, t)}
+                        data-type={e.type}
+                        data-state={state}
+                        markerEnd={`url(#wiki-map-arrow-${on ? 'active' : 'idle'})`}
+                      >
+                        <title>
+                          {`${nodeById.get(e.source)?.name} ${edgeLabels[e.type]} ${nodeById.get(e.target)?.name}${e.description ? ` — ${e.description}` : ''}`}
+                        </title>
+                      </path>
+                    )
+                  })}
+                </svg>
+                {layout.columns.map((c) => (
+                  <div
+                    key={c.key}
+                    className="wiki-map-column"
+                    style={{ left: c.x, top: MAP.pad, width: MAP.colW }}
+                  >
+                    {c.key} <small>{c.count}</small>
+                  </div>
+                ))}
+                {visible.map((n) => {
+                  const p = layout.positions.get(n.id)
+                  if (!p) return null
+                  const Icon = typeIcons[n.type] ?? Box
+                  const d = depth?.get(n.id)
+                  const dim =
+                    (highlight && !highlight.has(n.id)) ||
+                    (!!q && !matchIds.has(n.id))
                   return (
-                    <path
-                      key={e.id}
-                      d={edgePath(s, t)}
-                      data-type={e.type}
-                      data-state={state}
-                      markerEnd={`url(#wiki-map-arrow-${on ? 'active' : 'idle'})`}
+                    <button
+                      key={n.id}
+                      ref={(el) => {
+                        if (el) nodeRefs.current.set(n.id, el)
+                        else nodeRefs.current.delete(n.id)
+                      }}
+                      type="button"
+                      className="wiki-map-node"
+                      data-tone={tone(n, lens)}
+                      data-state={
+                        focus === n.id
+                          ? 'focus'
+                          : dim
+                            ? 'dim'
+                            : q && matchIds.has(n.id)
+                              ? 'match'
+                              : undefined
+                      }
+                      aria-pressed={focus === n.id}
+                      aria-label={`${n.name}, ${n.type} in ${n.productName}, ${detail(n, lens)}`}
+                      title="Select to trace connections · double-click to open its wiki page"
+                      style={{
+                        left: p.x,
+                        top: p.y,
+                        width: MAP.colW,
+                        height: MAP.nodeH,
+                      }}
+                      onClick={() => setFocus(focus === n.id ? null : n.id)}
+                      onDoubleClick={() => router.push(assetHref(n))}
+                      onMouseEnter={() => setHover(n.id)}
+                      onMouseLeave={() => setHover(null)}
                     >
-                      <title>
-                        {`${nodeById.get(e.source)?.name} ${edgeLabels[e.type]} ${nodeById.get(e.target)?.name}${e.description ? ` — ${e.description}` : ''}`}
-                      </title>
-                    </path>
+                      <span className="wiki-map-node-title">
+                        <Icon aria-hidden size={14} />
+                        <strong>{n.name}</strong>
+                        {n.version && <code>{n.version}</code>}
+                      </span>
+                      <span className="wiki-map-node-detail">
+                        {group === 'layer' && scope === 'all'
+                          ? `${n.productName} · `
+                          : ''}
+                        {detail(n, lens)}
+                      </span>
+                      {d !== undefined && d > 0 && reach !== 'direct' && (
+                        <span className="wiki-map-depth" aria-hidden>
+                          +{d}
+                        </span>
+                      )}
+                    </button>
                   )
                 })}
-              </svg>
-              {layout.columns.map((c) => (
-                <div
-                  key={c.key}
-                  className="wiki-map-column"
-                  style={{ left: c.x, top: MAP.pad, width: MAP.colW }}
-                >
-                  {c.label} <small>{c.count}</small>
-                </div>
-              ))}
-              {visible.map((n) => {
-                const p = layout.positions.get(n.id)
-                if (!p) return null
-                const Icon = typeIcons[n.type] ?? Box
-                const d = depth?.get(n.id)
-                const dim =
-                  (highlight && !highlight.has(n.id)) ||
-                  (!!q && !matchIds.has(n.id))
-                return (
-                  <button
-                    key={n.id}
-                    ref={(el) => {
-                      if (el) nodeRefs.current.set(n.id, el)
-                      else nodeRefs.current.delete(n.id)
-                    }}
-                    type="button"
-                    className="wiki-map-node"
-                    data-tone={tone(n, lens)}
-                    data-state={
-                      focus === n.id
-                        ? 'focus'
-                        : dim
-                          ? 'dim'
-                          : q && matchIds.has(n.id)
-                            ? 'match'
-                            : undefined
-                    }
-                    aria-pressed={focus === n.id}
-                    aria-label={`${n.name}, ${n.type} in ${n.productName}, ${detail(n, lens)}`}
-                    title="Select to trace connections · double-click to open its wiki page"
-                    style={{
-                      left: p.x,
-                      top: p.y,
-                      width: MAP.colW,
-                      height: MAP.nodeH,
-                    }}
-                    onClick={() => setFocus(focus === n.id ? null : n.id)}
-                    onDoubleClick={() => router.push(assetHref(n))}
-                    onMouseEnter={() => setHover(n.id)}
-                    onMouseLeave={() => setHover(null)}
-                  >
-                    <span className="wiki-map-node-title">
-                      <Icon aria-hidden size={14} />
-                      <strong>{n.name}</strong>
-                      {n.version && <code>{n.version}</code>}
-                    </span>
-                    <span className="wiki-map-node-detail">
-                      {group === 'layer' && scope === 'all'
-                        ? `${n.productName} · `
-                        : ''}
-                      {detail(n, lens)}
-                    </span>
-                    {d !== undefined && d > 0 && reach !== 'direct' && (
-                      <span className="wiki-map-depth" aria-hidden>
-                        +{d}
-                      </span>
-                    )}
-                  </button>
-                )
-              })}
+              </div>
             </div>
           ) : (
             <p className="wiki-empty">

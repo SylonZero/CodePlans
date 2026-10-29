@@ -279,22 +279,7 @@ export default async function WikiProduct({ params, searchParams }: Props) {
                 across every product you can see. Select an asset to trace its
                 reach and follow its documents.
               </p>
-              <ArchitectureMap
-                map={map}
-                initial={{
-                  focus: read('focus') || undefined,
-                  reach: (['upstream', 'downstream'] as const).find(
-                    (r) => r === read('reach'),
-                  ) ?? 'direct',
-                  scope: read('scope') === 'all' ? 'all' : 'product',
-                  group: (['product', 'layer'] as const).find(
-                    (g) => g === read('group'),
-                  ),
-                  lens: (['activity', 'debt'] as const).find(
-                    (l) => l === read('lens'),
-                  ) ?? 'health',
-                }}
-              />
+              <ArchitectureMap map={map} />
             </>
           ) : listing ? (
             <>
