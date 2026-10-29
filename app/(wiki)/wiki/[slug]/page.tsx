@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { authAdapter } from '@/lib/auth'
-import { getProducts } from '@/lib/db/queries'
+import { getAssetInventory, getProducts } from '@/lib/db/queries'
 import { getWikiProduct } from '@/lib/db/wiki'
+import { buildWikiMap } from '@/lib/wiki/map'
 import {
   awaitsReview,
   kindLabels,
@@ -18,6 +19,7 @@ import {
   DocumentList,
   ActivityList,
 } from '@/components/wiki/views'
+import { ArchitectureMap } from '@/components/wiki/architecture-map'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { WikiTime } from '@/components/wiki/time'
 export const dynamic = 'force-dynamic'
@@ -68,17 +70,23 @@ export default async function WikiProduct({ params, searchParams }: Props) {
     getProducts(user.id),
   ])
   if (!data) notFound()
+  // The map spans every product the reader can see; the same visibility rules apply.
+  const map =
+    view === 'map' && !docKey
+      ? buildWikiMap(data, await getAssetInventory(user.id))
+      : null
   const asset = data.assets.find((a) => a.id === assetId),
     doc = data.documents.find((d) => d.key === docKey)
   if ((assetId && !asset) || (docKey && !doc)) notFound()
   const listing =
-    view === 'documents' ||
+    !map &&
+    (view === 'documents' ||
     view === 'review' ||
     !!q ||
     !!kind ||
     !!status ||
     !!since ||
-    !!area
+    !!area)
   const filters = {
     q,
     asset: assetId,
@@ -192,6 +200,12 @@ export default async function WikiProduct({ params, searchParams }: Props) {
                 Product overview
               </Link>
               <Link
+                className={map ? 'selected' : ''}
+                href={wikiHref(slug, { view: 'map' })}
+              >
+                Architecture map
+              </Link>
+              <Link
                 className={view === 'documents' && !asset ? 'selected' : ''}
                 href={wikiHref(slug, { view: 'documents' })}
               >
@@ -243,6 +257,7 @@ export default async function WikiProduct({ params, searchParams }: Props) {
             <span>/</span>
             <span>
               {doc?.title ??
+                (map ? 'Architecture map' : undefined) ??
                 asset?.name ??
                 (view === 'review'
                   ? 'Awaiting review'
@@ -255,6 +270,32 @@ export default async function WikiProduct({ params, searchParams }: Props) {
           </div>
           {doc ? (
             <DocumentReader data={data} doc={doc} />
+          ) : map ? (
+            <>
+              <p className="wiki-eyebrow">Architecture</p>
+              <h1>Architecture map</h1>
+              <p className="wiki-lead">
+                Assets and their recorded dependencies, for this product or
+                across every product you can see. Select an asset to trace its
+                reach and follow its documents.
+              </p>
+              <ArchitectureMap
+                map={map}
+                initial={{
+                  focus: read('focus') || undefined,
+                  reach: (['upstream', 'downstream'] as const).find(
+                    (r) => r === read('reach'),
+                  ) ?? 'direct',
+                  scope: read('scope') === 'all' ? 'all' : 'product',
+                  group: (['product', 'layer'] as const).find(
+                    (g) => g === read('group'),
+                  ),
+                  lens: (['activity', 'debt'] as const).find(
+                    (l) => l === read('lens'),
+                  ) ?? 'health',
+                }}
+              />
+            </>
           ) : listing ? (
             <>
               <p className="wiki-eyebrow">
@@ -518,10 +559,13 @@ export default async function WikiProduct({ params, searchParams }: Props) {
               <section className="wiki-section">
                 <div className="wiki-section-title">
                   <h2>Explore the architecture</h2>
-                  <span className="wiki-caption">
-                    Select an asset to read its story
-                  </span>
+                  <Link href={wikiHref(slug, { view: 'map' })}>
+                    Open the architecture map →
+                  </Link>
                 </div>
+                <p className="wiki-caption">
+                  Select an asset to read its story
+                </p>
                 <div className="wiki-cards">
                   {data.assets.map((a) => (
                     <Link
