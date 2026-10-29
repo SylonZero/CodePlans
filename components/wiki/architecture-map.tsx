@@ -59,8 +59,8 @@ function detail(n: WikiMapNode, lens: MapLens) {
   if (lens === 'debt') return `Debt score ${n.debtScore}`
   return n.health
 }
-const plural = (n: number, word: string) =>
-  `${n} ${word}${n === 1 ? '' : 's'}`
+const plural = (n: number, word: string, many = `${word}s`) =>
+  `${n} ${n === 1 ? word : many}`
 const MIN_ZOOM = 0.5
 const ZOOM_STEP = 0.15
 
@@ -286,7 +286,7 @@ export function ArchitectureMap({ map }: { map: WikiMapData }) {
           {q && (
             <small aria-live="polite">
               {matches.length
-                ? `${plural(matches.length, 'match')} · Enter selects`
+                ? `${plural(matches.length, 'match', 'matches')} · Enter selects`
                 : 'No matches'}
             </small>
           )}
@@ -549,7 +549,9 @@ export function ArchitectureMap({ map }: { map: WikiMapData }) {
                 </span>
                 <span>{plural(selected.activePlans, 'active plan')}</span>
                 <span>{plural(selected.openItems, 'open item')}</span>
-                <span>{plural(selected.capabilities, 'capability')}</span>
+                <span>
+                  {plural(selected.capabilities, 'capability', 'capabilities')}
+                </span>
               </div>
               {selected.summary && <p>{selected.summary}</p>}
               <p className="wiki-meta">

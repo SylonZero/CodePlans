@@ -330,7 +330,9 @@ readers cover specs, plans, work items, notes, capabilities, and releases.
 Search includes scoped ranking, excerpts, and pagination; filters cover asset,
 kind, status, area, date, and review/archive state. Layer navigation, dependency
 links, GFM section anchors, source-relative links, delivery receipts, and grouped
-history complete the reading experience. See [the wiki guide](guides/product-wiki.md)
+history complete the reading experience. `?view=map` is an interactive
+architecture map across the reader's visible products, with upstream/downstream
+tracing and URL-kept state. See [the wiki guide](guides/product-wiki.md)
 for metadata semantics, URL shapes, implementation limits, and upgrade steps.
 
 #### Auth Routes (`/(auth)`)

@@ -825,7 +825,7 @@
   position: relative;
   overflow: auto;
   max-height: calc(100vh - 230px);
-  min-height: 360px;
+  min-height: 240px;
   border: 1px solid var(--border);
   border-radius: 10px;
   background-color: var(--card);

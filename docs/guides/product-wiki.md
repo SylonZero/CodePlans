@@ -38,6 +38,32 @@ reader explains **Why this appears here**, retaining the association paths and
 plan relationship types. Dependencies provide navigation to related assets;
 they do not automatically import those assets' document collections.
 
+## Explore the architecture map
+
+**Architecture map** in the wiki navigation (also linked from the product
+overview and each asset page) draws assets as cards in layer columns, with their
+recorded dependencies as arrows pointing at what is depended on: solid for
+*depends on*, dashed for *integrates with*, dotted for *aggregates*. Switch
+**Show** to **All products** to see every product you can access as stacked
+bands over the same layer columns, so cross-product dependencies are visible;
+**Layers only** drops the bands and labels each card with its product.
+
+Select an asset to open its panel: health, shipped version, owners, active plans,
+and open items, followed by its current specs, plans, issues, and decisions. A
+**Trace** control follows **Direct** connections, **Upstream** (everything the
+asset relies on, transitively), or **Downstream** (everything that relies on it,
+with owners — who to notify before a change). Hop counts appear on the map.
+**Color** recolors cards by recorded health, active plans, or tech debt; **Find**
+highlights matches and Enter selects the first. The map fits the reading width
+by default; zoom changes it, and Escape clears the search or the selection.
+
+The selection, trace, scope, grouping, and color are kept in the URL, for
+example `/wiki/my-product?view=map&focus=<asset-id>&reach=downstream&scope=all`,
+so a view can be shared and survives Back and reload. Assets in other products
+link to their own product's wiki for documents. The map is derived on each
+request from the same records and visibility rules as the rest of CodePlans;
+it stores no layout, and archived assets are not drawn.
+
 ## Read and follow documents
 
 Specs, plan descriptions, work items, asset notes, design decisions,
