@@ -43,12 +43,12 @@ export function ProductAccessSection({
     setError('')
     startTransition(async () => {
       const res = await setProductAccessRestrictedAction(productId, productSlug, checked)
-      if (res.error) {
+      if ('error' in res && res.error) {
         setError(res.error)
         return
       }
       setRestricted(checked)
-      if (checked && res.grants) setGrantRows(res.grants)
+      if (checked && 'grants' in res && res.grants) setGrantRows(res.grants)
     })
   }
 
@@ -57,12 +57,12 @@ export function ProductAccessSection({
     setError('')
     startTransition(async () => {
       const res = await grantProductAccessAction(productId, productSlug, userId)
-      if (res.error) {
+      if ('error' in res && res.error) {
         setError(res.error)
         return
       }
       const person = candidates.find((c) => c.id === userId)
-      if (person && res.id) {
+      if (person && 'id' in res) {
         setGrantRows((rows) => [
           ...rows,
           {
@@ -82,7 +82,7 @@ export function ProductAccessSection({
     setError('')
     startTransition(async () => {
       const res = await revokeProductAccessGrantAction(grantId, productSlug)
-      if (res.error) {
+      if ('error' in res && res.error) {
         setError(res.error)
         return
       }

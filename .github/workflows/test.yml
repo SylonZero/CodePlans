@@ -9,6 +9,20 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: codeplans_product_access_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       DATABASE_URL: ':memory:'
       AUTH_SECRET: ci-only-secret-at-least-32-bytes-long
@@ -25,6 +39,10 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      - name: Verify Postgres migrations (product access)
+        env:
+          PRODUCT_ACCESS_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/codeplans_product_access_test
+        run: pnpm exec tsx scripts/verify-product-access-postgres.ts
       - run: pnpm build
       - name: Build and pack the CLI
         run: |
