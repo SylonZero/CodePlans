@@ -47,6 +47,16 @@ export async function revokeApiKey(id: string, userId: string) {
   return row ?? null
 }
 
+/** Revoke every active MCP key for a user (e.g. when removed from the workspace). */
+export async function revokeAllApiKeysForUser(userId: string): Promise<number> {
+  const rows = await db
+    .update(apiKeys)
+    .set({ revokedAt: new Date() })
+    .where(and(eq(apiKeys.userId, userId), isNull(apiKeys.revokedAt)))
+    .returning({ id: apiKeys.id })
+  return rows.length
+}
+
 /** Resolve a bearer key to its acting user, or null. Bumps lastUsedAt. */
 export async function verifyApiKey(
   plaintext: string | null | undefined,

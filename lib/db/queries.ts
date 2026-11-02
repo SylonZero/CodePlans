@@ -64,15 +64,9 @@ import { effectiveLayer } from '@/lib/types'
  * through this one check, with nothing on the child rows themselves touched.
  */
 export async function productAccessWhere(userId: string, opts: { includeArchived?: boolean } = {}) {
-  const memberships = await db
-    .select({ organizationId: organizationMembers.organizationId })
-    .from(organizationMembers)
-    .where(and(eq(organizationMembers.userId, userId), isNotNull(organizationMembers.joinedAt)))
-  const orgIds = memberships.map((m) => m.organizationId)
-  const access = orgIds.length > 0
-    ? or(eq(products.creatorId, userId), inArray(products.organizationId, orgIds))
-    : eq(products.creatorId, userId)
-  return opts.includeArchived ? access : and(access, isNull(products.archivedAt))
+  const { loadProductAccessContext, productVisibilitySql } = await import('./product-access')
+  const ctx = await loadProductAccessContext(userId)
+  return productVisibilitySql(userId, ctx, opts)
 }
 
 // ---------------------------------------------------------------------------

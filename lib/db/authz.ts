@@ -4,6 +4,7 @@ import {
   assetDependencies, assetDesignLog, assetCapabilities, specs,
 } from './schema'
 import { eq, and, isNotNull } from 'drizzle-orm'
+import { canSeeProduct } from './product-access'
 
 /**
  * Shared authorization library. Both the web UI (app/(dashboard)/actions.ts)
@@ -144,6 +145,7 @@ export async function getProductRole(
   const product = await db.query.products.findFirst({ where: eq(products.id, productId) })
   if (!product) return 'none'
   if (product.archivedAt && !opts.includeArchived) return 'none'
+  if (!(await canSeeProduct(userId, product, opts))) return 'none'
   if (product.organizationId) {
     const member = await joinedMembership(product.organizationId, userId)
     if (member) {

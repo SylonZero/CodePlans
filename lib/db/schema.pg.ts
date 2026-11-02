@@ -140,7 +140,22 @@ export const products = pgTable('products', {
   archivedAt: timestamp('archived_at', { withTimezone: true }),
   archivedById: uuid('archived_by_id').references(() => users.id, { onDelete: 'set null' }),
   archivedByKind: text('archived_by_kind'),
+  // When true, only granted workspace members (plus org owner/admin and the
+  // creator) can see this product — see product_access_grants.
+  accessRestricted: boolean('access_restricted').notNull().default(false),
 })
+
+/** Explicit product visibility when products.accessRestricted is true. */
+export const productAccessGrants = pgTable('product_access_grants', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('product_access_grants_product_user_idx').on(t.productId, t.userId),
+  index('product_access_grants_user_idx').on(t.userId),
+])
 
 export const assets = pgTable('assets', {
   // Explicit attribution; null means the actor was not recorded (never infer from owner).

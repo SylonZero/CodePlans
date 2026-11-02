@@ -597,6 +597,11 @@ export async function removeMemberAction(memberUserId: string) {
       ),
     )
 
+  const { clearProductAccessForUserInOrg } = await import('@/lib/db/product-access')
+  const { revokeAllApiKeysForUser } = await import('@/lib/mcp/auth')
+  await clearProductAccessForUserInOrg(memberUserId, profile.organizationId)
+  await revokeAllApiKeysForUser(memberUserId)
+
   await db
     .update(users)
     .set({ organizationId: null, role: 'viewer' })
@@ -1218,6 +1223,37 @@ export async function removeProductMemberAction(id: string, productSlug: string)
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Could not remove responsibility.' }
   }
+  revalidatePath(`/products/${productSlug}`)
+  return {}
+}
+
+// ---------------------------------------------------------------------------
+// Product access (visibility allowlist)
+// ---------------------------------------------------------------------------
+
+export async function setProductAccessRestrictedAction(productId: string, productSlug: string, accessRestricted: boolean) {
+  const authUser = await requireUser()
+  const { setProductAccessRestricted } = await import('@/lib/db/product-access')
+  const result = await setProductAccessRestricted(productId, accessRestricted, { id: authUser.id, kind: 'user' })
+  if (!result) return { error: 'Not allowed or product is not in a workspace.' }
+  revalidatePath(`/products/${productSlug}`)
+  return result
+}
+
+export async function grantProductAccessAction(productId: string, productSlug: string, userId: string) {
+  const authUser = await requireUser()
+  const { grantProductAccess } = await import('@/lib/db/product-access')
+  const result = await grantProductAccess(productId, userId, { id: authUser.id, kind: 'user' })
+  if ('error' in result) return result
+  revalidatePath(`/products/${productSlug}`)
+  return result
+}
+
+export async function revokeProductAccessGrantAction(grantId: string, productSlug: string) {
+  const authUser = await requireUser()
+  const { revokeProductAccess } = await import('@/lib/db/product-access')
+  const ok = await revokeProductAccess(grantId, { id: authUser.id, kind: 'user' })
+  if (!ok) return { error: 'Could not revoke access.' }
   revalidatePath(`/products/${productSlug}`)
   return {}
 }

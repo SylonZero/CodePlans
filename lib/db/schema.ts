@@ -36,6 +36,7 @@ export const {
   assets,
   assetOwners,
   productMembers,
+  productAccessGrants,
   assetDependencies,
   codePlans,
   codePlanAssets,
