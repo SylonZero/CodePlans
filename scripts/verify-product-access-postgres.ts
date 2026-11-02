@@ -34,13 +34,13 @@ async function main() {
     await migrate(db, { migrationsFolder: 'lib/db/migrations/postgres' })
     await migrate(db, { migrationsFolder: 'lib/db/migrations/postgres' })
 
-    const [col] = await db.execute(sql`
+    const cols = await db.execute(sql`
       select column_name from information_schema.columns
       where table_schema = 'public' and table_name = 'products' and column_name = 'access_restricted'`)
-    assert.equal(col.length, 1, 'products.access_restricted column missing after migration')
-    const [grantTable] = await db.execute(sql`
+    assert.equal(cols.length, 1, 'products.access_restricted column missing after migration')
+    const grantTables = await db.execute(sql`
       select tablename from pg_tables where schemaname = 'public' and tablename = 'product_access_grants'`)
-    assert.equal(grantTable.length, 1, 'product_access_grants table missing after migration')
+    assert.equal(grantTables.length, 1, 'product_access_grants table missing after migration')
 
     const orgId = randomUUID()
     const alice = randomUUID()

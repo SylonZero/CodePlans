@@ -71,8 +71,8 @@ export function productVisibilitySql(
             inArray(products.organizationId, orgIds),
             or(
               eq(products.accessRestricted, false),
-              adminOrgIds.length > 0 ? inArray(products.organizationId, adminOrgIds) : sql`0`,
-              grantedProductIds.length > 0 ? inArray(products.id, grantedProductIds) : sql`0`,
+              adminOrgIds.length > 0 ? inArray(products.organizationId, adminOrgIds) : undefined,
+              grantedProductIds.length > 0 ? inArray(products.id, grantedProductIds) : undefined,
             ),
           ),
         )
