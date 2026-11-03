@@ -101,6 +101,9 @@ export const db: Db = new Proxy({} as Db, {
       return (...args: Parameters<Db['transaction']>) => writes.transaction(() => instance.transaction(...args))
     }
     const value = Reflect.get(instance, prop, instance)
+    // `$client` is the driver handle (postgres-js's `sql` is itself a function);
+    // binding it would drop properties like `end()`, so hand it back untouched.
+    if (prop === '$client') return value
     return typeof value === 'function' ? value.bind(instance) : value
   },
   has(_target, prop) {

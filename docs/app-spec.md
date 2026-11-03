@@ -234,8 +234,10 @@ How sync keeps provenance straight:
 
 ### Access Control Rules
 
-**Product visibility** (single source of truth: `productAccessWhere` in `lib/db/queries.ts`):
+**Product visibility** (single source of truth: `productAccessWhere` in `lib/db/queries.ts`, backed by `lib/db/product-access.ts`):
 - Products the user created **OR** products belonging to any org where the user has a joined `organization_members` row. `users.organizationId` is only a "current org" pointer and is not consulted for access.
+- Org products may set **Limit visibility to selected members** (`products.accessRestricted`). When enabled, only members with a row in `product_access_grants`, plus org owners/admins and the product creator, can see the product (UI and MCP). Turning restriction on seeds grants for every current workspace member so behavior stays unchanged until someone is removed from the list.
+- Removing a member from the workspace revokes all of their MCP API keys and clears their product access grants for that org.
 - A boot hook (`instrumentation.ts` → `lib/db/bootstrap.ts`) creates the workspace org from the first user and adopts org-less products; signup auto-joins new users as editors.
 - Mirrored work items (`source ≠ native`): mirrored fields (title/description/status/tags) are rejected by the mutation layer — only native annotations (asset, area, severity) are locally editable.
 

@@ -15,6 +15,7 @@ import {
   workItemCodePlans,
   tasks,
   syncLog,
+  productAccessGrants,
   apiKeys,
 } from '@/lib/db/schema.sqlite'
 
@@ -28,6 +29,7 @@ export async function clearTables() {
   const d = db as any
   // Delete children before parents to respect FK order
   await d.delete(apiKeys)
+  await d.delete(productAccessGrants)
   await d.delete(syncLog)
   await d.delete(workItemCodePlans)
   await d.delete(workItems)

@@ -22,6 +22,8 @@ import { PeopleSection } from './people-section'
 import { WorkflowCard } from './workflow-card'
 import { getWorkflowLevel, getOrgWorkflowDefault, availableWorkflowLevels } from '@/lib/db/workflow'
 import { getProductPeople, canManageResponsibilities } from '@/lib/db/responsibilities'
+import { getProductAccessSettings, canManageProductAccess } from '@/lib/db/product-access'
+import { ProductAccessSection } from './product-access-section'
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
@@ -45,11 +47,13 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const memberList = productOrgId
     ? teamMembers.map((m) => ({ id: m.userId, name: m.user.name }))
     : creator ? [{ id: creator.id, name: creator.name }] : []
-  const [people, canManagePeople, workflow, orgDefault] = await Promise.all([
+  const [people, canManagePeople, workflow, orgDefault, accessSettings, canManageAccess] = await Promise.all([
     getProductPeople(product.id, user.id),
     canManageResponsibilities(user.id, product.id),
     getWorkflowLevel(product.id),
     getOrgWorkflowDefault(productOrgId),
+    productOrgId ? getProductAccessSettings(product.id, user.id) : Promise.resolve(null),
+    canManageProductAccess(user.id, product.id),
   ])
 
   return (
@@ -115,6 +119,16 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         </TabsContent>
 
         <TabsContent value="people" className="space-y-6">
+          {productOrgId && accessSettings && (
+            <ProductAccessSection
+              productId={product.id}
+              productSlug={slug}
+              accessRestricted={accessSettings.accessRestricted}
+              grants={accessSettings.grants}
+              candidates={memberList}
+              canManage={canManageAccess && !product.archivedAt}
+            />
+          )}
           <WorkflowCard productId={product.id} productSlug={slug} level={workflow.level} inherited={workflow.inherited} orgDefault={orgDefault}
             available={availableWorkflowLevels()} canManage={canManagePeople && !product.archivedAt} />
           <PeopleSection

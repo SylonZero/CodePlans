@@ -142,7 +142,22 @@ export const products = sqliteTable('products', {
   archivedAt: integer('archived_at', { mode: 'timestamp' }),
   archivedById: text('archived_by_id').references(() => users.id, { onDelete: 'set null' }),
   archivedByKind: text('archived_by_kind'),
+  // When true, only granted workspace members (plus org owner/admin and the
+  // creator) can see this product — see product_access_grants.
+  accessRestricted: integer('access_restricted', { mode: 'boolean' }).notNull().default(false),
 })
+
+/** Explicit product visibility when products.accessRestricted is true. */
+export const productAccessGrants = sqliteTable('product_access_grants', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  productId: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('product_access_grants_product_user_idx').on(t.productId, t.userId),
+  index('product_access_grants_user_idx').on(t.userId),
+])
 
 export const assets = sqliteTable('assets', {
   // Explicit attribution; null means the actor was not recorded (never infer from owner).
