@@ -1,31 +1,37 @@
 # pnpm settings (package.json "pnpm" field is no longer read by pnpm)
 overrides:
-  '@tiptap/core': 3.27.0
-  '@tiptap/extension-blockquote': 3.27.0
-  '@tiptap/extension-bold': 3.27.0
-  '@tiptap/extension-bubble-menu': 3.27.0
-  '@tiptap/extension-bullet-list': 3.27.0
-  '@tiptap/extension-code': 3.27.0
-  '@tiptap/extension-code-block': 3.27.0
-  '@tiptap/extension-document': 3.27.0
-  '@tiptap/extension-dropcursor': 3.27.0
-  '@tiptap/extension-floating-menu': 3.27.0
-  '@tiptap/extension-gapcursor': 3.27.0
-  '@tiptap/extension-hard-break': 3.27.0
-  '@tiptap/extension-heading': 3.27.0
-  '@tiptap/extension-horizontal-rule': 3.27.0
-  '@tiptap/extension-italic': 3.27.0
-  '@tiptap/extension-link': 3.27.0
-  '@tiptap/extension-list': 3.27.0
-  '@tiptap/extension-list-item': 3.27.0
-  '@tiptap/extension-list-keymap': 3.27.0
-  '@tiptap/extension-ordered-list': 3.27.0
-  '@tiptap/extension-paragraph': 3.27.0
-  '@tiptap/extension-strike': 3.27.0
-  '@tiptap/extension-text': 3.27.0
-  '@tiptap/extension-underline': 3.27.0
-  '@tiptap/extensions': 3.27.0
-  '@tiptap/pm': 3.27.0
+  # Keep the existing MCP handler on a patched, compatible 1.x SDK.
+  '@modelcontextprotocol/sdk': 1.32.2
+  # The legacy Drizzle loader and tsx need patched esbuild releases.
+  esbuild: ^0.28.1
+  # The patch preserves the callable CommonJS API for older ESLint plugins.
+  minimatch: 11.0.1
+  '@tiptap/core': 3.32.2
+  '@tiptap/extension-blockquote': 3.32.2
+  '@tiptap/extension-bold': 3.32.2
+  '@tiptap/extension-bubble-menu': 3.32.2
+  '@tiptap/extension-bullet-list': 3.32.2
+  '@tiptap/extension-code': 3.32.2
+  '@tiptap/extension-code-block': 3.32.2
+  '@tiptap/extension-document': 3.32.2
+  '@tiptap/extension-dropcursor': 3.32.2
+  '@tiptap/extension-floating-menu': 3.32.2
+  '@tiptap/extension-gapcursor': 3.32.2
+  '@tiptap/extension-hard-break': 3.32.2
+  '@tiptap/extension-heading': 3.32.2
+  '@tiptap/extension-horizontal-rule': 3.32.2
+  '@tiptap/extension-italic': 3.32.2
+  '@tiptap/extension-link': 3.32.2
+  '@tiptap/extension-list': 3.32.2
+  '@tiptap/extension-list-item': 3.32.2
+  '@tiptap/extension-list-keymap': 3.32.2
+  '@tiptap/extension-ordered-list': 3.32.2
+  '@tiptap/extension-paragraph': 3.32.2
+  '@tiptap/extension-strike': 3.32.2
+  '@tiptap/extension-text': 3.32.2
+  '@tiptap/extension-underline': 3.32.2
+  '@tiptap/extensions': 3.32.2
+  '@tiptap/pm': 3.32.2
   # typescript-eslint suite (via eslint-config-next): pinned to a release past the deploy's minimum release age
   'typescript-eslint': 8.71.1
   '@typescript-eslint/eslint-plugin': 8.71.1
@@ -48,3 +54,6 @@ onlyBuiltDependencies:
 # leaving it as an unapproved build script
 ignoredBuiltDependencies:
   - unrs-resolver
+
+patchedDependencies:
+  minimatch@11.0.1: patches/minimatch@11.0.1.patch

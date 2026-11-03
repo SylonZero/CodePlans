@@ -191,7 +191,7 @@ for each platform, the first sign-in flow, upgrades and every setting.
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 22.12+ (Node 22 is used by Docker and CI)
 - pnpm (`npm install -g pnpm`)
 
 ### Run from source (SQLite, no cloud required)
