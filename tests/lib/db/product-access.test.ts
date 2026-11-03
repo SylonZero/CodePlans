@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest'
 import { runMigrations, seedFixtures, clearTables, F } from '@/tests/helpers/db'
 import { db } from '@/lib/db'
-import { productAccessGrants } from '@/lib/db/schema'
+import { organizationMembers, productAccessGrants } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { getProducts } from '@/lib/db/queries'
 import { getProductRole } from '@/lib/db/authz'
@@ -49,6 +49,18 @@ describe('product access allowlist', () => {
 
     expect(await getProducts(F.bob)).toHaveLength(1)
     expect(await getProductRole(F.bob, F.productShared)).toBe('editor')
+  })
+
+  it('seeds one grant per person when a member has duplicate membership rows', async () => {
+    await (db as any).insert(organizationMembers).values({
+      id: 'member-bob-dup',
+      organizationId: F.org,
+      userId: F.bob,
+      role: 'editor',
+      joinedAt: new Date(),
+    })
+    const result = await setProductAccessRestricted(F.productShared, true, { id: F.alice, kind: 'user' })
+    expect(result?.grants?.map((g) => g.userId).sort()).toEqual([F.alice, F.bob].sort())
   })
 
   it('seeds grants for all members when restriction is enabled', async () => {

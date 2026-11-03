@@ -169,7 +169,8 @@ async function orgMemberUserIds(organizationId: string): Promise<string[]> {
     .select({ userId: organizationMembers.userId })
     .from(organizationMembers)
     .where(and(eq(organizationMembers.organizationId, organizationId), isNotNull(organizationMembers.joinedAt)))
-  return rows.map((r) => r.userId)
+  // organization_members has no (org, user) uniqueness, so one person can have several rows.
+  return [...new Set(rows.map((r) => r.userId))]
 }
 
 /** Turn on/off per-product allowlists. Enabling seeds grants for every current org member. */
@@ -197,7 +198,7 @@ export async function setProductAccessRestricted(
           userId,
           ...createdBy(actor),
         })),
-      )
+      ).onConflictDoNothing()
     }
   }
 
