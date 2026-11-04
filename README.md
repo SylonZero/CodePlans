@@ -117,7 +117,7 @@ See the [reviews guide](docs/guides/reviews-and-comments.md), [My Work guide](do
 | Notifications — in-app bell, email (Resend) & Slack webhook, per-event admin rules, email opt-outs & mutes | ✅ Available |
 | Product Wiki — full-window asset reading, searchable documents, contextual links & provenance | ✅ Available |
 | Shared GFM Markdown — paragraphs, line breaks, tables & task lists across pages and side panels | ✅ Available |
-| AI drafting — release notes & design notes (feature-flagged, `ANTHROPIC_API_KEY`) | ✅ Available |
+| AI drafting — release notes & design notes (Anthropic or OpenAI, configured through environment variables) | ✅ Available |
 | AI-assisted effort estimation | 🔜 Planned |
 
 ---

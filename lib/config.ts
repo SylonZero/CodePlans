@@ -6,6 +6,12 @@ export type DbProvider = 'postgres' | 'sqlite'
 // closed: no sign-up page at all; accounts come from invites, /setup or ADMIN_EMAIL.
 export type RegistrationMode = 'open' | 'invite' | 'closed'
 
+const aiProvider = process.env.AI_PROVIDER ?? 'anthropic'
+if (aiProvider !== 'anthropic' && aiProvider !== 'openai') {
+  throw new Error('AI_PROVIDER must be "anthropic" or "openai".')
+}
+const aiKey = aiProvider === 'openai' ? process.env.OPENAI_API_KEY : process.env.ANTHROPIC_API_KEY
+
 // Unset values are resolved by lib/runtime-env.ts (imported above) before
 // this module reads them.
 export const config = {
@@ -20,8 +26,11 @@ export const config = {
   ai: {
     // AI drafting (release notes, design notes) — on only when a key is
     // configured and not explicitly disabled. Never required for core flows.
-    enabled: !!process.env.ANTHROPIC_API_KEY && process.env.AI_ENABLED !== 'false',
-    model: process.env.AI_MODEL ?? 'claude-opus-5',
+    provider: aiProvider,
+    enabled: !!aiKey?.trim() && process.env.AI_ENABLED !== 'false',
+    // OpenAI installations choose their model explicitly; never send the
+    // existing Claude default to a different provider.
+    model: process.env.AI_MODEL?.trim() || (aiProvider === 'anthropic' ? 'claude-opus-5' : ''),
   },
   registration: (process.env.REGISTRATION ?? 'invite') as RegistrationMode,
 } as const
