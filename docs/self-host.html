@@ -213,9 +213,19 @@
             <td class="env-desc">From address used in outgoing emails. Workspace admins can also set email and Slack up in Settings.</td>
           </tr><tr><td class="env-var">RESEND_API_URL</td><td class="env-default">https://api.resend.com</td><td class="env-desc">Send notification email through a Resend-compatible relay.</td></tr><tr><td class="env-var">NOTIFY_WEBHOOK_ALLOWED_HOSTS</td><td class="env-default">—</td><td class="env-desc">Extra hosts allowed for the notification webhook (only <code>hooks.slack.com</code> by default).</td></tr><tr><td class="env-var">CRON_SECRET</td><td class="env-default">—</td><td class="env-desc">Enables <code>/api/cron/notifications</code> (email/Slack retries) for an external cron.</td></tr><tr><td class="env-var">NOTIFY_INTERVAL_SECONDS</td><td class="env-default">60</td><td class="env-desc">Team mode retries notifications in-process at this interval; <code>0</code> turns it off.</td></tr>
           <tr>
+            <td class="env-var">AI_PROVIDER</td>
+            <td class="env-default">anthropic</td>
+            <td class="env-desc">Draft release notes and design notes using <code>anthropic</code> or <code>openai</code>. Only the selected provider is used.</td>
+          </tr>
+          <tr>
             <td class="env-var">ANTHROPIC_API_KEY</td>
             <td class="env-default">—</td>
-            <td class="env-desc">Enables AI drafting (release notes, design notes). Without it, all AI features are hidden — the app never requires it.</td>
+            <td class="env-desc">Enables AI drafting when Anthropic is selected. Provider keys stay in the server environment, not the database.</td>
+          </tr>
+          <tr>
+            <td class="env-var">OPENAI_API_KEY</td>
+            <td class="env-default">—</td>
+            <td class="env-desc">Enables AI drafting when OpenAI is selected. Also set <code>AI_MODEL</code> to a Responses-compatible model ID available to your account with a 16,000-token output budget.</td>
           </tr>
           <tr>
             <td class="env-var">AI_ENABLED</td>
@@ -224,8 +234,8 @@
           </tr>
           <tr>
             <td class="env-var">AI_MODEL</td>
-            <td class="env-default">claude-opus-5</td>
-            <td class="env-desc">Claude model used for drafting.</td>
+            <td class="env-default">claude-opus-5 (Anthropic)</td>
+            <td class="env-desc">Model ID for the selected provider. Required for OpenAI; no OpenAI model is chosen automatically. Restart the app after changing its environment.</td>
           </tr>
         </tbody>
       </table>
