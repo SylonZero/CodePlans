@@ -1,10 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 import { config } from './config'
 import type { ReleaseDetail } from './db/queries'
 
 // AI drafting (releases-and-asset-history-spec.md, Phase D). Feature-flagged:
-// off unless ANTHROPIC_API_KEY is configured. Drafts are returned to the UI as
-// editable content — never auto-published.
+// off unless the selected provider's API key is configured. Drafts are returned
+// to the UI as editable content — never auto-published.
 
 export function aiEnabled(): boolean {
   return config.ai.enabled
@@ -58,25 +59,57 @@ const DESIGN_NOTE_SYSTEM = `You draft a design-log note recording what a complet
 Respond with a short title on the first line (no heading marker, max 60 characters), then a blank line, then one or two markdown paragraphs on what changed structurally and why it matters for future work on this asset.
 Use only the facts provided — do not speculate about implementation details you weren't given. Under 150 words total.`
 
-function client(): Anthropic {
-  return new Anthropic()
-}
+const MAX_OUTPUT_TOKENS = 16000
 
-async function draft(system: string, prompt: string): Promise<string> {
-  const response = await client().messages.create({
+async function draftAnthropic(system: string, prompt: string): Promise<string> {
+  const response = await new Anthropic().messages.create({
     model: config.ai.model,
-    max_tokens: 16000,
+    max_tokens: MAX_OUTPUT_TOKENS,
     system,
     messages: [{ role: 'user', content: prompt }],
   })
   if (response.stop_reason === 'refusal') {
     throw new Error('The model declined to draft this content.')
   }
-  const text = response.content
+  if (response.stop_reason === 'max_tokens') {
+    throw new Error('The model reached the output token limit before completing the draft.')
+  }
+  return response.content
     .filter((b): b is Anthropic.TextBlock => b.type === 'text')
     .map((b) => b.text)
     .join('')
-    .trim()
+}
+
+async function draftOpenAI(system: string, prompt: string): Promise<string> {
+  if (!config.ai.model) {
+    throw new Error('Set AI_MODEL to an OpenAI model when AI_PROVIDER is "openai".')
+  }
+  const response = await new OpenAI().responses.create({
+    model: config.ai.model,
+    max_output_tokens: MAX_OUTPUT_TOKENS,
+    instructions: system,
+    input: prompt,
+    store: false,
+  })
+  const refused = response.output.some(
+    (item) => item.type === 'message' && item.content.some((block) => block.type === 'refusal'),
+  )
+  if (refused) throw new Error('The model declined to draft this content.')
+  if (response.status === 'incomplete' && response.incomplete_details?.reason === 'max_output_tokens') {
+    throw new Error('The model reached the output token limit before completing the draft.')
+  }
+  if (response.status !== 'completed') {
+    throw new Error('The model did not complete the draft. Please try again.')
+  }
+  return response.output_text
+}
+
+async function draft(system: string, prompt: string): Promise<string> {
+  if (!aiEnabled()) throw new Error('AI drafting is not enabled on this install.')
+  const result = await (config.ai.provider === 'openai'
+    ? draftOpenAI(system, prompt)
+    : draftAnthropic(system, prompt))
+  const text = result.trim()
   if (!text) throw new Error('The model returned an empty draft.')
   return text
 }
