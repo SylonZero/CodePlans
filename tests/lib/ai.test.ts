@@ -117,7 +117,10 @@ describe('AI drafting', () => {
     sdk.openaiCreate.mockResolvedValue(openaiResponse('  Draft notes  '))
   })
 
-  afterEach(() => vi.unstubAllEnvs())
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.restoreAllMocks()
+  })
 
   it('keeps Anthropic as the default and forwards the existing prompt and token limit', async () => {
     vi.stubEnv('AI_PROVIDER', undefined)
@@ -160,11 +163,23 @@ describe('AI drafting', () => {
     expect(await ai.draftReleaseNotes(release)).toBe('First second')
   })
 
-  it('requires an OpenAI model before creating a client', async () => {
+  it.each([undefined, '', '   '])('disables OpenAI drafting without a model (%j) before creating a client', async (model) => {
     vi.stubEnv('AI_PROVIDER', 'openai')
-    vi.stubEnv('AI_MODEL', undefined)
+    vi.stubEnv('AI_MODEL', model)
     const ai = await import('@/lib/ai')
-    await expect(ai.draftReleaseNotes(release)).rejects.toThrow('Set AI_MODEL to an OpenAI model')
+    expect(ai.aiEnabled()).toBe(false)
+    await expect(ai.draftReleaseNotes(release)).rejects.toThrow('AI drafting is not enabled')
+    expect(sdk.anthropicClient).not.toHaveBeenCalled()
+    expect(sdk.openaiClient).not.toHaveBeenCalled()
+  })
+
+  it('does not call either provider when the configured provider is unrecognised', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.stubEnv('AI_PROVIDER', 'unsupported-provider')
+    const ai = await import('@/lib/ai')
+    expect(ai.aiEnabled()).toBe(false)
+    await expect(ai.draftReleaseNotes(release)).rejects.toThrow('AI drafting is not enabled')
+    expect(sdk.anthropicClient).not.toHaveBeenCalled()
     expect(sdk.openaiClient).not.toHaveBeenCalled()
   })
 

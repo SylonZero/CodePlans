@@ -529,7 +529,7 @@ Client component with 4 tabs:
 - `postgres`: `postgres` (postgres.js) + `drizzle-orm/postgres-js`
 
 **Optional features:**
-- **AI drafting** (`lib/ai.ts`, official Anthropic and OpenAI SDKs): `AI_PROVIDER` selects `anthropic` (default) or `openai`. Enabled only when the selected provider's environment key (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY`) is set and `AI_ENABLED` isn't `false`; keys are not stored in the database. Model via `AI_MODEL` (default `claude-opus-5` for Anthropic; required explicitly for OpenAI). OpenAI uses the Responses API with `store: false`. Both providers use the existing prompts and a 16,000-token output limit (including reasoning tokens for OpenAI). Powers "Draft release notes" and "Draft design note from plan" — drafts always land in an editor, never auto-published; refusals, empty drafts and incomplete output surface as errors.
+- **AI drafting** (`lib/ai.ts`, official Anthropic and OpenAI SDKs): `AI_PROVIDER` selects `anthropic` (default) or `openai`; values are trimmed and case-insensitive, and unknown values log a warning and disable drafting without stopping the app. Enabled only when the selected provider's environment key (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY`) and a non-empty model are configured and `AI_ENABLED` isn't `false`; keys are not stored in the database. Model via `AI_MODEL` (default `claude-opus-5` for Anthropic; required explicitly for OpenAI). OpenAI uses the Responses API with `store: false`. Both providers use the existing prompts and a 16,000-token output limit (including reasoning tokens for OpenAI). Powers "Draft release notes" and "Draft design note from plan" — drafts always land in an editor, never auto-published; refusals, empty drafts and incomplete output surface as errors.
 
 ---
 

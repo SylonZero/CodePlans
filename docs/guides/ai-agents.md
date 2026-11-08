@@ -194,10 +194,12 @@ app after changing its environment. Keys stay in the server environment and
 are not copied into the database. They are separate from the CodePlans MCP
 keys created in Settings.
 
-Only the selected provider is used, even if both keys exist. Without its key,
-drafting controls are hidden. OpenAI also requires an explicit `AI_MODEL`;
-attempting to draft without one displays a configuration error. Unsupported
-`AI_PROVIDER` values produce a configuration error when the app starts.
+Only the selected provider is used, even if both keys exist. Drafting controls
+are hidden until its key and model are configured. Anthropic has a default
+model; OpenAI requires an explicit, non-empty `AI_MODEL`. Provider values are
+trimmed and case-insensitive, so `AI_PROVIDER=OpenAI` is accepted. An unknown
+provider logs a warning and disables AI drafting while the rest of the app
+continues to work.
 
 Both providers receive the same prompts and a 16,000-token output limit.
 For OpenAI this budget includes reasoning tokens as well as visible text.

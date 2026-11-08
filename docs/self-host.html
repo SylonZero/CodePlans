@@ -215,7 +215,7 @@
           <tr>
             <td class="env-var">AI_PROVIDER</td>
             <td class="env-default">anthropic</td>
-            <td class="env-desc">Draft release notes and design notes using <code>anthropic</code> or <code>openai</code>. Only the selected provider is used.</td>
+            <td class="env-desc">Draft release notes and design notes using <code>anthropic</code> or <code>openai</code>. Values are trimmed and case-insensitive. Unknown values log a warning and disable AI drafting; the rest of the app stays available.</td>
           </tr>
           <tr>
             <td class="env-var">ANTHROPIC_API_KEY</td>
@@ -235,7 +235,7 @@
           <tr>
             <td class="env-var">AI_MODEL</td>
             <td class="env-default">claude-opus-5 (Anthropic)</td>
-            <td class="env-desc">Model ID for the selected provider. Required for OpenAI; no OpenAI model is chosen automatically. Restart the app after changing its environment.</td>
+            <td class="env-desc">Model ID for the selected provider. Required for OpenAI; drafting controls are hidden until its key and a non-empty model are configured. Restart the app after changing its environment.</td>
           </tr>
         </tbody>
       </table>
