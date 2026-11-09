@@ -168,14 +168,46 @@ connects the MCP server. See [Agent Skills](agent-skills.md).
 
 ## AI drafting
 
-Separately from MCP, the app itself can draft content with Claude — off by
-default and enabled only when a key is configured:
+Separately from MCP, the app itself can draft content with Anthropic or OpenAI.
+Drafting is off until the selected provider's API key is configured:
 
 | Variable | Default | Effect |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | — | Enables AI drafting; without it every AI feature is hidden |
+| `AI_PROVIDER` | `anthropic` | Select `anthropic` or `openai`; existing Anthropic installations need no changes |
+| `ANTHROPIC_API_KEY` | — | Enables drafting when Anthropic is selected |
+| `OPENAI_API_KEY` | — | Enables drafting when OpenAI is selected |
 | `AI_ENABLED` | `true` | Set `false` to force drafting off even with a key |
-| `AI_MODEL` | `claude-opus-5` | Claude model used for drafting |
+| `AI_MODEL` | `claude-opus-5` for Anthropic; required for OpenAI | Model ID for the selected provider |
+
+For Anthropic, set `ANTHROPIC_API_KEY`; optionally override `AI_MODEL`.
+For OpenAI, set these variables in `.env.local` or your hosting environment:
+
+```dotenv
+AI_PROVIDER=openai
+OPENAI_API_KEY=your-openai-api-key
+AI_MODEL=your-openai-model
+```
+
+Replace the placeholders with your key and a model ID available to your account
+that supports the Responses API and a 16,000-token output budget. Restart the
+app after changing its environment. Keys stay in the server environment and
+are not copied into the database. They are separate from the CodePlans MCP
+keys created in Settings.
+
+Only the selected provider is used, even if both keys exist. Drafting controls
+are hidden until its key and model are configured. Anthropic has a default
+model; OpenAI requires an explicit, non-empty `AI_MODEL`. Provider values are
+trimmed and case-insensitive, so `AI_PROVIDER=OpenAI` is accepted. An unknown
+provider logs a warning and disables AI drafting while the rest of the app
+continues to work.
+
+Both providers receive the same prompts and a 16,000-token output limit.
+For OpenAI this budget includes reasoning tokens as well as visible text.
+OpenAI requests use `store: false`, so responses are not stored for later API
+retrieval; this does not change the provider's other data retention policies.
+Release notes are requested under 300 words and design notes under 150 words;
+these are prompt instructions, not enforced word counts. Refusals, empty
+drafts and incomplete output are shown as errors.
 
 Two actions exist today: **Draft release notes** (from a release's derived
 rollup) and **Draft design note from plan** (in the design-note panel).
