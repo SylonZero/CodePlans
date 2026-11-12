@@ -51,6 +51,7 @@ export const {
   apiKeys,
   emailVerificationTokens,
   passwordResetTokens,
+  endedSessions,
   // pg enums — undefined in SQLite mode (not used in app code, only in schema definitions)
   userRoleEnum,
   billingTierEnum,

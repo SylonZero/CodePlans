@@ -9,7 +9,7 @@ import { db as _db } from '@/lib/db'
 import { users } from '@/lib/db/schema'
 import type { AuthAdapter } from './types'
 import { getEnterpriseHooks } from '@/lib/ee/registry'
-import { bumpSessionVersion, currentSessionVersion, sessionUserId } from './session-version'
+import { bumpSessionVersion, currentSessionVersion, endSession, sessionUserId } from './session-version'
 
 // Local auth runs on either database (users comes from the schema barrel, so it
 // matches the active driver). Cast db to any to avoid pg/sqlite type conflicts.
@@ -51,11 +51,20 @@ export const {
   ],
   session: { strategy: 'jwt' },
   pages: { signIn: '/login' },
+  events: {
+    // Deleting the cookie isn't enough: a copy of the token (another tab, a
+    // browser that restores cookies after a restart) would still sign in.
+    async signOut(message) {
+      if ('token' in message && message.token) await endSession(message.token)
+    },
+  },
   callbacks: {
     async jwt({ token, user, trigger }) {
       if (user?.id) {
         token.id = user.id
         token.sv = (user as { sessionVersion?: number }).sessionVersion ?? 0
+        // This session's own id, so signing out can end it alone.
+        token.sid = crypto.randomUUID()
         // Where the session was issued (null in the community edition); a
         // session read anywhere else carries no user. See sessionScope in
         // lib/ee/types.ts.

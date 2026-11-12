@@ -544,6 +544,15 @@ export const passwordResetTokens = pgTable('password_reset_tokens', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+// Sessions ended by signing out. Sessions are stateless tokens, so a token
+// whose id is listed here is refused until it would have expired anyway; rows
+// past expires_at can be deleted.
+export const endedSessions = pgTable('ended_sessions', {
+  id: text('id').primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+})
+
 // Native, product-owned specifications. Bodies are canonical GFM from TipTap.
 export const specs = pgTable('specs', {
   // Explicit attribution; null means the actor was not recorded (never infer from owner).

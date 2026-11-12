@@ -545,6 +545,15 @@ export const passwordResetTokens = sqliteTable('password_reset_tokens', {
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 })
 
+// Sessions ended by signing out. Sessions are stateless tokens, so a token
+// whose id is listed here is refused until it would have expired anyway; rows
+// past expires_at can be deleted.
+export const endedSessions = sqliteTable('ended_sessions', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+})
+
 // Native, product-owned specifications. Bodies are canonical GFM from TipTap.
 export const specs = sqliteTable('specs', {
   // Explicit attribution; null means the actor was not recorded (never infer from owner).
