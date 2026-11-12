@@ -3,8 +3,8 @@ import bcrypt from 'bcryptjs'
 import { eq } from 'drizzle-orm'
 import { runMigrations, seedFixtures, clearTables, F } from '@/tests/helpers/db'
 import { db } from '@/lib/db'
-import { emailVerificationTokens, passwordResetTokens, users } from '@/lib/db/schema'
-import { sessionUserId, bumpSessionVersion } from '@/lib/auth/session-version'
+import { emailVerificationTokens, endedSessions, passwordResetTokens, users } from '@/lib/db/schema'
+import { sessionUserId, bumpSessionVersion, endSession } from '@/lib/auth/session-version'
 import { findInvite } from '@/lib/auth/invites'
 import { requestPasswordReset, resetPassword, resetPasswordResetThrottle } from '@/lib/auth/password-reset'
 import { registerEnterpriseHooks, resetEnterpriseHooks } from '@/lib/ee/registry'
@@ -20,6 +20,7 @@ afterEach(async () => {
   vi.unstubAllEnvs()
   vi.unstubAllGlobals()
   await d.delete(passwordResetTokens)
+  await d.delete(endedSessions)
   await d.delete(emailVerificationTokens)
   await clearTables()
 })
@@ -44,6 +45,30 @@ describe('sessions', () => {
     registerEnterpriseHooks({ sessionScope: () => 'workspace-a' })
     expect(await sessionUserId({ id: F.alice, sv: 0, scope: 'workspace-b' })).toBeNull()
     expect(await sessionUserId({ id: F.alice, sv: 0, scope: 'workspace-a' })).toBe(F.alice)
+  })
+
+  it('end on sign-out for that session only, copies of its token included', async () => {
+    const exp = Math.floor(Date.now() / 1000) + 3600
+    await endSession({ id: F.alice, sv: 0, sid: 'laptop', exp })
+    expect(await sessionUserId({ id: F.alice, sv: 0, sid: 'laptop', exp })).toBeNull()
+    expect(await sessionUserId({ id: F.alice, sv: 0, sid: 'phone', exp })).toBe(F.alice)
+    expect(await version(F.alice)).toBe(0)
+    // Signing out twice (two tabs) is fine.
+    await endSession({ id: F.alice, sv: 0, sid: 'laptop', exp })
+  })
+
+  it('end everywhere on sign-out of a token issued before sessions had ids', async () => {
+    await endSession({ id: F.alice, sv: 0 })
+    expect(await sessionUserId({ id: F.alice, sv: 0 })).toBeNull()
+    expect(await sessionUserId({ id: F.alice, sv: 0, sid: 'phone' })).toBeNull()
+    expect(await sessionUserId({ id: F.alice, sv: 1, sid: 'new' })).toBe(F.alice)
+  })
+
+  it('forget signed-out sessions once they would have expired', async () => {
+    const past = Math.floor(Date.now() / 1000) - 60
+    await endSession({ id: F.alice, sv: 0, sid: 'old', exp: past })
+    await endSession({ id: F.bob, sv: 0, sid: 'recent', exp: past + 7200 })
+    expect((await d.select().from(endedSessions)).map((r: { id: string }) => r.id)).toEqual(['recent'])
   })
 
   it('end when a reset link sets a new password', async () => {

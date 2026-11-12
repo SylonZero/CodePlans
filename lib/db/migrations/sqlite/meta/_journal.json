@@ -253,6 +253,13 @@
       "when": 1793594205329,
       "tag": "0035_product_access_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1794465461591,
+      "tag": "0036_ended_sessions",
+      "breakpoints": true
     }
   ]
 }
