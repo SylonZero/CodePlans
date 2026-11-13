@@ -366,6 +366,12 @@ export function AssetReader({
         ) : (
           <p className="wiki-meta">No dependencies recorded.</p>
         )}
+        <Link
+          className="wiki-map-link"
+          href={wikiHref(slug, { view: 'map', focus: assetId })}
+        >
+          View on architecture map →
+        </Link>
       </aside>
     </div>
   )

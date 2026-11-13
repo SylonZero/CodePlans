@@ -51,6 +51,7 @@ CodePlans sits between your issue tracker and your architecture diagram:
 from the product architecture to a service's specs, design decisions, active
 plans, known issues, and delivery history.
 
+- **See the architecture:** an interactive map of assets and dependencies across products — trace what an asset relies on and what relies on it, then click through to its documents.
 - **Find the detail:** search document bodies and technical identifiers, then narrow by asset, type, status, area, or date.
 - **Read comfortably:** full Markdown documents with tables, code, task lists, section links, and related content alongside.
 - **Follow the evidence:** see authors, edit times, spec revisions, and capability receipts without confusing planned work with shipped versions.
